@@ -1,0 +1,5 @@
+module CGGML {
+    umbrella header "ggml.h"
+    export *
+    module * { export * }
+}
