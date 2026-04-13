@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & Test (macOS)
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Build (debug)
+        run: swift build -c debug 2>&1
+
+      - name: Run tests
+        run: swift test --filter WhisKeyCoreTests 2>&1
+
+  lint:
+    name: Swift lint check
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for obvious issues
+        # SwiftLint is not required for MVP — this is a lightweight guard.
+        # Replace with `swiftlint` when the project matures.
+        run: |
+          echo "Checking for TODO/FIXME density..."
+          TODO_COUNT=$(grep -rn "TODO\|FIXME" Sources/ --include="*.swift" | wc -l | tr -d ' ')
+          echo "Found $TODO_COUNT TODO/FIXME markers in Sources/"
+          # Warn (don't fail) if density is high
+          if [ "$TODO_COUNT" -gt 50 ]; then
+            echo "::warning::High TODO/FIXME count ($TODO_COUNT). Consider triaging before merge."
+          fi
+          echo "Lint check passed."
