@@ -49,6 +49,16 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     /// BCP-47 language hint passed to Whisper. nil = auto-detect.
     public var languageHint: String? = nil
 
+    /// LLM post-processing backend. Defaults to LlamaCppProvider; falls back to
+    /// PassthroughProvider at runtime when the GGUF model file is absent.
+    public var llmProvider: any LLMProvider = LlamaCppProvider()
+
+    /// Cleanup profile applied to every transcription.
+    public var cleanupProfile: CleanupProfile = CleanupProfile()
+
+    /// Context service used to read the frontmost application before injection.
+    private let contextService = ContextService()
+
     // MARK: - State
 
     private var isRecording = false
@@ -132,8 +142,38 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             return result
         }
 
+        // Read the frontmost application context and resolve tone style.
+        let injectionContext = await MainActor.run { contextService.currentContext() }
+        var profile = cleanupProfile
+        // If the profile has not been manually configured with a non-default tone,
+        // auto-select tone from the active app's bundle ID.
+        if profile.toneStyle == .casual && !profile.rawMode {
+            profile = CleanupProfile(
+                removeFillers: profile.removeFillers,
+                addPunctuation: profile.addPunctuation,
+                toneStyle: contextService.suggestedToneStyle(for: injectionContext.activeAppBundleID),
+                rawMode: profile.rawMode
+            )
+        }
+
+        // LLM cleanup step — never blocks injection on failure.
+        let textToInject: String
+        do {
+            textToInject = try await llmProvider.cleanup(
+                rawTranscript: result.text,
+                context: injectionContext,
+                profile: profile
+            )
+            if textToInject != result.text {
+                logger.info("LLM cleanup applied. Original: \"\(result.text)\" → Cleaned: \"\(textToInject)\"")
+            }
+        } catch {
+            logger.error("LLM cleanup threw an error: \(error.localizedDescription) — injecting raw transcript.")
+            textToInject = result.text
+        }
+
         // Inject text into focused window.
-        await injector.inject(result.text)
+        await injector.inject(textToInject)
 
         await MainActor.run { onTranscriptionReady?(result) }
 
