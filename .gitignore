@@ -1,0 +1,35 @@
+# Xcode
+.DS_Store
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcworkspace/xcshareddata/
+DerivedData/
+.build/
+*.o
+*.d
+
+# SPM
+.swiftpm/
+build/
+
+# Models (large binaries — download via script)
+Resources/Models/*.bin
+Resources/Models/*.gguf
+Resources/Models/*.mlmodelc/
+
+# Secrets
+.env
+*.pem
+*.key
+
+# macOS
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# JetBrains / VS Code
+.idea/
+.vscode/
+*.swp
