@@ -46,8 +46,8 @@ import Testing
 
     @Test func multipleLogsWithoutCrashing() {
         let logger = FileLogger()
-        for i in 1...5 {
-            logger.log(.info, "message \(i)")
+        for index in 1...5 {
+            logger.log(.info, "message \(index)")
         }
     }
 

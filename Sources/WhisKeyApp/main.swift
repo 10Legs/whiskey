@@ -1,6 +1,6 @@
 import AppKit
-import WhisKeyCore
 import os.log
+import WhisKeyCore
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "AppDelegate")
 

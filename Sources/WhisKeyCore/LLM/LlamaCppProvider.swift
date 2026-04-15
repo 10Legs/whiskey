@@ -1,5 +1,5 @@
-import Foundation
 import CLlama
+import Foundation
 import os.log
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "LlamaCppProvider")
@@ -43,8 +43,8 @@ public actor LlamaCppProvider: LLMProvider {
     }
 
     deinit {
-        if let c = ctx {
-            llama_bridge_free(c)
+        if let context = ctx {
+            llama_bridge_free(context)
         }
     }
 
@@ -113,6 +113,7 @@ public actor LlamaCppProvider: LLMProvider {
     }
 
     private var modelsDirectory: URL {
+        // swiftlint:disable:next force_unwrapping
         let appSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first!

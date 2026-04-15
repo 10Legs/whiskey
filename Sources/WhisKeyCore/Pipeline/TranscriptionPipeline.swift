@@ -47,7 +47,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     // MARK: - Configuration
 
     /// BCP-47 language hint passed to Whisper. nil = auto-detect.
-    public var languageHint: String? = nil
+    public var languageHint: String?
 
     /// LLM post-processing backend. Defaults to LlamaCppProvider; falls back to
     /// PassthroughProvider at runtime when the GGUF model file is absent.

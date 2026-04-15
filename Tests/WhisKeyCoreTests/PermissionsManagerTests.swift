@@ -46,7 +46,7 @@ import Testing
     @Test func allGrantedReturnsBool() {
         let manager = PermissionsManager()
         // Smoke test — exact value depends on system state
-        let _ = manager.allGranted()
+        _ = manager.allGranted()
     }
 
     // MARK: - Initialization

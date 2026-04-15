@@ -22,6 +22,7 @@ public struct OllamaProvider: LLMProvider {
 
     public init(
         modelName: String = "llama3.2",
+        // swiftlint:disable:next force_unwrapping
         baseURL: URL = URL(string: "http://localhost:11434")!
     ) {
         self.modelName = modelName
@@ -47,7 +48,7 @@ public struct OllamaProvider: LLMProvider {
             "model": modelName,
             "system": profile.toneStyle.systemPrompt,
             "prompt": prompt,
-            "stream": false,
+            "stream": false
         ]
 
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else {

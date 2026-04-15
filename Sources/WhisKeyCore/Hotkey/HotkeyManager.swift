@@ -1,5 +1,5 @@
-import Carbon
 import AppKit
+import Carbon
 
 /// Monitors global hotkey events via CGEventTap.
 ///

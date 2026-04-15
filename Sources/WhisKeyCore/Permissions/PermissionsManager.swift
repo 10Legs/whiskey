@@ -1,6 +1,6 @@
-import AVFoundation
 import AppKit
 import ApplicationServices
+import AVFoundation
 
 /// The set of system permissions WhisKey requires.
 public enum PermissionType: String, CaseIterable, Sendable {
@@ -60,12 +60,14 @@ public final class PermissionsManager: Sendable {
     /// Open System Settings to the Accessibility pane.
     /// Users must grant this manually.
     public func openAccessibilitySettings() {
+        // swiftlint:disable:next force_unwrapping
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
         NSWorkspace.shared.open(url)
     }
 
     /// Open System Settings to the Input Monitoring pane.
     public func openInputMonitoringSettings() {
+        // swiftlint:disable:next force_unwrapping
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
         NSWorkspace.shared.open(url)
     }

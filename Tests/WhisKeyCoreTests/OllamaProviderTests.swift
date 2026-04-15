@@ -17,7 +17,8 @@ import Testing
     @Test func fallsBackToRawTranscriptOnConnectionFailure() async throws {
         let provider = OllamaProvider(
             modelName: "llama3.2",
-            baseURL: URL(string: "http://127.0.0.1:19999")!
+            baseURL: // swiftlint:disable:next force_unwrapping
+            URL(string: "http://127.0.0.1:19999")!
         )
         let input = "uh so basically I wanted to say hello"
         let result = try await provider.cleanup(
@@ -45,7 +46,8 @@ import Testing
 
     @Test func literalToneSkipsLLMCall() async throws {
         let provider = OllamaProvider(
-            baseURL: URL(string: "http://127.0.0.1:19999")!
+            baseURL: // swiftlint:disable:next force_unwrapping
+            URL(string: "http://127.0.0.1:19999")!
         )
         let input = "no cleanup please"
         let profile = CleanupProfile(toneStyle: .literal)

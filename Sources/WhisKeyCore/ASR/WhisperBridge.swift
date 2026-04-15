@@ -1,5 +1,5 @@
-import Foundation
 import CWhisper
+import Foundation
 
 /// Errors thrown by the WhisperBridge actor.
 public enum WhisperError: Error, LocalizedError {
@@ -65,6 +65,7 @@ public actor WhisperBridge {
         if let dir = modelDirectoryURL {
             self.modelDirectoryURL = dir
         } else {
+            // swiftlint:disable:next force_unwrapping
             let appSupport = FileManager.default
                 .urls(for: .applicationSupportDirectory, in: .userDomainMask)
                 .first!

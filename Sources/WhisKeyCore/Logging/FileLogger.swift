@@ -11,6 +11,7 @@ public final class FileLogger: @unchecked Sendable {
     private let formatter: DateFormatter
 
     public init() {
+        // swiftlint:disable:next force_unwrapping
         let logsDir = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)
             .first!
