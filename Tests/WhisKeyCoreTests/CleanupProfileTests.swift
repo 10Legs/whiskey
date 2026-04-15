@@ -1,45 +1,44 @@
-import XCTest
+import Testing
 @testable import WhisKeyCore
 
-final class CleanupProfileTests: XCTestCase {
+@Suite struct CleanupProfileTests {
 
     // MARK: - ToneStyle.systemPrompt
 
-    func testCasualSystemPromptIsNonEmpty() {
-        XCTAssertFalse(ToneStyle.casual.systemPrompt.isEmpty)
+    @Test func casualSystemPromptIsNonEmpty() {
+        #expect(!ToneStyle.casual.systemPrompt.isEmpty)
     }
 
-    func testProfessionalSystemPromptIsNonEmpty() {
-        XCTAssertFalse(ToneStyle.professional.systemPrompt.isEmpty)
+    @Test func professionalSystemPromptIsNonEmpty() {
+        #expect(!ToneStyle.professional.systemPrompt.isEmpty)
     }
 
-    func testTechnicalSystemPromptIsNonEmpty() {
-        XCTAssertFalse(ToneStyle.technical.systemPrompt.isEmpty)
+    @Test func technicalSystemPromptIsNonEmpty() {
+        #expect(!ToneStyle.technical.systemPrompt.isEmpty)
     }
 
-    func testLiteralSystemPromptIsEmpty() {
-        // .literal means "no cleanup" — the prompt intentionally carries no instruction.
-        XCTAssertTrue(ToneStyle.literal.systemPrompt.isEmpty)
+    @Test func literalSystemPromptIsEmpty() {
+        #expect(ToneStyle.literal.systemPrompt.isEmpty)
     }
 
-    func testAllCasesHaveDefinedSystemPrompts() {
+    @Test func allCasesHaveDefinedSystemPrompts() {
         for style in ToneStyle.allCases where style != .literal {
-            XCTAssertFalse(style.systemPrompt.isEmpty, "\(style) should have a non-empty system prompt")
+            #expect(!style.systemPrompt.isEmpty, "\(style) should have a non-empty system prompt")
         }
     }
 
     // MARK: - CleanupProfile defaults
 
-    func testDefaultProfileHasCleanupEnabled() {
+    @Test func defaultProfileHasCleanupEnabled() {
         let profile = CleanupProfile()
-        XCTAssertTrue(profile.removeFillers)
-        XCTAssertTrue(profile.addPunctuation)
-        XCTAssertFalse(profile.rawMode)
-        XCTAssertEqual(profile.toneStyle, .casual)
+        #expect(profile.removeFillers)
+        #expect(profile.addPunctuation)
+        #expect(!profile.rawMode)
+        #expect(profile.toneStyle == .casual)
     }
 
-    func testPassthroughProfileHasRawModeEnabled() {
+    @Test func passthroughProfileHasRawModeEnabled() {
         let profile = CleanupProfile.passthrough
-        XCTAssertTrue(profile.rawMode)
+        #expect(profile.rawMode)
     }
 }

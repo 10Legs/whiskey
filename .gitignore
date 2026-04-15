@@ -23,6 +23,9 @@ Resources/Models/*.mlmodelc/
 *.pem
 *.key
 
+# App bundle (built artifact — use Scripts/bundle-app.sh)
+WhisKey.app/
+
 # macOS
 .Spotlight-V100
 .Trashes

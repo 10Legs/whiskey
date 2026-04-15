@@ -1,36 +1,37 @@
-import XCTest
+import Foundation
+import Testing
 @testable import WhisKeyCore
 
-final class PipelineErrorTests: XCTestCase {
+@Suite struct PipelineErrorTests {
 
-    func testAlreadyRecordingDescription() {
+    @Test func alreadyRecordingDescription() {
         let error = PipelineError.alreadyRecording
-        XCTAssertEqual(error.errorDescription, "Recording is already in progress.")
+        #expect(error.errorDescription == "Recording is already in progress.")
     }
 
-    func testNotRecordingDescription() {
+    @Test func notRecordingDescription() {
         let error = PipelineError.notRecording
-        XCTAssertEqual(error.errorDescription, "No recording session is active.")
+        #expect(error.errorDescription == "No recording session is active.")
     }
 
-    func testInjectionSkippedIncludesReason() {
+    @Test func injectionSkippedIncludesReason() {
         let error = PipelineError.injectionSkipped("empty text")
-        XCTAssertTrue(error.errorDescription?.contains("empty text") == true)
+        #expect(error.errorDescription?.contains("empty text") == true)
     }
 
-    func testCaptureErrorWrapsUnderlying() {
+    @Test func captureErrorWrapsUnderlying() {
         struct FakeError: LocalizedError {
             var errorDescription: String? { "device unavailable" }
         }
         let error = PipelineError.captureError(FakeError())
-        XCTAssertTrue(error.errorDescription?.contains("device unavailable") == true)
+        #expect(error.errorDescription?.contains("device unavailable") == true)
     }
 
-    func testTranscriptionErrorWrapsUnderlying() {
+    @Test func transcriptionErrorWrapsUnderlying() {
         struct FakeError: LocalizedError {
             var errorDescription: String? { "model not found" }
         }
         let error = PipelineError.transcriptionError(FakeError())
-        XCTAssertTrue(error.errorDescription?.contains("model not found") == true)
+        #expect(error.errorDescription?.contains("model not found") == true)
     }
 }

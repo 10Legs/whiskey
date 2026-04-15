@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let pipeline = TranscriptionPipeline()
     private let hotkey = HotkeyManager()
     private let permissions = PermissionsManager()
+    private var transcriptionTask: Task<Void, Never>?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // hide from Dock
@@ -38,17 +39,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Permissions + Pipeline
 
     private func checkPermissionsAndStart() {
+        let flog = FileLogger.shared
         let statuses = permissions.statuses()
         var missing: [String] = []
+
+        for (type, status) in statuses {
+            flog.log(.info, "Permission \(type.rawValue): \(status)")
+        }
 
         for (type, status) in statuses where status != .granted {
             switch status {
             case .notDetermined:
                 if type == .microphone {
+                    flog.log(.warn, "Microphone not determined — requesting...")
                     permissions.requestMicrophone { [weak self] granted in
                         if !granted {
+                            flog.log(.error, "Microphone permission denied.")
                             logger.warning("Microphone permission denied by user.")
                         } else {
+                            flog.log(.info, "Microphone granted.")
                             self?.startHotkey()
                         }
                     }
@@ -60,37 +69,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if !missing.isEmpty {
+            flog.log(.warn, "Missing permissions: \(missing.joined(separator: ", "))")
             logger.warning("Missing permissions: \(missing.joined(separator: ", ")). App may not work correctly.")
-            // Still start — user can grant via System Settings and relaunch.
         }
 
         startHotkey()
     }
 
     private func startHotkey() {
+        let flog = FileLogger.shared
+        flog.log(.info, "WhisKey started. Log: \(flog.logFilePath)")
+
         // Wire pipeline callbacks.
         pipeline.onTranscriptionReady = { result in
             logger.info("Transcription ready: \"\(result.text)\"")
+            flog.log(.info, "Transcription: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]")
         }
         pipeline.onError = { error in
             logger.error("Pipeline error: \(error.localizedDescription)")
+            flog.log(.error, error.localizedDescription)
         }
 
         // Wire hotkey to pipeline.
         hotkey.onStartRecording = { [weak self] in
+            flog.log(.info, "Hotkey down — recording started.")
             self?.pipeline.startRecording()
         }
         hotkey.onStopRecording = { [weak self] in
-            Task {
-                await self?.pipeline.stopAndTranscribe()
+            guard let self else { return }
+            flog.log(.info, "Hotkey up — running transcription.")
+            self.transcriptionTask?.cancel()
+            self.transcriptionTask = Task {
+                await self.pipeline.stopAndTranscribe()
             }
         }
         hotkey.mode = .pushToTalk
 
         let started = hotkey.start()
         if started {
+            flog.log(.info, "HotkeyManager started. Hold Right Option to record.")
             logger.info("HotkeyManager started. Hold Right Option to record.")
         } else {
+            flog.log(.error, "HotkeyManager failed to start — Input Monitoring permission required.")
             logger.error("Failed to start HotkeyManager — Input Monitoring permission required.")
         }
     }

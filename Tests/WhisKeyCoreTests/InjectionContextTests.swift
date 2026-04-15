@@ -1,25 +1,25 @@
-import XCTest
+import Testing
 @testable import WhisKeyCore
 
-final class InjectionContextTests: XCTestCase {
+@Suite struct InjectionContextTests {
 
-    func testInitStoresBundleID() {
+    @Test func initStoresBundleID() {
         let ctx = InjectionContext(
             activeAppName: "Safari",
             activeAppBundleID: "com.apple.Safari",
             focusedFieldContent: nil
         )
-        XCTAssertEqual(ctx.activeAppName, "Safari")
-        XCTAssertEqual(ctx.activeAppBundleID, "com.apple.Safari")
-        XCTAssertNil(ctx.focusedFieldContent)
+        #expect(ctx.activeAppName == "Safari")
+        #expect(ctx.activeAppBundleID == "com.apple.Safari")
+        #expect(ctx.focusedFieldContent == nil)
     }
 
-    func testFocusedFieldContentRoundTrips() {
+    @Test func focusedFieldContentRoundTrips() {
         let ctx = InjectionContext(
             activeAppName: "Notion",
             activeAppBundleID: "notion.id",
             focusedFieldContent: "existing text"
         )
-        XCTAssertEqual(ctx.focusedFieldContent, "existing text")
+        #expect(ctx.focusedFieldContent == "existing text")
     }
 }

@@ -129,14 +129,32 @@ let package = Package(
         .executableTarget(
             name: "WhisKeyApp",
             dependencies: ["WhisKeyCore"],
-            path: "Sources/WhisKeyApp"
+            path: "Sources/WhisKeyApp",
+            exclude: ["Info.plist"]
         ),
 
         // MARK: - Tests
         .testTarget(
             name: "WhisKeyCoreTests",
             dependencies: ["WhisKeyCore"],
-            path: "Tests/WhisKeyCoreTests"
+            path: "Tests/WhisKeyCoreTests",
+            // Testing.framework lives under the Developer frameworks directory.
+            // Xcode runners expose it automatically; CLT requires an explicit search path.
+            swiftSettings: [
+                .unsafeFlags([
+                    "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+                ], .when(platforms: [.macOS])),
+            ],
+            linkerSettings: [
+                .linkedFramework("Testing"),
+                .unsafeFlags([
+                    "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/usr/lib",
+                ], .when(platforms: [.macOS])),
+            ]
         ),
     ],
     swiftLanguageVersions: [.v5],

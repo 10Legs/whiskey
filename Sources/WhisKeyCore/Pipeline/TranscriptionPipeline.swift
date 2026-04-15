@@ -118,18 +118,24 @@ public final class TranscriptionPipeline: @unchecked Sendable {
 
         isRecording = false
         let pcmSamples = audioCapture.stopCapture()
+        let flog = FileLogger.shared
+        flog.log(.info, "Recording stopped. Captured \(pcmSamples.count) samples.")
         logger.info("Recording stopped. Captured \(pcmSamples.count) samples.")
 
         guard !pcmSamples.isEmpty else {
+            flog.log(.warn, "No audio samples captured — check Microphone permission.")
             logger.warning("No audio samples captured; skipping transcription.")
             return nil
         }
 
         // Run transcription.
+        flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
         let result: TranscriptionResult
         do {
             result = try await whisper.transcribe(pcm: pcmSamples, languageHint: languageHint)
+            flog.log(.info, "Whisper returned: \"\(result.text)\"")
         } catch {
+            flog.log(.error, "Whisper error: \(error.localizedDescription)")
             logger.error("Transcription error: \(error.localizedDescription)")
             await MainActor.run { onError?(PipelineError.transcriptionError(error)) }
             return nil

@@ -1,10 +1,9 @@
-import XCTest
+import Testing
 @testable import WhisKeyCore
 
-final class TextInjectorTests: XCTestCase {
-    // Placeholder — full tests require Accessibility permission at runtime
-    func testInjectorInitializes() {
-        let injector = TextInjector()
-        XCTAssertNotNil(injector)
+@Suite struct TextInjectorTests {
+    // Full tests require Accessibility permission at runtime
+    @Test func injectorInitializes() {
+        _ = TextInjector() // Verify initialization doesn't crash
     }
 }
