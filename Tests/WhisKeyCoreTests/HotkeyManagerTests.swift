@@ -90,9 +90,9 @@ import Testing
 
     // MARK: - Lifecycle
 
-    @Test func startReturnsFalseWithoutInputMonitoring() {
+    @Test(.disabled("Depends on system Input Monitoring state — CGEventTap succeeds when permission is granted"))
+    func startReturnsFalseWithoutInputMonitoring() {
         let manager = HotkeyManager()
-        // Event tap creation fails without Input Monitoring permission in test env
         #expect(!manager.start())
     }
 
