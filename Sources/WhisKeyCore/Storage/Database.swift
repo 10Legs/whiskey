@@ -53,14 +53,14 @@ public final class AppDatabase: Sendable {
 
         migrator.registerMigration("v1-create-tables") { db in
             // history table
-            try db.create(table: "history") { t in
-                t.column("id", .text).primaryKey()
-                t.column("text", .text).notNull()
-                t.column("rawText", .text)
-                t.column("language", .text).notNull()
-                t.column("durationMs", .integer).notNull()
-                t.column("timestamp", .double).notNull()
-                t.column("appBundleID", .text)
+            try db.create(table: "history") { table in
+                table.column("id", .text).primaryKey()
+                table.column("text", .text).notNull()
+                table.column("rawText", .text)
+                table.column("language", .text).notNull()
+                table.column("durationMs", .integer).notNull()
+                table.column("timestamp", .double).notNull()
+                table.column("appBundleID", .text)
             }
             try db.create(
                 index: "idx_history_timestamp",
@@ -69,9 +69,9 @@ public final class AppDatabase: Sendable {
             )
 
             // settings key-value table
-            try db.create(table: "settings") { t in
-                t.column("key", .text).primaryKey()
-                t.column("value", .text).notNull()
+            try db.create(table: "settings") { table in
+                table.column("key", .text).primaryKey()
+                table.column("value", .text).notNull()
             }
         }
 
@@ -85,7 +85,7 @@ public final class AppDatabase: Sendable {
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
-        ).first!
+        ).first! // swiftlint:disable:this force_unwrapping
         let dir = appSupport.appendingPathComponent("WhisKey", isDirectory: true)
         return dir.appendingPathComponent("whiskey.sqlite").path
     }

@@ -184,21 +184,17 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         // Inject text into focused window.
         await injector.inject(textToInject)
 
-        // Persist to history.
-        let entry = HistoryEntry.from(
-            result: result,
-            cleanedText: textToInject,
-            appBundleID: injectionContext.activeAppBundleID
-        )
+        await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
+        return result
+    }
+
+    private func persistAndNotify(result: TranscriptionResult, textToInject: String, bundleID: String) async {
+        let entry = HistoryEntry.from(result: result, cleanedText: textToInject, appBundleID: bundleID)
         do {
             try await historyStore.insert(entry)
         } catch {
             logger.error("Failed to persist history entry: \(error.localizedDescription)")
-            // Non-fatal — transcription was already injected successfully.
         }
-
         await MainActor.run { onTranscriptionReady?(result) }
-
-        return result
     }
 }

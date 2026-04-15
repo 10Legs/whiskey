@@ -102,7 +102,7 @@ private struct TranscriptionTab: View {
         ("Portuguese", "pt"),
         ("Japanese", "ja"),
         ("Chinese", "zh"),
-        ("Korean", "ko"),
+        ("Korean", "ko")
     ]
 
     var body: some View {
