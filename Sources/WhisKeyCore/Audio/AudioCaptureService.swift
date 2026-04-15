@@ -52,12 +52,14 @@ public final class AudioCaptureService: @unchecked Sendable {
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
-        let whisperFormat = AVAudioFormat(
+        guard let whisperFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: Self.whisperSampleRate,
             channels: 1,
             interleaved: false
-        )!
+        ) else {
+            throw AudioCaptureError.converterCreationFailed
+        }
 
         // Create converter once; reuse across callbacks.
         guard let conv = AVAudioConverter(from: inputFormat, to: whisperFormat) else {

@@ -14,7 +14,8 @@
 set -e
 
 MODEL=${1:-tiny}
-MODELS_DIR="${MODELS_DIR:-Resources/Models}"
+DEFAULT_MODELS_DIR="$HOME/Library/Application Support/WhisKey/Models"
+MODELS_DIR="${MODELS_DIR:-$DEFAULT_MODELS_DIR}"
 mkdir -p "$MODELS_DIR"
 
 # ---------------------------------------------------------------------------

@@ -1,49 +1,49 @@
-import XCTest
+import Testing
 @testable import WhisKeyCore
 
-final class ContextServiceTests: XCTestCase {
+@Suite struct ContextServiceTests {
 
     private let service = ContextService()
 
     // MARK: - suggestedToneStyle mappings
 
-    func testSlackMapsToCasual() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.tinyspeck.slackmacgap"), .casual)
+    @Test func slackMapsToCasual() {
+        #expect(service.suggestedToneStyle(for: "com.tinyspeck.slackmacgap") == .casual)
     }
 
-    func testAppleMessagesMapsToCasual() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.apple.Messages"), .casual)
+    @Test func appleMessagesMapsToCasual() {
+        #expect(service.suggestedToneStyle(for: "com.apple.Messages") == .casual)
     }
 
-    func testVSCodeMapsToTechnical() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.microsoft.VSCode"), .technical)
+    @Test func vscodeMapToTechnical() {
+        #expect(service.suggestedToneStyle(for: "com.microsoft.VSCode") == .technical)
     }
 
-    func testGitHubClientMapsToTechnical() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.github.GitHubClient"), .technical)
+    @Test func githubClientMapsToTechnical() {
+        #expect(service.suggestedToneStyle(for: "com.github.GitHubClient") == .technical)
     }
 
-    func testTerminalMapsToTechnical() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.apple.Terminal"), .technical)
+    @Test func terminalMapsToTechnical() {
+        #expect(service.suggestedToneStyle(for: "com.apple.Terminal") == .technical)
     }
 
-    func testMailMapsToProfessional() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.apple.mail"), .professional)
+    @Test func mailMapsToProfessional() {
+        #expect(service.suggestedToneStyle(for: "com.apple.mail") == .professional)
     }
 
-    func testNotionMapsToProfessional() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "notion.id"), .professional)
+    @Test func notionMapsToProfessional() {
+        #expect(service.suggestedToneStyle(for: "notion.id") == .professional)
     }
 
-    func testWordMapsToProfessional() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.microsoft.Word"), .professional)
+    @Test func wordMapsToProfessional() {
+        #expect(service.suggestedToneStyle(for: "com.microsoft.Word") == .professional)
     }
 
-    func testUnknownAppMapsToCasual() {
-        XCTAssertEqual(service.suggestedToneStyle(for: "com.random.unknownapp"), .casual)
+    @Test func unknownAppMapsToCasual() {
+        #expect(service.suggestedToneStyle(for: "com.random.unknownapp") == .casual)
     }
 
-    func testEmptyBundleIDMapsToCasual() {
-        XCTAssertEqual(service.suggestedToneStyle(for: ""), .casual)
+    @Test func emptyBundleIDMapsToCasual() {
+        #expect(service.suggestedToneStyle(for: "") == .casual)
     }
 }

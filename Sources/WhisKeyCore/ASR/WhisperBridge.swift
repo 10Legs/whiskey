@@ -1,5 +1,5 @@
-import Foundation
 import CWhisper
+import Foundation
 
 /// Errors thrown by the WhisperBridge actor.
 public enum WhisperError: Error, LocalizedError {
@@ -7,6 +7,7 @@ public enum WhisperError: Error, LocalizedError {
     case initializationFailed
     case transcriptionFailed
     case emptyAudio
+    case timeout
 
     public var errorDescription: String? {
         switch self {
@@ -18,6 +19,8 @@ public enum WhisperError: Error, LocalizedError {
             return "Transcription returned a non-zero error code."
         case .emptyAudio:
             return "Audio buffer is empty; nothing to transcribe."
+        case .timeout:
+            return "Transcription timed out after 30 seconds."
         }
     }
 }
@@ -64,7 +67,7 @@ public actor WhisperBridge {
         } else {
             let appSupport = FileManager.default
                 .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-                .first!
+                .first! // swiftlint:disable:this force_unwrapping
             self.modelDirectoryURL = appSupport
                 .appendingPathComponent("WhisKey")
                 .appendingPathComponent("Models")
@@ -89,34 +92,52 @@ public actor WhisperBridge {
         guard !pcm.isEmpty else { throw WhisperError.emptyAudio }
 
         let ctx = try loadContextIfNeeded()
+        // Capture actor-isolated state before escaping to nonisolated context.
+        let threadCount = nThreads
 
-        let result: TranscriptionResult = try await withCheckedThrowingContinuation { continuation in
-            // Run inference on a background thread so we don't block the actor.
-            Task.detached(priority: .userInitiated) {
-                let bridgeResult = pcm.withUnsafeBufferPointer { buf in
-                    whisper_bridge_transcribe(
-                        ctx,
-                        buf.baseAddress,
-                        Int32(buf.count),
-                        languageHint,
-                        Int32(self.nThreads)
-                    )
+        let result: TranscriptionResult = try await withThrowingTaskGroup(of: TranscriptionResult.self) { group in
+            // Inference task — runs whisper.cpp off the actor via a continuation.
+            group.addTask { @Sendable in
+                try await withCheckedThrowingContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let bridgeResult = pcm.withUnsafeBufferPointer { buf in
+                            whisper_bridge_transcribe(
+                                ctx,
+                                buf.baseAddress,
+                                Int32(buf.count),
+                                languageHint,
+                                Int32(threadCount)
+                            )
+                        }
+
+                        let text = bridgeResult.text.flatMap { String(cString: $0) } ?? ""
+                        let lang = bridgeResult.language.flatMap { String(cString: $0) } ?? "unknown"
+                        let duration = bridgeResult.duration_ms
+
+                        var mutableResult = bridgeResult
+                        whisper_bridge_result_free(&mutableResult)
+
+                        continuation.resume(returning: TranscriptionResult(
+                            text: text,
+                            durationMs: duration,
+                            language: lang
+                        ))
+                    }
                 }
-
-                let text = bridgeResult.text.flatMap { String(cString: $0) } ?? ""
-                let lang = bridgeResult.language.flatMap { String(cString: $0) } ?? "unknown"
-                let duration = bridgeResult.duration_ms
-
-                var mutableResult = bridgeResult
-                whisper_bridge_result_free(&mutableResult)
-
-                let transcription = TranscriptionResult(
-                    text: text,
-                    durationMs: duration,
-                    language: lang
-                )
-                continuation.resume(returning: transcription)
             }
+
+            // Timeout task — fires after 30 seconds.
+            group.addTask {
+                try await Task.sleep(nanoseconds: 30_000_000_000)
+                throw WhisperError.timeout
+            }
+
+            // First task to finish wins; cancel the other.
+            guard let first = try await group.next() else {
+                throw WhisperError.transcriptionFailed
+            }
+            group.cancelAll()
+            return first
         }
 
         return result

@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# ---------------------------------------------------------------------------
+# Job: build-and-test
+# Blocks PR merge. Must pass before any code lands on main.
+# ---------------------------------------------------------------------------
 jobs:
   build-and-test:
     name: Build & Test (macOS)
@@ -38,22 +42,74 @@ jobs:
       - name: Run tests
         run: swift test --filter WhisKeyCoreTests 2>&1
 
-  lint:
-    name: Swift lint check
+      - name: Build (release) — catch release-only issues
+        # Only on PRs to main; skip on push to keep push CI fast.
+        if: github.event_name == 'pull_request'
+        run: swift build -c release 2>&1
+
+# ---------------------------------------------------------------------------
+# Job: swiftlint
+# Blocks PR merge. Runs SwiftLint with .swiftlint.yml config.
+# Annotates violations inline on the PR diff.
+# ---------------------------------------------------------------------------
+  swiftlint:
+    name: SwiftLint
     runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check for obvious issues
-        # SwiftLint is not required for MVP — this is a lightweight guard.
-        # Replace with `swiftlint` when the project matures.
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        # --strict turns warnings into errors, blocking the PR.
+        run: swiftlint lint --strict --config .swiftlint.yml 2>&1
+
+# ---------------------------------------------------------------------------
+# Job: code-quality
+# Advisory (non-blocking on push to main, blocking on PRs).
+# Checks TODO/FIXME density and file organization.
+# ---------------------------------------------------------------------------
+  code-quality:
+    name: Code Quality Checks
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: TODO/FIXME density
         run: |
-          echo "Checking for TODO/FIXME density..."
           TODO_COUNT=$(grep -rn "TODO\|FIXME" Sources/ --include="*.swift" | wc -l | tr -d ' ')
           echo "Found $TODO_COUNT TODO/FIXME markers in Sources/"
-          # Warn (don't fail) if density is high
-          if [ "$TODO_COUNT" -gt 50 ]; then
-            echo "::warning::High TODO/FIXME count ($TODO_COUNT). Consider triaging before merge."
+          if [ "$TODO_COUNT" -gt 30 ]; then
+            echo "::error::TODO/FIXME count ($TODO_COUNT) exceeds threshold (30). Triage before merging."
+            exit 1
+          elif [ "$TODO_COUNT" -gt 15 ]; then
+            echo "::warning::TODO/FIXME count ($TODO_COUNT) is elevated. Consider triaging soon."
           fi
-          echo "Lint check passed."
+          echo "Quality check passed ($TODO_COUNT markers)."
+
+      - name: No force-push markers
+        # Catch leftover conflict markers that escape SwiftLint
+        run: |
+          if grep -rn "<<<<<<\|>>>>>>\|=======" Sources/ Tests/ --include="*.swift"; then
+            echo "::error::Merge conflict markers found in source files."
+            exit 1
+          fi
+          echo "No conflict markers found."
+
+      - name: Test file parity check
+        # Warn if a Sources/ module has no corresponding test file.
+        run: |
+          MISSING=0
+          for dir in Sources/WhisKeyCore/*/; do
+            module=$(basename "$dir")
+            test_file="Tests/WhisKeyCoreTests/${module}Tests.swift"
+            if [ ! -f "$test_file" ]; then
+              echo "::warning::No test file for module: $module (expected $test_file)"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+          echo "Modules without test files: $MISSING"
+          # Don't fail — some modules (e.g. Models) legitimately share test files.
