@@ -1,0 +1,95 @@
+name: WhisKey
+options:
+  bundleIdPrefix: com.rdemeritt
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: false
+  createIntermediateGroups: true
+
+packages:
+  WhisKeyLocalSPM:
+    path: "."
+
+targets:
+  WhisKey:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/WhisKeyApp
+        excludes:
+          - Info.plist
+      - path: Sources/WhisKeyCore
+    dependencies:
+      - package: WhisKeyLocalSPM
+        product: CWhisper
+      - package: WhisKeyLocalSPM
+        product: CLlama
+      - framework: Accelerate.framework
+        implicit: true
+      - framework: Carbon.framework
+        implicit: true
+      - framework: Metal.framework
+        implicit: true
+      - framework: MetalKit.framework
+        implicit: true
+      - framework: CoreML.framework
+        implicit: true
+      - sdk: ApplicationServices.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rdemeritt.whiskey
+        INFOPLIST_FILE: Sources/WhisKeyApp/Info.plist
+        CODE_SIGN_ENTITLEMENTS: WhisKey/WhisKey.entitlements
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        SWIFT_VERSION: "5.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_IDENTITY: "-"
+        PRODUCT_NAME: WhisKey
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "@executable_path/../Frameworks"
+        SWIFT_STRICT_CONCURRENCY: complete
+        # LSUIElement handled via Info.plist
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG"
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+          SWIFT_COMPILATION_MODE: "wholemodule"
+
+  WhisKeyCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/WhisKeyCoreTests
+    dependencies:
+      - target: WhisKey
+    settings:
+      base:
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        SWIFT_VERSION: "5.0"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/WhisKey.app/Contents/MacOS/WhisKey"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  WhisKey:
+    build:
+      targets:
+        WhisKey: all
+        WhisKeyCoreTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - WhisKeyCoreTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

@@ -39,6 +39,8 @@ let package = Package(
             publicHeadersPath: "include",
             cSettings: [
                 .define("GGML_USE_METAL"),
+                .define("GGML_USE_CPU"),
+                .define("GGML_USE_ACCELERATE"),
                 .define("NDEBUG"),
                 .define("GGML_VERSION", to: "\"0.9.11\""),
                 .define("GGML_COMMIT", to: "\"unknown\""),
@@ -51,6 +53,8 @@ let package = Package(
             ],
             cxxSettings: [
                 .define("GGML_USE_METAL"),
+                .define("GGML_USE_CPU"),
+                .define("GGML_USE_ACCELERATE"),
                 .define("NDEBUG"),
                 .define("GGML_VERSION", to: "\"0.9.11\""),
                 .define("GGML_COMMIT", to: "\"unknown\""),

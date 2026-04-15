@@ -44,6 +44,23 @@ if [ -d "$RESOURCES_SRC" ]; then
     cp -R "$RESOURCES_SRC/." "$RESOURCES_DST/"
 fi
 
+# Copy Metal shader library if present (compiled by ggml-metal at build time).
+# The SPM build places it adjacent to the binary; Xcode builds embed it automatically.
+METALLIB="$BUILD_DIR/default.metallib"
+if [ -f "$METALLIB" ]; then
+    cp "$METALLIB" "$RESOURCES_DST/default.metallib"
+    echo "Copied default.metallib into bundle Resources."
+else
+    # Fallback: search in .build for any default.metallib
+    FOUND_METALLIB="$(find "$PROJECT_DIR/.build" -name "default.metallib" -type f 2>/dev/null | head -1)"
+    if [ -n "$FOUND_METALLIB" ]; then
+        cp "$FOUND_METALLIB" "$RESOURCES_DST/default.metallib"
+        echo "Copied default.metallib from $FOUND_METALLIB into bundle Resources."
+    else
+        echo "Warning: default.metallib not found — Metal acceleration may not work."
+    fi
+fi
+
 # Sign ad-hoc. The bundle ID in Info.plist (com.rdemeritt.whiskey) is used as
 # the stable TCC identifier — updating the binary in-place keeps existing grants.
 codesign --force --sign - "$APP_BUNDLE/Contents/MacOS/WhisKey"

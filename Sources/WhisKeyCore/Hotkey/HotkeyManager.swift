@@ -36,6 +36,8 @@ public final class HotkeyManager: @unchecked Sendable {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var isRecording = false
+    /// Retains `self` for the CGEventTap callback; released in `stop()`.
+    private var retainedSelf: Unmanaged<HotkeyManager>?
 
     public init() {}
 
@@ -50,7 +52,8 @@ public final class HotkeyManager: @unchecked Sendable {
             (1 << CGEventType.keyDown.rawValue)      |
             (1 << CGEventType.keyUp.rawValue)
 
-        let selfPtr = Unmanaged.passRetained(self).toOpaque()
+        let retained = Unmanaged.passRetained(self)
+        let selfPtr = retained.toOpaque()
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -61,10 +64,11 @@ public final class HotkeyManager: @unchecked Sendable {
             userInfo: selfPtr
         ) else {
             // Tap creation failed — Input Monitoring permission not granted.
-            Unmanaged<HotkeyManager>.fromOpaque(selfPtr).release()
+            retained.release()
             return false
         }
 
+        retainedSelf = retained
         eventTap = tap
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
@@ -82,6 +86,9 @@ public final class HotkeyManager: @unchecked Sendable {
         }
         eventTap = nil
         runLoopSource = nil
+        // Balance the passRetained() from start().
+        retainedSelf?.release()
+        retainedSelf = nil
     }
 
     // MARK: - Internal event handling
@@ -143,8 +150,8 @@ private func hotkeyEventCallback(
     event: CGEvent,
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    guard let ptr = userInfo else { return Unmanaged.passRetained(event) }
+    guard let ptr = userInfo else { return Unmanaged.passUnretained(event) }
     let manager = Unmanaged<HotkeyManager>.fromOpaque(ptr).takeUnretainedValue()
     manager.handleEvent(event)
-    return Unmanaged.passRetained(event)
+    return Unmanaged.passUnretained(event)
 }
