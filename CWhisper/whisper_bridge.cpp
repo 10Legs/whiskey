@@ -52,9 +52,14 @@ whisper_bridge_result whisper_bridge_transcribe(
     wparams.translate      = false;
     wparams.n_threads      = (n_threads > 0) ? n_threads : 4;
 
-    // Language: NULL means auto-detect; otherwise force the given language code
+    // Language: NULL means auto-detect; otherwise force the given language code.
+    // .en models have no language detection head — detect_language=true produces
+    // garbage output. Fall back to "en" for non-multilingual models.
     if (language_hint && strlen(language_hint) > 0) {
         wparams.language = language_hint;
+        wparams.detect_language = false;
+    } else if (!whisper_is_multilingual(ctx)) {
+        wparams.language = "en";
         wparams.detect_language = false;
     } else {
         wparams.language = nullptr;

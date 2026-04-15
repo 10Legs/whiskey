@@ -44,27 +44,46 @@ if [ -d "$RESOURCES_SRC" ]; then
     cp -R "$RESOURCES_SRC/." "$RESOURCES_DST/"
 fi
 
-# Copy Metal shader library if present (compiled by ggml-metal at build time).
-# The SPM build places it adjacent to the binary; Xcode builds embed it automatically.
-METALLIB="$BUILD_DIR/default.metallib"
-if [ -f "$METALLIB" ]; then
-    cp "$METALLIB" "$RESOURCES_DST/default.metallib"
-    echo "Copied default.metallib into bundle Resources."
+# Compile Metal shaders and place default.metallib next to the binary.
+# ggml-metal-device.m looks for it in bin_dir (Contents/MacOS/), not Resources.
+# SPM excludes the .metal file from compilation, so we compile it here.
+METAL_SRC="CGGML/ggml-metal/ggml-metal.metal"
+METALLIB_DST="$MACOS/default.metallib"
+if [ -f "$METAL_SRC" ]; then
+    echo "Compiling Metal shaders..."
+    AIR_FILE="$BUILD_DIR/ggml-metal.air"
+    xcrun -sdk macosx metal -c "$METAL_SRC" -o "$AIR_FILE" \
+        -I "CGGML/ggml-metal" \
+        -I "CGGML/include" \
+        2>&1
+    xcrun -sdk macosx metallib "$AIR_FILE" -o "$METALLIB_DST" 2>&1
+    echo "Compiled default.metallib → $METALLIB_DST"
 else
-    # Fallback: search in .build for any default.metallib
-    FOUND_METALLIB="$(find "$PROJECT_DIR/.build" -name "default.metallib" -type f 2>/dev/null | head -1)"
-    if [ -n "$FOUND_METALLIB" ]; then
-        cp "$FOUND_METALLIB" "$RESOURCES_DST/default.metallib"
-        echo "Copied default.metallib from $FOUND_METALLIB into bundle Resources."
-    else
-        echo "Warning: default.metallib not found — Metal acceleration may not work."
-    fi
+    echo "Warning: $METAL_SRC not found — Metal acceleration will not work."
 fi
 
-# Sign ad-hoc. The bundle ID in Info.plist (com.rdemeritt.whiskey) is used as
-# the stable TCC identifier — updating the binary in-place keeps existing grants.
-codesign --force --sign - "$APP_BUNDLE/Contents/MacOS/WhisKey"
-codesign --force --sign - "$APP_BUNDLE"
+# Also copy the .metal source to Resources as runtime-compile fallback
+# (ggml falls back to bundle resource path if metallib not found next to binary)
+if [ -f "$METAL_SRC" ]; then
+    cp "$METAL_SRC" "$RESOURCES_DST/ggml-metal.metal"
+fi
+
+# Sign with a stable local identity so TCC keeps microphone/accessibility grants
+# across rebuilds. Requires a self-signed "WhiskeyDev" cert in your login keychain:
+#   Keychain Access → Certificate Assistant → Create a Certificate
+#   Name: WhiskeyDev, Identity Type: Self Signed Root, Cert Type: Code Signing
+#
+# Falls back to ad-hoc if the cert is not found (TCC will re-prompt after each build).
+SIGN_IDENTITY="WhiskeyDev"
+if ! security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGN_IDENTITY"; then
+    echo "Warning: '$SIGN_IDENTITY' cert not found in login keychain — falling back to ad-hoc signing."
+    echo "         TCC permissions will reset on every rebuild until you create the cert."
+    SIGN_IDENTITY="-"
+fi
+
+ENTITLEMENTS="WhisKey/WhisKey.entitlements"
+codesign --force --sign "$SIGN_IDENTITY" --entitlements "$ENTITLEMENTS" "$APP_BUNDLE/Contents/MacOS/WhisKey"
+codesign --force --sign "$SIGN_IDENTITY" --entitlements "$ENTITLEMENTS" "$APP_BUNDLE"
 
 echo ""
 echo "Done: $PROJECT_DIR/$APP_BUNDLE"
