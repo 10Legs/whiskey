@@ -113,10 +113,9 @@ public actor LlamaCppProvider: LLMProvider {
     }
 
     private var modelsDirectory: URL {
-        // swiftlint:disable:next force_unwrapping
         let appSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first!
+            .first! // swiftlint:disable:this force_unwrapping
         return appSupport
             .appendingPathComponent("WhisKey")
             .appendingPathComponent("Models")

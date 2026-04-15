@@ -65,10 +65,9 @@ public actor WhisperBridge {
         if let dir = modelDirectoryURL {
             self.modelDirectoryURL = dir
         } else {
-            // swiftlint:disable:next force_unwrapping
             let appSupport = FileManager.default
                 .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-                .first!
+                .first! // swiftlint:disable:this force_unwrapping
             self.modelDirectoryURL = appSupport
                 .appendingPathComponent("WhisKey")
                 .appendingPathComponent("Models")

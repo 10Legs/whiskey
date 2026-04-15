@@ -11,10 +11,9 @@ public final class FileLogger: @unchecked Sendable {
     private let formatter: DateFormatter
 
     public init() {
-        // swiftlint:disable:next force_unwrapping
         let logsDir = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)
-            .first!
+            .first! // swiftlint:disable:this force_unwrapping
             .appendingPathComponent("Logs/WhisKey")
         try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
         fileURL = logsDir.appendingPathComponent("whiskey.log")

@@ -22,8 +22,7 @@ public struct OllamaProvider: LLMProvider {
 
     public init(
         modelName: String = "llama3.2",
-        // swiftlint:disable:next force_unwrapping
-        baseURL: URL = URL(string: "http://localhost:11434")!
+        baseURL: URL = URL(string: "http://localhost:11434")! // swiftlint:disable:this force_unwrapping
     ) {
         self.modelName = modelName
         self.baseURL = baseURL
