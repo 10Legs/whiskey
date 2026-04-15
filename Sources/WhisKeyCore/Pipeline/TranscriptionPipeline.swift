@@ -43,6 +43,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     private let whisper: WhisperBridge
     private let injector: TextInjector
     private let permissions: PermissionsManager
+    private let historyStore: HistoryStore
 
     // MARK: - Configuration
 
@@ -77,12 +78,14 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         audioCapture: AudioCaptureService = AudioCaptureService(),
         whisper: WhisperBridge = .shared,
         injector: TextInjector = TextInjector(),
-        permissions: PermissionsManager = PermissionsManager()
+        permissions: PermissionsManager = PermissionsManager(),
+        historyStore: HistoryStore = HistoryStore()
     ) {
         self.audioCapture = audioCapture
         self.whisper = whisper
         self.injector = injector
         self.permissions = permissions
+        self.historyStore = historyStore
     }
 
     // MARK: - Public API
@@ -181,8 +184,17 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         // Inject text into focused window.
         await injector.inject(textToInject)
 
-        await MainActor.run { onTranscriptionReady?(result) }
-
+        await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
         return result
+    }
+
+    private func persistAndNotify(result: TranscriptionResult, textToInject: String, bundleID: String) async {
+        let entry = HistoryEntry.from(result: result, cleanedText: textToInject, appBundleID: bundleID)
+        do {
+            try await historyStore.insert(entry)
+        } catch {
+            logger.error("Failed to persist history entry: \(error.localizedDescription)")
+        }
+        await MainActor.run { onTranscriptionReady?(result) }
     }
 }
