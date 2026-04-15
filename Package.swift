@@ -10,6 +10,9 @@ let package = Package(
         .executable(name: "WhisKey", targets: ["WhisKeyApp"]),
         .library(name: "WhisKeyCore", targets: ["WhisKeyCore"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.29.0"),
+    ],
     targets: [
 
         // MARK: - CGGML — shared ggml runtime (llama.cpp 0.9.11)
@@ -122,8 +125,22 @@ let package = Package(
         // MARK: - WhisKeyCore — all business logic
         .target(
             name: "WhisKeyCore",
-            dependencies: ["CWhisper", "CLlama"],
+            dependencies: [
+                "CWhisper",
+                "CLlama",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ],
             path: "Sources/WhisKeyCore",
+            swiftSettings: [
+                .unsafeFlags(["-strict-concurrency=complete"])
+            ]
+        ),
+
+        // MARK: - WhisKeyUI — SwiftUI views
+        .target(
+            name: "WhisKeyUI",
+            dependencies: ["WhisKeyCore"],
+            path: "Sources/WhisKeyUI",
             swiftSettings: [
                 .unsafeFlags(["-strict-concurrency=complete"])
             ]
@@ -132,7 +149,7 @@ let package = Package(
         // MARK: - WhisKeyApp — menu bar executable
         .executableTarget(
             name: "WhisKeyApp",
-            dependencies: ["WhisKeyCore"],
+            dependencies: ["WhisKeyCore", "WhisKeyUI"],
             path: "Sources/WhisKeyApp",
             exclude: ["Info.plist"]
         ),
