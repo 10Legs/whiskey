@@ -154,6 +154,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pipeline.onError = { error in
             logger.error("Pipeline error: \(error.localizedDescription)")
             flog.log(.error, error.localizedDescription)
+            // Map PipelineError cases to user-visible notification categories.
+            if let pipelineError = error as? PipelineError {
+                switch pipelineError {
+                case .captureError:
+                    AppNotifications.post(.permissionDenied("Microphone access is required for audio capture."))
+                case .transcriptionError(let underlying):
+                    AppNotifications.post(.transcriptionFailed(underlying))
+                case .injectionSkipped(let reason):
+                    AppNotifications.post(.injectionFailed(reason))
+                case .alreadyRecording, .notRecording:
+                    break // internal state errors — no user notification needed
+                }
+            } else {
+                AppNotifications.post(.transcriptionFailed(error))
+            }
         }
 
         // Wire hotkey to pipeline.
