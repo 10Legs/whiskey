@@ -7,7 +7,6 @@ import AppKit
 /// it uses CGEventKeyboardSetUnicodeString to post the raw Unicode codepoints.
 final class CGEventInjector: @unchecked Sendable {
 
-    @MainActor
     func inject(_ text: String) async {
         guard AXIsProcessTrusted() else { return }
         let source = CGEventSource(stateID: .hidSystemState)
@@ -26,7 +25,7 @@ final class CGEventInjector: @unchecked Sendable {
             keyDown?.post(tap: .cgSessionEventTap)
             keyUp?.post(tap: .cgSessionEventTap)
 
-            // Small delay to avoid flooding the event queue — yields main thread.
+            // Small delay to avoid flooding the event queue.
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
