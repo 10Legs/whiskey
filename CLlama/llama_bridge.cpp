@@ -32,6 +32,10 @@ extern "C"
 llama_bridge_ctx * llama_bridge_init(const char * model_path, int n_ctx, int n_threads) {
     llama_model_params mparams = llama_model_default_params();
     mparams.use_mmap = true;
+    // Force CPU-only inference. ggml-metal.metal is not bundled as a build
+    // artifact, so Metal init fails at runtime. Accelerate BLAS on Apple
+    // Silicon is fast enough for short cleanup tasks (≤512 tokens).
+    mparams.n_gpu_layers = 0;
 
     llama_model * model = llama_load_model_from_file(model_path, mparams);
     if (!model) return nullptr;
