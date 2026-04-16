@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkey = HotkeyManager()
     private let permissions = PermissionsManager()
     private let settingsManager = SettingsManager()
+    private lazy var modelManager = ModelManager(settings: settingsManager)
     private lazy var pipeline = TranscriptionPipeline(settings: settingsManager)
     private var transcriptionTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
@@ -26,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupPopover()
         checkPermissionsAndStart()
+        checkModelPresence()
     }
 
     // MARK: - Status Item
@@ -79,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let settingsView = SettingsView(settings: settingsManager)
+        let settingsView = SettingsView(settings: settingsManager, modelManager: modelManager)
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "WhisKey Settings"
@@ -88,6 +90,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.settingsWindow = window
+    }
+
+    // MARK: - Model presence check
+
+    private func checkModelPresence() {
+        if modelManager.downloadedModels.isEmpty {
+            let flog = FileLogger.shared
+            flog.log(.warn, "No Whisper models found in Models directory. Open Settings → General to download a model.")
+            logger.warning("No Whisper models found. Open Settings → General to download a model.")
+        }
     }
 
     // MARK: - Permissions + Pipeline

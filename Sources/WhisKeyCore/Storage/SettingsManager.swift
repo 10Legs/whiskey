@@ -130,6 +130,12 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.notificationsEnabled, value: newValue) }
     }
 
+    /// Currently selected Whisper model ID (e.g. "ggml-base.en").
+    public var activeModelID: String? {
+        get { get(.activeModelID, default: nil as String?) }
+        set { set(.activeModelID, value: newValue) }
+    }
+
     /// Builds a `CleanupProfile` from current settings.
     public var cleanupProfile: CleanupProfile {
         CleanupProfile(
