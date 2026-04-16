@@ -453,7 +453,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy ggml-metal.metal to the two locations ggml_metal checks at runtime:\n#\n# 1. ${BUILT_PRODUCTS_DIR}/ggml-metal.metal\n#    WhisperBridge sets GGML_METAL_PATH_RESOURCES = Bundle.main.resourcePath\n#    which resolves to BUILT_PRODUCTS_DIR on Xcode dev builds. ggml_metal then\n#    looks for ggml-metal.metal in that directory and compiles it JIT via MTL.\n#\n# 2. ${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ggml-metal.metal\n#    Fallback for pathForResource: bundle lookup once properly distributed.\n\nset -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nRES_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${RES_DIR}\"\ncp \"${METAL_SRC}\" \"${BUILT_PRODUCTS_DIR}/ggml-metal.metal\"\ncp \"${METAL_SRC}\" \"${RES_DIR}/ggml-metal.metal\"\n";
+			shellScript = "# Copy ggml-metal.metal into the app bundle's Resources folder.\n# ggml_metal locates the shader via [NSBundle mainBundle pathForResource:@\"ggml-metal\" ofType:@\"metal\"]\n# which resolves to UNLOCALIZED_RESOURCES_FOLDER_PATH inside the .app bundle.\n# Do NOT set GGML_METAL_PATH_RESOURCES — that env var overrides the bundle lookup\n# with a raw directory path and breaks when the binary is run from a .app bundle.\n\nset -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nRES_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${RES_DIR}\"\ncp \"${METAL_SRC}\" \"${RES_DIR}/ggml-metal.metal\"\n";
 		};
 		C8E6A92D1CF312C3E89A7270 /* Install to ~/Applications */ = {
 			isa = PBXShellScriptBuildPhase;

@@ -159,13 +159,6 @@ public actor WhisperBridge {
             throw WhisperError.modelNotFound(modelURL)
         }
 
-        // ggml-metal reads GGML_METAL_PATH_RESOURCES to locate ggml-metal.metal (or
-        // default.metallib) at runtime. Point it at the app bundle's Resources folder
-        // so the JIT Metal compilation path works when no precompiled metallib is present.
-        if let resourcePath = Bundle.main.resourcePath {
-            setenv("GGML_METAL_PATH_RESOURCES", resourcePath, 1)
-        }
-
         guard let ctx = whisper_bridge_init(modelURL.path) else {
             throw WhisperError.initializationFailed
         }
