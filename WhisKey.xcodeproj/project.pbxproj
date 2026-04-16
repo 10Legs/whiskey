@@ -366,11 +366,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 64509CC7AC57E3A8CA78A067 /* Build configuration list for PBXNativeTarget "WhisKey" */;
 			buildPhases = (
-				650AE27FC5FC0B57C25DA71F /* Compile ggml-metal.metal → default.metallib */,
 				E379F8B148BE1DB02A4BD4B1 /* Sources */,
 				0420C3BA6D7A1DEDDF904C34 /* Frameworks */,
 				4BFAD52241BF691ECFA9D0FD /* Embed Frameworks */,
 				C8E6A92D1CF312C3E89A7270 /* Install to ~/Applications */,
+				650AE27FC5FC0B57C25DA71F /* Compile ggml-metal.metal → default.metallib */,
 			);
 			buildRules = (
 			);
