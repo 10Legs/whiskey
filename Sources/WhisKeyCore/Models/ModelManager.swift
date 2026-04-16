@@ -60,10 +60,7 @@ public final class ModelManager: @unchecked Sendable {
             id: "ggml-base.en",
             name: "Whisper Base (English)",
             sizeGB: 0.142,
-            // swiftlint:disable:next force_unwrapping
-            url: URL(string:
-                "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
-            )!,
+            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin")!, // swiftlint:disable:this force_unwrapping
             filename: "ggml-base.en.bin",
             kind: .asr
         ),
@@ -71,10 +68,7 @@ public final class ModelManager: @unchecked Sendable {
             id: "ggml-small.en",
             name: "Whisper Small (English)",
             sizeGB: 0.488,
-            // swiftlint:disable:next force_unwrapping
-            url: URL(string:
-                "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin"
-            )!,
+            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin")!, // swiftlint:disable:this force_unwrapping
             filename: "ggml-small.en.bin",
             kind: .asr
         ),
@@ -83,11 +77,7 @@ public final class ModelManager: @unchecked Sendable {
             id: "phi-3.5-mini-q4_k_m",
             name: "Phi-3.5 Mini (AI Cleanup)",
             sizeGB: 2.39,
-            // swiftlint:disable:next force_unwrapping
-            url: URL(string:
-                "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/" +
-                "Phi-3.5-mini-instruct-Q4_K_M.gguf"
-            )!,
+            url: URL(string: "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf")!, // swiftlint:disable:this force_unwrapping
             filename: "phi-3.5-mini-q4_k_m.gguf",
             kind: .llm
         )
