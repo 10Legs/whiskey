@@ -1,6 +1,6 @@
 import Foundation
-import UserNotifications
 import os.log
+import UserNotifications
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "AppNotifications")
 
