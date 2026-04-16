@@ -220,8 +220,6 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         case .both:
             await injector.inject(text, capturedElement: capturedElement)
             await clipboardOnly(text)
-        case .hudOnly:
-            break
         }
     }
 

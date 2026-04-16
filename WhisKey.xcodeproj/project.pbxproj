@@ -446,14 +446,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Compile ggml-metal.metal → default.metallib";
+			name = "Copy ggml-metal.metal shader for runtime";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nAIR=\"${DERIVED_FILE_DIR}/ggml-metal.air\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nDEST_LIB=\"${DEST_DIR}/default.metallib\"\nmkdir -p \"$DEST_DIR\"\nxcrun metal -sdk macosx \\\n  -I \"${SRCROOT}/CGGML\" \\\n  -I \"${SRCROOT}/CGGML/include\" \\\n  -I \"${SRCROOT}/CGGML/ggml-metal\" \\\n  -DGGML_USE_METAL \\\n  -c \"$METAL_SRC\" -o \"$AIR\"\nxcrun metallib \"$AIR\" -o \"$DEST_LIB\"\n";
+			shellScript = "# Copy ggml-metal.metal to the two locations ggml_metal checks at runtime:\n#\n# 1. ${BUILT_PRODUCTS_DIR}/ggml-metal.metal\n#    WhisperBridge sets GGML_METAL_PATH_RESOURCES = Bundle.main.resourcePath\n#    which resolves to BUILT_PRODUCTS_DIR on Xcode dev builds. ggml_metal then\n#    looks for ggml-metal.metal in that directory and compiles it JIT via MTL.\n#\n# 2. ${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ggml-metal.metal\n#    Fallback for pathForResource: bundle lookup once properly distributed.\n\nset -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nRES_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${RES_DIR}\"\ncp \"${METAL_SRC}\" \"${BUILT_PRODUCTS_DIR}/ggml-metal.metal\"\ncp \"${METAL_SRC}\" \"${RES_DIR}/ggml-metal.metal\"\n";
 		};
 		C8E6A92D1CF312C3E89A7270 /* Install to ~/Applications */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -472,7 +472,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-				shellScript = "DEST=\"\/Users/rdemeritt/Applications/\"\necho \"Copying \/\ → \"\nrm -rf \"\"\ncp -R \"\/\" \"\"\n";
+			shellScript = "DEST=\"/Users/rdemeritt/Applications/\"\necho \"Copying / → \"\nrm -rf \"\"\ncp -R \"/\" \"\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -545,6 +545,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WhisKey/WhisKey.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -553,7 +554,7 @@
 				INFOPLIST_FILE = Sources/WhisKeyApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rdemeritt.whiskey;
 				PRODUCT_NAME = WhisKey;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -589,6 +590,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WhisKey/WhisKey.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -597,7 +599,7 @@
 				INFOPLIST_FILE = Sources/WhisKeyApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.0;
+				MARKETING_VERSION = 0.2.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rdemeritt.whiskey;
 				PRODUCT_NAME = WhisKey;
 				PROVISIONING_PROFILE_SPECIFIER = "";
