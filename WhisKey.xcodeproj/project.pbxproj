@@ -9,6 +9,9 @@
 /* Begin PBXBuildFile section */
 		02DD70DDEA1819EF167A658A /* Carbon.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AD43D7E283594DDB604F5EBB /* Carbon.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		09B0AF27FBE3D66A5DE950DA /* LlamaCppProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BA9DF2CF907E54CC309366 /* LlamaCppProvider.swift */; };
+		0D882A06D5F420CF128297D4 /* SettingsKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = C353A56B34E632D34ADCB23A /* SettingsKey.swift */; };
+		118DFDD19155A36410853920 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E0B923493EE11A384AC7FD /* Database.swift */; };
+		126439660CEFBF6F407C2C4A /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B5FC7CAFEE14D67A753043 /* HistoryStore.swift */; };
 		1A892FB4473F8865C6714A82 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019164C3B7275CAE9467A6FA /* main.swift */; };
 		20A1E7D7C1050DD1D83AE7B3 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51446F50CAE6E36E09D3452 /* AudioCaptureService.swift */; };
 		2A5933FE7E11ECC8768E8206 /* WhisperBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = B95C26FC687BEECBDE7B322A /* WhisperBridge.swift */; };
@@ -20,10 +23,12 @@
 		477214B7E1B93E51A3DBFBA4 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2E457089246BE039960D43DC /* MetalKit.framework */; };
 		48E0C676E1EE2AFB3E7C3E93 /* InjectionContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC67BD072AA21B44C9628A58 /* InjectionContext.swift */; };
 		4FEFE6B8B74E8F9F8367985C /* MetalKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2E457089246BE039960D43DC /* MetalKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		509E45817594655D212955C0 /* OutputMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E255B71A3952383AC75E5EF /* OutputMode.swift */; };
 		5A4BA0738E7438E6E5ACDCC7 /* PermissionsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A08BD6BFACA364982C42D2C /* PermissionsManagerTests.swift */; };
 		6BC855EE451D2BC07BA81F1D /* PassthroughProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D693D609A8F04306BDBBFEF /* PassthroughProvider.swift */; };
 		7170A757FB7BA76D9F907D73 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AD43D7E283594DDB604F5EBB /* Carbon.framework */; };
 		75F58F20C0C637604A699278 /* ApplicationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FDE0EA66FBAB9A14886082E3 /* ApplicationServices.framework */; };
+		7C3E6D616F2FA511B42EDC89 /* HistoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101C5479A7495D4DEA05DEBB /* HistoryEntry.swift */; };
 		8783A487B17D9A1D9FF52446 /* CWhisper in Frameworks */ = {isa = PBXBuildFile; productRef = 463A8D7E0E5FD4D491BE0544 /* CWhisper */; };
 		899C79B43347A36C1009DBE4 /* CoreML.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CFAFB19C0B350EB75DD179F2 /* CoreML.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8FBDB310D35C5229247ACB46 /* CGEventInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D291B0ABFC4387E5CD2725A /* CGEventInjector.swift */; };
@@ -44,6 +49,7 @@
 		BA3A84981E013CD675F421B4 /* TranscriptionPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4FE3E86C8F5D2ECD975E91 /* TranscriptionPipeline.swift */; };
 		BABBFB4A0DFF10A56E6E3C3F /* FileLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F141A69CAB0BA2A6C99BBE1D /* FileLogger.swift */; };
 		BED69E9BD460B576C5667790 /* PipelineStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4183973C37B5A28F01767A0B /* PipelineStateTests.swift */; };
+		D79E8E3043B46588DEF4D8C4 /* SettingsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4537FB58BB8611CC86D43683 /* SettingsManager.swift */; };
 		DFCFF7F8BF9C1E5298823713 /* CoreML.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CFAFB19C0B350EB75DD179F2 /* CoreML.framework */; };
 		E7230864CD59B59F58D701A6 /* PasteboardInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF0BA820858DCE815697729 /* PasteboardInjector.swift */; };
 		E93F3B9EC8CB8E7E9AFECB4F /* PassthroughProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E3E1E6673923766F502B994 /* PassthroughProviderTests.swift */; };
@@ -84,6 +90,7 @@
 /* Begin PBXFileReference section */
 		019164C3B7275CAE9467A6FA /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		0D693D609A8F04306BDBBFEF /* PassthroughProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassthroughProvider.swift; sourceTree = "<group>"; };
+		101C5479A7495D4DEA05DEBB /* HistoryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryEntry.swift; sourceTree = "<group>"; };
 		1A08BD6BFACA364982C42D2C /* PermissionsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManagerTests.swift; sourceTree = "<group>"; };
 		1D291B0ABFC4387E5CD2725A /* CGEventInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CGEventInjector.swift; sourceTree = "<group>"; };
 		2AEE90123DE49393795F0AD8 /* WhisKeyCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WhisKeyCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -93,9 +100,12 @@
 		385A2463C73E4D0D7B59A68C /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
 		3FF0BA820858DCE815697729 /* PasteboardInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteboardInjector.swift; sourceTree = "<group>"; };
 		4183973C37B5A28F01767A0B /* PipelineStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineStateTests.swift; sourceTree = "<group>"; };
+		4537FB58BB8611CC86D43683 /* SettingsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsManager.swift; sourceTree = "<group>"; };
+		47E0B923493EE11A384AC7FD /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
 		511068D007F8E81035CEC017 /* TextInjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjectorTests.swift; sourceTree = "<group>"; };
 		6A58F22F53EA42219C302B0E /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		6DE2E1EC4D026B3F47195E64 /* CleanupProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CleanupProfile.swift; sourceTree = "<group>"; };
+		6E255B71A3952383AC75E5EF /* OutputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputMode.swift; sourceTree = "<group>"; };
 		768029055314858E95CFCC9E /* TranscriptionResultTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionResultTests.swift; sourceTree = "<group>"; };
 		7E3E1E6673923766F502B994 /* PassthroughProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassthroughProviderTests.swift; sourceTree = "<group>"; };
 		84AB187EA748C7E9F8E76BFF /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
@@ -107,6 +117,7 @@
 		B1BA9DF2CF907E54CC309366 /* LlamaCppProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaCppProvider.swift; sourceTree = "<group>"; };
 		B95C26FC687BEECBDE7B322A /* WhisperBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperBridge.swift; sourceTree = "<group>"; };
 		C0EAC20BF8597DA8CC6444E7 /* HotkeyManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManagerTests.swift; sourceTree = "<group>"; };
+		C353A56B34E632D34ADCB23A /* SettingsKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKey.swift; sourceTree = "<group>"; };
 		C66F8088ED301DF3AE98D6B4 /* WhisKey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WhisKey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CDF26F22291F88E56A107FAC /* OllamaProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OllamaProvider.swift; sourceTree = "<group>"; };
 		CFAFB19C0B350EB75DD179F2 /* CoreML.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = CoreML.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -120,6 +131,7 @@
 		EDE89231C14F16D73E289868 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Metal.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		F141A69CAB0BA2A6C99BBE1D /* FileLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLogger.swift; sourceTree = "<group>"; };
 		F2886EFA101F4EA7A031D6D5 /* ContextServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextServiceTests.swift; sourceTree = "<group>"; };
+		F2B5FC7CAFEE14D67A753043 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
 		FA4FE3E86C8F5D2ECD975E91 /* TranscriptionPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionPipeline.swift; sourceTree = "<group>"; };
 		FDE0EA66FBAB9A14886082E3 /* ApplicationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ApplicationServices.framework; path = System/Library/Frameworks/ApplicationServices.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -159,6 +171,7 @@
 			children = (
 				6DE2E1EC4D026B3F47195E64 /* CleanupProfile.swift */,
 				EC67BD072AA21B44C9628A58 /* InjectionContext.swift */,
+				6E255B71A3952383AC75E5EF /* OutputMode.swift */,
 				D876013AD6ED60ABA0AF945F /* TranscriptionResult.swift */,
 			);
 			path = Models;
@@ -177,6 +190,7 @@
 				28ABCD12394A9B508E4A584A /* Models */,
 				EBE27FC32DFC5C30637ADDD6 /* Permissions */,
 				B47C84C232C31637485DEBFF /* Pipeline */,
+				DD3A8405EA3C28FA45E41D7A /* Storage */,
 			);
 			path = WhisKeyCore;
 			sourceTree = "<group>";
@@ -317,6 +331,18 @@
 			path = LLM;
 			sourceTree = "<group>";
 		};
+		DD3A8405EA3C28FA45E41D7A /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				47E0B923493EE11A384AC7FD /* Database.swift */,
+				101C5479A7495D4DEA05DEBB /* HistoryEntry.swift */,
+				F2B5FC7CAFEE14D67A753043 /* HistoryStore.swift */,
+				C353A56B34E632D34ADCB23A /* SettingsKey.swift */,
+				4537FB58BB8611CC86D43683 /* SettingsManager.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
 		EBE27FC32DFC5C30637ADDD6 /* Permissions */ = {
 			isa = PBXGroup;
 			children = (
@@ -340,9 +366,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 64509CC7AC57E3A8CA78A067 /* Build configuration list for PBXNativeTarget "WhisKey" */;
 			buildPhases = (
+				650AE27FC5FC0B57C25DA71F /* Compile ggml-metal.metal → default.metallib */,
 				E379F8B148BE1DB02A4BD4B1 /* Sources */,
 				0420C3BA6D7A1DEDDF904C34 /* Frameworks */,
 				4BFAD52241BF691ECFA9D0FD /* Embed Frameworks */,
+				C8E6A92D1CF312C3E89A7270 /* Install to ~/Applications */,
 			);
 			buildRules = (
 			);
@@ -383,8 +411,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 3E10F945212CFB5793CB1929 /* Build configuration list for PBXProject "WhisKey" */;
 			developmentRegion = en;
@@ -408,6 +434,47 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		650AE27FC5FC0B57C25DA71F /* Compile ggml-metal.metal → default.metallib */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Compile ggml-metal.metal → default.metallib";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nAIR=\"${DERIVED_FILE_DIR}/ggml-metal.air\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nDEST_LIB=\"${DEST_DIR}/default.metallib\"\nmkdir -p \"$DEST_DIR\"\nxcrun metal -sdk macosx \\\n  -I \"${SRCROOT}/CGGML\" \\\n  -I \"${SRCROOT}/CGGML/include\" \\\n  -I \"${SRCROOT}/CGGML/ggml-metal\" \\\n  -DGGML_USE_METAL \\\n  -c \"$METAL_SRC\" -o \"$AIR\"\nxcrun metallib \"$AIR\" -o \"$DEST_LIB\"\n";
+		};
+		C8E6A92D1CF312C3E89A7270 /* Install to ~/Applications */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Install to ~/Applications";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+				shellScript = "DEST=\"\/Users/rdemeritt/Applications/\"\necho \"Copying \/\ → \"\nrm -rf \"\"\ncp -R \"\/\" \"\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		3DDD117FDC661E52898FE97C /* Sources */ = {
@@ -438,15 +505,21 @@
 				8FBDB310D35C5229247ACB46 /* CGEventInjector.swift in Sources */,
 				3FEFBC0BF5EDC2351714170B /* CleanupProfile.swift in Sources */,
 				B62150A2B5C5F56584846AC9 /* ContextService.swift in Sources */,
+				118DFDD19155A36410853920 /* Database.swift in Sources */,
 				BABBFB4A0DFF10A56E6E3C3F /* FileLogger.swift in Sources */,
+				7C3E6D616F2FA511B42EDC89 /* HistoryEntry.swift in Sources */,
+				126439660CEFBF6F407C2C4A /* HistoryStore.swift in Sources */,
 				9280EE4BEEB1D9A8D05D0C55 /* HotkeyManager.swift in Sources */,
 				48E0C676E1EE2AFB3E7C3E93 /* InjectionContext.swift in Sources */,
 				FBAC7C33BB42ECB6C16FE153 /* LLMProvider.swift in Sources */,
 				09B0AF27FBE3D66A5DE950DA /* LlamaCppProvider.swift in Sources */,
 				B5F1367971A560B80B5005B6 /* OllamaProvider.swift in Sources */,
+				509E45817594655D212955C0 /* OutputMode.swift in Sources */,
 				6BC855EE451D2BC07BA81F1D /* PassthroughProvider.swift in Sources */,
 				E7230864CD59B59F58D701A6 /* PasteboardInjector.swift in Sources */,
 				30B7825A57CE115A41EF79AF /* PermissionsManager.swift in Sources */,
+				0D882A06D5F420CF128297D4 /* SettingsKey.swift in Sources */,
+				D79E8E3043B46588DEF4D8C4 /* SettingsManager.swift in Sources */,
 				A28FAB5A0224F81785287410 /* TextInjector.swift in Sources */,
 				BA3A84981E013CD675F421B4 /* TranscriptionPipeline.swift in Sources */,
 				B7405A8C24ABC996E10BF6D9 /* TranscriptionResult.swift in Sources */,
@@ -471,18 +544,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WhisKey/WhisKey.entitlements;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VMYU8579BG;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Sources/WhisKeyApp/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rdemeritt.whiskey;
 				PRODUCT_NAME = WhisKey;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -514,18 +588,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = WhisKey/WhisKey.entitlements;
-				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VMYU8579BG;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Sources/WhisKeyApp/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"@executable_path/../Frameworks",
-				);
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rdemeritt.whiskey;
 				PRODUCT_NAME = WhisKey;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";

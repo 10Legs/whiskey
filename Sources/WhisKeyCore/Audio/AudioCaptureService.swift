@@ -1,4 +1,5 @@
 import AVFoundation
+import Combine
 import os.lock
 
 /// Errors thrown by AudioCaptureService.
@@ -39,6 +40,12 @@ public final class AudioCaptureService: @unchecked Sendable {
 
     // Low-level lock for buffer mutations called from real-time audio thread.
     private var bufferLock = os_unfair_lock()
+
+    // MARK: - Audio Level Publisher
+
+    /// Normalized RMS level in 0.0–1.0, updated on every audio tap callback.
+    /// Subscribers should observe on the main thread for UI updates.
+    public let audioLevelPublisher = PassthroughSubject<Float, Never>()
 
     public init() {}
 
@@ -137,10 +144,20 @@ public final class AudioCaptureService: @unchecked Sendable {
         conv.convert(to: outBuffer, error: &error, withInputFrom: inputBlock)
 
         guard error == nil, let channelData = outBuffer.floatChannelData?[0] else { return }
-        let samples = Array(UnsafeBufferPointer(start: channelData, count: Int(outBuffer.frameLength)))
+        let frameCount = Int(outBuffer.frameLength)
+        let samples = Array(UnsafeBufferPointer(start: channelData, count: frameCount))
 
         os_unfair_lock_lock(&bufferLock)
         pcmBuffer.append(contentsOf: samples)
         os_unfair_lock_unlock(&bufferLock)
+
+        // Compute RMS and publish normalized level (0.0–1.0, clamped).
+        if frameCount > 0 {
+            let sumOfSquares = samples.reduce(0.0) { $0 + $1 * $1 }
+            let rms = sqrtf(sumOfSquares / Float(frameCount))
+            // Normalize: typical speech RMS sits around 0.01–0.3; scale by 3 and clamp.
+            let normalized = min(rms * 3.0, 1.0)
+            audioLevelPublisher.send(normalized)
+        }
     }
 }

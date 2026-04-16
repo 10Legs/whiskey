@@ -13,10 +13,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
-    private let pipeline = TranscriptionPipeline()
     private let hotkey = HotkeyManager()
     private let permissions = PermissionsManager()
     private let settingsManager = SettingsManager()
+    private lazy var pipeline = TranscriptionPipeline(settings: settingsManager)
     private var transcriptionTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
 

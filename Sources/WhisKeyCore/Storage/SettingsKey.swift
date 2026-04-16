@@ -9,4 +9,5 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     case removeFillers
     case addPunctuation
     case rawMode
+    case outputMode
 }

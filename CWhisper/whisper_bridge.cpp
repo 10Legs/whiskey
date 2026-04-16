@@ -14,8 +14,11 @@ extern "C" {
 whisper_context * whisper_bridge_init(const char * model_path) {
     if (model_path == nullptr) return nullptr;
     struct whisper_context_params cparams = whisper_context_default_params();
-    // Prefer Metal for acceleration when available
-    cparams.use_gpu = true;
+    // Metal disabled: ggml requires a precompiled default.metallib in the app
+    // bundle to initialise the GPU backend. When running from an SPM build (no
+    // bundle), the shader is unavailable and ggml aborts. CPU path via Accelerate
+    // is still fast on Apple Silicon. Re-enable once bundle/metallib is wired up.
+    cparams.use_gpu = false;
     struct whisper_context * ctx = whisper_init_from_file_with_params(model_path, cparams);
     return ctx;
 }

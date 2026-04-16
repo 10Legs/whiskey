@@ -117,6 +117,14 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.rawMode, value: newValue) }
     }
 
+    public var outputMode: OutputMode {
+        get {
+            let raw: String = get(.outputMode, default: OutputMode.activeWindow.rawValue)
+            return OutputMode(rawValue: raw) ?? .activeWindow
+        }
+        set { set(.outputMode, value: newValue.rawValue) }
+    }
+
     /// Builds a `CleanupProfile` from current settings.
     public var cleanupProfile: CleanupProfile {
         CleanupProfile(

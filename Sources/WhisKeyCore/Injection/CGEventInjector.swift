@@ -8,12 +8,13 @@ import AppKit
 final class CGEventInjector: @unchecked Sendable {
 
     @MainActor
-    func inject(_ text: String) {
+    func inject(_ text: String) async {
+        guard AXIsProcessTrusted() else { return }
         let source = CGEventSource(stateID: .hidSystemState)
 
         for scalar in text.unicodeScalars {
-            var keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
-            var keyUp   = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+            let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
+            let keyUp   = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
 
             guard keyDown != nil, keyUp != nil else { continue }
 
@@ -22,11 +23,11 @@ final class CGEventInjector: @unchecked Sendable {
             keyDown?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unichar)
             keyUp?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &unichar)
 
-            keyDown?.post(tap: .cghidEventTap)
-            keyUp?.post(tap: .cghidEventTap)
+            keyDown?.post(tap: .cgSessionEventTap)
+            keyUp?.post(tap: .cgSessionEventTap)
 
-            // Small delay to avoid flooding the event queue.
-            Thread.sleep(forTimeInterval: 0.005)
+            // Small delay to avoid flooding the event queue — yields main thread.
+            try? await Task.sleep(nanoseconds: 5_000_000)
         }
     }
 }

@@ -1,6 +1,9 @@
 import SwiftUI
 import WhisKeyCore
 
+private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
+private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
+
 /// Tabbed settings window.
 ///
 /// Tabs: General | Hotkey | Transcription | AI Cleanup | Privacy
@@ -30,6 +33,9 @@ public struct SettingsView: View {
                 .tabItem { Label("Privacy", systemImage: "lock.shield") }
         }
         .frame(width: 480, height: 320)
+        .background(hudBackground)
+        .accentColor(phosphorGreen)
+        .fontDesign(.monospaced)
     }
 }
 
@@ -39,25 +45,48 @@ private struct GeneralTab: View {
     @Bindable var settings: SettingsManager
 
     var body: some View {
-        Form {
-            Section("Startup") {
-                Toggle("Launch at Login", isOn: .constant(false))
-                    .disabled(true)
-                    .help("Coming soon — requires SMAppService integration.")
-            }
-
-            Section("Whisper Model") {
-                Picker("Active Model", selection: $settings.whisperModel) {
-                    Text("ggml-tiny.en").tag("ggml-tiny.en")
-                    Text("ggml-base.en").tag("ggml-base.en")
-                    Text("ggml-small.en").tag("ggml-small.en")
-                    Text("ggml-medium.en").tag("ggml-medium.en")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                PhosphorSection(title: "STARTUP") {
+                    Toggle("Launch at Login", isOn: .constant(false))
+                        .disabled(true)
+                        .tint(phosphorGreen)
+                        .foregroundColor(phosphorGreen.opacity(0.4))
+                        .help("Coming soon — requires SMAppService integration.")
                 }
-                .pickerStyle(.menu)
+
+                PhosphorSection(title: "WHISPER MODEL") {
+                    Picker("Active Model", selection: $settings.whisperModel) {
+                        Text("ggml-tiny.en").tag("ggml-tiny.en")
+                        Text("ggml-base.en").tag("ggml-base.en")
+                        Text("ggml-small.en").tag("ggml-small.en")
+                        Text("ggml-medium.en").tag("ggml-medium.en")
+                    }
+                    .pickerStyle(.menu)
+                    .accentColor(phosphorGreen)
+                    .foregroundColor(phosphorGreen)
+                }
+
+                PhosphorSection(title: "OUTPUT MODE") {
+                    Picker("Output Mode", selection: $settings.outputMode) {
+                        Text("Active Window").tag(OutputMode.activeWindow)
+                        Text("Clipboard").tag(OutputMode.clipboard)
+                        Text("Both").tag(OutputMode.both)
+                        Text("HUD Only").tag(OutputMode.hudOnly)
+                    }
+                    .pickerStyle(.segmented)
+                    .accentColor(phosphorGreen)
+                    Text(
+                        "Active Window injects into focused field. Clipboard copies without injecting." +
+                        " Both does both. HUD Only shows in history without injecting or copying."
+                    )
+                        .font(.caption)
+                        .foregroundColor(phosphorGreen.opacity(0.5))
+                }
             }
+            .padding()
         }
-        .formStyle(.grouped)
-        .padding()
+        .background(hudBackground)
     }
 }
 
@@ -65,25 +94,31 @@ private struct GeneralTab: View {
 
 private struct HotkeyTab: View {
     var body: some View {
-        Form {
-            Section("Push-to-Talk Hotkey") {
-                HStack {
-                    Text("Current Hotkey:")
-                    Spacer()
-                    Text("Right Option (hold)")
-                        .font(.system(.body, design: .monospaced))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                PhosphorSection(title: "PUSH-TO-TALK HOTKEY") {
+                    HStack {
+                        Text("CURRENT HOTKEY:")
+                            .foregroundColor(phosphorGreen.opacity(0.6))
+                        Spacer()
+                        Text("RIGHT OPTION (HOLD)")
+                            .fontDesign(.monospaced)
+                            .foregroundColor(phosphorGreen)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(phosphorGreen.opacity(0.4), lineWidth: 1)
+                            )
+                    }
+                    Text("Hold to record, release to transcribe and inject.")
+                        .font(.caption)
+                        .foregroundColor(phosphorGreen.opacity(0.5))
                 }
-                Text("Hold to record, release to transcribe and inject.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
+            .padding()
         }
-        .formStyle(.grouped)
-        .padding()
+        .background(hudBackground)
     }
 }
 
@@ -106,21 +141,25 @@ private struct TranscriptionTab: View {
     ]
 
     var body: some View {
-        Form {
-            Section("Language") {
-                Picker("Language Hint", selection: $settings.languageHint) {
-                    ForEach(Self.languages, id: \.1) { name, code in
-                        Text(name).tag(code)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                PhosphorSection(title: "LANGUAGE") {
+                    Picker("Language Hint", selection: $settings.languageHint) {
+                        ForEach(Self.languages, id: \.1) { name, code in
+                            Text(name).tag(code)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .accentColor(phosphorGreen)
+                    .foregroundColor(phosphorGreen)
+                    Text("Providing a language hint improves accuracy when you know the spoken language.")
+                        .font(.caption)
+                        .foregroundColor(phosphorGreen.opacity(0.5))
                 }
-                .pickerStyle(.menu)
-                Text("Providing a language hint improves accuracy when you know the spoken language.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
+            .padding()
         }
-        .formStyle(.grouped)
-        .padding()
+        .background(hudBackground)
     }
 }
 
@@ -130,36 +169,47 @@ private struct AICleanupTab: View {
     @Bindable var settings: SettingsManager
 
     var body: some View {
-        Form {
-            Section("LLM Provider") {
-                Picker("Provider", selection: $settings.llmProviderName) {
-                    Text("None (raw transcript)").tag("none")
-                    Text("LlamaCpp (local)").tag("llamacpp")
-                    Text("Ollama (local HTTP)").tag("ollama")
-                }
-                .pickerStyle(.menu)
-            }
-
-            Section("Cleanup Options") {
-                Toggle("Remove Filler Words", isOn: $settings.removeFillers)
-                Toggle("Add Punctuation", isOn: $settings.addPunctuation)
-                Toggle("Raw Mode (skip cleanup)", isOn: $settings.rawMode)
-            }
-
-            Section("Tone Style") {
-                Picker("Default Tone", selection: $settings.toneStyle) {
-                    ForEach(ToneStyle.allCases, id: \.self) { style in
-                        Text(style.rawValue.capitalized).tag(style)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                PhosphorSection(title: "LLM PROVIDER") {
+                    Picker("Provider", selection: $settings.llmProviderName) {
+                        Text("None (raw transcript)").tag("none")
+                        Text("LlamaCpp (local)").tag("llamacpp")
+                        Text("Ollama (local HTTP)").tag("ollama")
                     }
+                    .pickerStyle(.menu)
+                    .accentColor(phosphorGreen)
+                    .foregroundColor(phosphorGreen)
                 }
-                .pickerStyle(.segmented)
-                Text("The tone auto-adjusts based on the active application unless overridden here.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                PhosphorSection(title: "CLEANUP OPTIONS") {
+                    Toggle("Remove Filler Words", isOn: $settings.removeFillers)
+                        .tint(phosphorGreen)
+                        .foregroundColor(phosphorGreen)
+                    Toggle("Add Punctuation", isOn: $settings.addPunctuation)
+                        .tint(phosphorGreen)
+                        .foregroundColor(phosphorGreen)
+                    Toggle("Raw Mode (skip cleanup)", isOn: $settings.rawMode)
+                        .tint(phosphorGreen)
+                        .foregroundColor(phosphorGreen)
+                }
+
+                PhosphorSection(title: "TONE STYLE") {
+                    Picker("Default Tone", selection: $settings.toneStyle) {
+                        ForEach(ToneStyle.allCases, id: \.self) { style in
+                            Text(style.rawValue.uppercased()).tag(style)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accentColor(phosphorGreen)
+                    Text("Tone auto-adjusts based on the active application unless overridden here.")
+                        .font(.caption)
+                        .foregroundColor(phosphorGreen.opacity(0.5))
+                }
             }
+            .padding()
         }
-        .formStyle(.grouped)
-        .padding()
+        .background(hudBackground)
     }
 }
 
@@ -167,27 +217,35 @@ private struct AICleanupTab: View {
 
 private struct PrivacyTab: View {
     var body: some View {
-        Form {
-            Section("Required Permissions") {
-                PrivacyRow(
-                    title: "Microphone",
-                    description: "Required for voice capture.",
-                    urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-                )
-                PrivacyRow(
-                    title: "Accessibility",
-                    description: "Required for text injection via AX API.",
-                    urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-                )
-                PrivacyRow(
-                    title: "Input Monitoring",
-                    description: "Required for global hotkey (Right Option).",
-                    urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
-                )
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                PhosphorSection(title: "REQUIRED PERMISSIONS") {
+                    PrivacyRow(
+                        title: "MICROPHONE",
+                        description: "Required for voice capture.",
+                        urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+                    )
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(phosphorGreen.opacity(0.15))
+                    PrivacyRow(
+                        title: "ACCESSIBILITY",
+                        description: "Required for text injection via AX API.",
+                        urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+                    )
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundColor(phosphorGreen.opacity(0.15))
+                    PrivacyRow(
+                        title: "INPUT MONITORING",
+                        description: "Required for global hotkey (Right Option).",
+                        urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+                    )
+                }
             }
+            .padding()
         }
-        .formStyle(.grouped)
-        .padding()
+        .background(hudBackground)
     }
 }
 
@@ -199,17 +257,60 @@ private struct PrivacyRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.body)
+                Text(title)
+                    .font(.body)
+                    .fontDesign(.monospaced)
+                    .foregroundColor(phosphorGreen)
                 Text(description)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .fontDesign(.monospaced)
+                    .foregroundColor(phosphorGreen.opacity(0.5))
             }
             Spacer()
-            Button("Open") {
+            Button("OPEN") {
                 if let url = URL(string: urlString) {
                     NSWorkspace.shared.open(url)
                 }
             }
+            .buttonStyle(PhosphorButtonStyle())
         }
+    }
+}
+
+// MARK: - Shared Phosphor Components
+
+private struct PhosphorSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.caption)
+                .fontDesign(.monospaced)
+                .foregroundColor(phosphorGreen.opacity(0.6))
+
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(phosphorGreen.opacity(0.2))
+
+            content()
+        }
+    }
+}
+
+private struct PhosphorButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption)
+            .fontDesign(.monospaced)
+            .foregroundColor(phosphorGreen.opacity(configuration.isPressed ? 0.6 : 1.0))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .overlay(
+                Rectangle()
+                    .stroke(phosphorGreen.opacity(0.4), lineWidth: 1)
+            )
+            .background(hudBackground)
     }
 }

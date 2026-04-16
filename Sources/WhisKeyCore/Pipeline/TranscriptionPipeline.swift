@@ -1,3 +1,6 @@
+import AppKit
+import ApplicationServices
+import Combine
 import Foundation
 import os.log
 
@@ -44,6 +47,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     private let injector: TextInjector
     private let permissions: PermissionsManager
     private let historyStore: HistoryStore
+    private let settings: SettingsManager
 
     // MARK: - Configuration
 
@@ -60,6 +64,14 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     /// Context service used to read the frontmost application before injection.
     private let contextService = ContextService()
 
+    // MARK: - Audio Level
+
+    /// Normalized RMS audio level (0.0–1.0) forwarded from AudioCaptureService.
+    /// Subscribe from UI layers for real-time waveform visualization.
+    public var audioLevelPublisher: AnyPublisher<Float, Never> {
+        audioCapture.audioLevelPublisher.eraseToAnyPublisher()
+    }
+
     // MARK: - State
 
     private var isRecording = false
@@ -74,18 +86,23 @@ public final class TranscriptionPipeline: @unchecked Sendable {
 
     // MARK: - Init
 
+    // @MainActor required: SettingsManager default value is @MainActor-isolated.
+    // TranscriptionPipeline is always constructed on the main thread (AppDelegate).
+    @MainActor
     public init(
         audioCapture: AudioCaptureService = AudioCaptureService(),
         whisper: WhisperBridge = .shared,
         injector: TextInjector = TextInjector(),
         permissions: PermissionsManager = PermissionsManager(),
-        historyStore: HistoryStore = HistoryStore()
+        historyStore: HistoryStore = HistoryStore(),
+        settings: SettingsManager = SettingsManager()
     ) {
         self.audioCapture = audioCapture
         self.whisper = whisper
         self.injector = injector
         self.permissions = permissions
         self.historyStore = historyStore
+        self.settings = settings
     }
 
     // MARK: - Public API
@@ -131,61 +148,90 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             return nil
         }
 
-        // Run transcription.
-        flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
-        let result: TranscriptionResult
-        do {
-            result = try await whisper.transcribe(pcm: pcmSamples, languageHint: languageHint)
-            flog.log(.info, "Whisper returned: \"\(result.text)\"")
-        } catch {
-            flog.log(.error, "Whisper error: \(error.localizedDescription)")
-            logger.error("Transcription error: \(error.localizedDescription)")
-            await MainActor.run { onError?(PipelineError.transcriptionError(error)) }
-            return nil
+        // Snapshot the focused AX element NOW — before transcription latency causes focus to change.
+        let capturedAXElement: AXUIElement? = await MainActor.run {
+            guard AXIsProcessTrusted() else { return nil }
+            let sysWide = AXUIElementCreateSystemWide()
+            var ref: CFTypeRef?
+            AXUIElementCopyAttributeValue(sysWide, kAXFocusedUIElementAttribute as CFString, &ref)
+            return ref.map { $0 as! AXUIElement }  // swiftlint:disable:this force_cast
         }
 
-        logger.info("Transcription complete: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]")
+        guard let result = await runTranscription(pcmSamples: pcmSamples) else { return nil }
 
         guard !result.text.isEmpty else {
             logger.info("Empty transcription result; nothing to inject.")
             return result
         }
 
-        // Read the frontmost application context and resolve tone style.
         let injectionContext = await MainActor.run { contextService.currentContext() }
+        let textToInject = await applyLLMCleanup(rawText: result.text, context: injectionContext)
+
+        await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
+        await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
+        return result
+    }
+
+    private func runTranscription(pcmSamples: [Float]) async -> TranscriptionResult? {
+        let flog = FileLogger.shared
+        flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
+        do {
+            let result = try await whisper.transcribe(pcm: pcmSamples, languageHint: languageHint)
+            flog.log(.info, "Whisper returned: \"\(result.text)\"")
+            logger.info("Transcription complete: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]")
+            return result
+        } catch {
+            flog.log(.error, "Whisper error: \(error.localizedDescription)")
+            logger.error("Transcription error: \(error.localizedDescription)")
+            await MainActor.run { onError?(PipelineError.transcriptionError(error)) }
+            return nil
+        }
+    }
+
+    private func applyLLMCleanup(rawText: String, context: InjectionContext) async -> String {
         var profile = cleanupProfile
-        // If the profile has not been manually configured with a non-default tone,
-        // auto-select tone from the active app's bundle ID.
         if profile.toneStyle == .casual && !profile.rawMode {
             profile = CleanupProfile(
                 removeFillers: profile.removeFillers,
                 addPunctuation: profile.addPunctuation,
-                toneStyle: contextService.suggestedToneStyle(for: injectionContext.activeAppBundleID),
+                toneStyle: contextService.suggestedToneStyle(for: context.activeAppBundleID),
                 rawMode: profile.rawMode
             )
         }
-
-        // LLM cleanup step — never blocks injection on failure.
-        let textToInject: String
         do {
-            textToInject = try await llmProvider.cleanup(
-                rawTranscript: result.text,
-                context: injectionContext,
-                profile: profile
-            )
-            if textToInject != result.text {
-                logger.info("LLM cleanup applied. Original: \"\(result.text)\" → Cleaned: \"\(textToInject)\"")
+            let cleaned = try await llmProvider.cleanup(rawTranscript: rawText, context: context, profile: profile)
+            if cleaned != rawText {
+                logger.info("LLM cleanup applied. Original: \"\(rawText)\" → Cleaned: \"\(cleaned)\"")
             }
+            return cleaned
         } catch {
             logger.error("LLM cleanup threw an error: \(error.localizedDescription) — injecting raw transcript.")
-            textToInject = result.text
+            return rawText
         }
+    }
 
-        // Inject text into focused window.
-        await injector.inject(textToInject)
+    private func dispatchOutput(text: String, capturedElement: AXUIElement?) async {
+        let mode = await MainActor.run { settings.outputMode }
+        switch mode {
+        case .activeWindow:
+            await injector.inject(text, capturedElement: capturedElement)
+        case .clipboard:
+            await clipboardOnly(text)
+        case .both:
+            await injector.inject(text, capturedElement: capturedElement)
+            await clipboardOnly(text)
+        case .hudOnly:
+            break
+        }
+    }
 
-        await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
-        return result
+    /// Writes `text` to the system clipboard without simulating Cmd-V or restoring
+    /// prior clipboard contents. Called when the output mode is `.clipboard` or `.both`.
+    @MainActor
+    private func clipboardOnly(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
     }
 
     private func persistAndNotify(result: TranscriptionResult, textToInject: String, bundleID: String) async {
