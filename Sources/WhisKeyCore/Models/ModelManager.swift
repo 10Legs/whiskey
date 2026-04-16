@@ -5,20 +5,37 @@ private let logger = Logger(subsystem: "com.whiskey.app", category: "ModelManage
 
 // MARK: - ModelInfo
 
-/// Metadata describing a downloadable Whisper model.
+/// Distinguishes the role of a downloadable model file.
+public enum ModelKind: String, Sendable {
+    /// Whisper ASR model — used for speech-to-text transcription.
+    case asr
+    /// LLM model — used for post-transcription cleanup via llama.cpp.
+    case llm
+}
+
+/// Metadata describing a downloadable model.
 public struct ModelInfo: Identifiable, Sendable, Equatable {
     public let id: String
     public let name: String
     public let sizeGB: Double
     public let url: URL
     public let filename: String
+    public let kind: ModelKind
 
-    public init(id: String, name: String, sizeGB: Double, url: URL, filename: String) {
+    public init(
+        id: String,
+        name: String,
+        sizeGB: Double,
+        url: URL,
+        filename: String,
+        kind: ModelKind
+    ) {
         self.id = id
         self.name = name
         self.sizeGB = sizeGB
         self.url = url
         self.filename = filename
+        self.kind = kind
     }
 }
 
@@ -38,25 +55,41 @@ public final class ModelManager: @unchecked Sendable {
     // MARK: - Available models catalogue
 
     public static let availableModels: [ModelInfo] = [
+        // MARK: ASR — Whisper transcription models
         ModelInfo(
             id: "ggml-base.en",
-            name: "Base (English)",
+            name: "Whisper Base (English)",
             sizeGB: 0.142,
             // swiftlint:disable:next force_unwrapping
             url: URL(string:
                 "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
             )!,
-            filename: "ggml-base.en.bin"
+            filename: "ggml-base.en.bin",
+            kind: .asr
         ),
         ModelInfo(
             id: "ggml-small.en",
-            name: "Small (English)",
+            name: "Whisper Small (English)",
             sizeGB: 0.488,
             // swiftlint:disable:next force_unwrapping
             url: URL(string:
                 "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin"
             )!,
-            filename: "ggml-small.en.bin"
+            filename: "ggml-small.en.bin",
+            kind: .asr
+        ),
+        // MARK: LLM — AI cleanup model (llama.cpp)
+        ModelInfo(
+            id: "phi-3.5-mini-q4_k_m",
+            name: "Phi-3.5 Mini (AI Cleanup)",
+            sizeGB: 2.39,
+            // swiftlint:disable:next force_unwrapping
+            url: URL(string:
+                "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/" +
+                "Phi-3.5-mini-instruct-Q4_K_M.gguf"
+            )!,
+            filename: "phi-3.5-mini-q4_k_m.gguf",
+            kind: .llm
         )
     ]
 

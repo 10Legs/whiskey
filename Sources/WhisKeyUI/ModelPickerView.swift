@@ -4,8 +4,8 @@ import WhisKeyCore
 private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
 private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
 
-/// Displays the available Whisper models with download/delete controls and
-/// progress feedback. Binds directly to `ModelManager` observable state.
+/// Displays downloadable models grouped by kind (ASR and LLM) with
+/// download/delete controls and progress feedback.
 public struct ModelPickerView: View {
 
     @State private var modelManager: ModelManager
@@ -14,15 +14,45 @@ public struct ModelPickerView: View {
         _modelManager = State(initialValue: modelManager)
     }
 
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(ModelManager.availableModels) { model in
-                ModelRowView(model: model, modelManager: modelManager)
+    private var asrModels: [ModelInfo] {
+        ModelManager.availableModels.filter { $0.kind == .asr }
+    }
 
-                if model.id != ModelManager.availableModels.last?.id {
+    private var llmModels: [ModelInfo] {
+        ModelManager.availableModels.filter { $0.kind == .llm }
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ModelSectionView(title: "TRANSCRIPTION", models: asrModels, modelManager: modelManager)
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(phosphorGreen.opacity(0.25))
+            ModelSectionView(title: "AI CLEANUP", models: llmModels, modelManager: modelManager)
+        }
+    }
+}
+
+// MARK: - ModelSectionView
+
+private struct ModelSectionView: View {
+
+    let title: String
+    let models: [ModelInfo]
+    @State var modelManager: ModelManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption2)
+                .fontDesign(.monospaced)
+                .foregroundColor(phosphorGreen.opacity(0.4))
+            ForEach(models) { model in
+                ModelRowView(model: model, modelManager: modelManager)
+                if model.id != models.last?.id {
                     Rectangle()
                         .frame(height: 1)
-                        .foregroundColor(phosphorGreen.opacity(0.15))
+                        .foregroundColor(phosphorGreen.opacity(0.1))
                 }
             }
         }
