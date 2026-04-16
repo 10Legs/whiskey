@@ -125,6 +125,11 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.outputMode, value: newValue.rawValue) }
     }
 
+    public var notificationsEnabled: Bool {
+        get { get(.notificationsEnabled, default: true) }
+        set { set(.notificationsEnabled, value: newValue) }
+    }
+
     /// Builds a `CleanupProfile` from current settings.
     public var cleanupProfile: CleanupProfile {
         CleanupProfile(

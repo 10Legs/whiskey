@@ -10,4 +10,5 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     case addPunctuation
     case rawMode
     case outputMode
+    case notificationsEnabled
 }
