@@ -453,7 +453,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nAIR=\"${DERIVED_FILE_DIR}/ggml-metal.air\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nDEST_LIB=\"${DEST_DIR}/default.metallib\"\nmkdir -p \"$DEST_DIR\"\nxcrun metal -sdk macosx \\\n  -I \"${SRCROOT}/CGGML\" \\\n  -I \"${SRCROOT}/CGGML/include\" \\\n  -I \"${SRCROOT}/CGGML/ggml-metal\" \\\n  -DGGML_USE_METAL \\\n  -c \"$METAL_SRC\" -o \"$AIR\"\nxcrun metallib \"$AIR\" -o \"$DEST_LIB\"\n";
+			shellScript = "set -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nAIR=\"${DERIVED_FILE_DIR}/ggml-metal.air\"\nRES_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nRES_LIB=\"${RES_DIR}/default.metallib\"\n# Also emit at BUILT_PRODUCTS_DIR root — ggml_metal resolves resources via\n# GGML_METAL_PATH_RESOURCES (set by WhisperBridge to Bundle.main.resourcePath)\n# which on a dev build points to BUILT_PRODUCTS_DIR, not the app bundle.\nROOT_LIB=\"${BUILT_PRODUCTS_DIR}/default.metallib\"\nmkdir -p \"$RES_DIR\"\nxcrun metal -sdk macosx \\\n  -I \"${SRCROOT}/CGGML\" \\\n  -I \"${SRCROOT}/CGGML/include\" \\\n  -I \"${SRCROOT}/CGGML/ggml-metal\" \\\n  -DGGML_USE_METAL \\\n  -c \"$METAL_SRC\" -o \"$AIR\"\nxcrun metallib \"$AIR\" -o \"$RES_LIB\"\ncp \"$RES_LIB\" \"$ROOT_LIB\"\n";
 		};
 		C8E6A92D1CF312C3E89A7270 /* Install to ~/Applications */ = {
 			isa = PBXShellScriptBuildPhase;
