@@ -13,6 +13,27 @@
 #include <string>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <CoreFoundation/CoreFoundation.h>
+#include <climits>
+
+// Point ggml_metal at the app bundle's Resources dir before any llama init.
+// This is done at the C++ level (CoreFoundation) to avoid Swift/ObjC NSBundle
+// lookup failures that occur in SPM-built apps when SWIFT_PACKAGE is defined.
+static void set_metal_path_from_bundle() {
+    if (getenv("GGML_METAL_PATH_RESOURCES")) return; // already set
+    CFBundleRef bundle = CFBundleGetMainBundle();
+    if (!bundle) return;
+    CFURLRef resURL = CFBundleCopyResourcesDirectoryURL(bundle);
+    if (!resURL) return;
+    char path[PATH_MAX];
+    if (CFURLGetFileSystemRepresentation(resURL, true, (UInt8*)path, PATH_MAX)) {
+        setenv("GGML_METAL_PATH_RESOURCES", path, 1);
+    }
+    CFRelease(resURL);
+}
+#endif
+
 // ---------------------------------------------------------------------------
 // Context struct
 // ---------------------------------------------------------------------------
@@ -30,6 +51,9 @@ struct llama_bridge_ctx {
 
 extern "C"
 llama_bridge_ctx * llama_bridge_init(const char * model_path, int n_ctx, int n_threads) {
+#if defined(__APPLE__)
+    set_metal_path_from_bundle();
+#endif
     llama_model_params mparams = llama_model_default_params();
     mparams.use_mmap = true;
 

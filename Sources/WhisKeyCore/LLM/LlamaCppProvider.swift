@@ -101,6 +101,16 @@ public actor LlamaCppProvider: LLMProvider {
             return nil
         }
 
+        // Point ggml_metal at the bundle Resources dir where the Run Script copied ggml-metal.metal.
+        // The ObjC [NSBundle bundleForClass:] lookup can fail in SPM-built apps due to
+        // SWIFT_PACKAGE flag interaction; setting GGML_METAL_PATH_RESOURCES from Swift bypasses it.
+        if let metalURL = Bundle.main.url(forResource: "ggml-metal", withExtension: "metal") {
+            setenv("GGML_METAL_PATH_RESOURCES", metalURL.deletingLastPathComponent().path, 1)
+            logger.info("LlamaCppProvider: Metal shader found at \(metalURL.path)")
+        } else {
+            logger.warning("LlamaCppProvider: ggml-metal.metal not in bundle — Metal init will likely fail")
+        }
+
         guard let newCtx = llama_bridge_init(modelURL.path, nCtx, nThreads) else {
             logger.error("LlamaCppProvider: llama_bridge_init returned nil — model may be corrupt.")
             modelMissing = true
