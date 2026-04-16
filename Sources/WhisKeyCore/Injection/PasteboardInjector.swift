@@ -1,16 +1,17 @@
 import AppKit
+import os.log
+
+private let logger = Logger(subsystem: "com.whiskey.app", category: "PasteboardInjector")
 
 /// Injects text by writing to NSPasteboard and simulating Cmd+V.
 /// Saves and restores the prior clipboard content after a short delay.
 final class PasteboardInjector: @unchecked Sendable {
 
-    /// Attempt to inject `text` via pasteboard + Cmd+V simulation.
-    /// Always returns true (this strategy has no pre-condition failure mode).
     @MainActor
     func inject(_ text: String) -> Bool {
-        let pb = NSPasteboard.general
+        guard AXIsProcessTrusted() else { return false }
 
-        // Save prior clipboard string content.
+        let pb = NSPasteboard.general
         let priorString = pb.string(forType: .string)
 
         pb.clearContents()
@@ -18,8 +19,7 @@ final class PasteboardInjector: @unchecked Sendable {
 
         simulateCmdV()
 
-        // Restore prior clipboard after Cmd+V has had time to be processed.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             pb.clearContents()
             if let prior = priorString {
                 pb.setString(prior, forType: .string)
@@ -29,8 +29,6 @@ final class PasteboardInjector: @unchecked Sendable {
         return true
     }
 
-    // MARK: - Private
-
     private func simulateCmdV() {
         let source = CGEventSource(stateID: .hidSystemState)
         let vKeyCode: CGKeyCode = 0x09  // kVK_ANSI_V
@@ -39,7 +37,7 @@ final class PasteboardInjector: @unchecked Sendable {
         let keyUp   = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
         keyDown?.flags = .maskCommand
         keyUp?.flags   = .maskCommand
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+        keyDown?.post(tap: .cgSessionEventTap)
+        keyUp?.post(tap: .cgSessionEventTap)
     }
 }

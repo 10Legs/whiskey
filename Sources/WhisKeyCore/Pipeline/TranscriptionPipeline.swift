@@ -1,3 +1,6 @@
+import AppKit
+import ApplicationServices
+import Combine
 import Foundation
 import os.log
 
@@ -44,6 +47,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     private let injector: TextInjector
     private let permissions: PermissionsManager
     private let historyStore: HistoryStore
+    private let settings: SettingsManager
 
     // MARK: - Configuration
 
@@ -60,6 +64,14 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     /// Context service used to read the frontmost application before injection.
     private let contextService = ContextService()
 
+    // MARK: - Audio Level
+
+    /// Normalized RMS audio level (0.0–1.0) forwarded from AudioCaptureService.
+    /// Subscribe from UI layers for real-time waveform visualization.
+    public var audioLevelPublisher: AnyPublisher<Float, Never> {
+        audioCapture.audioLevelPublisher.eraseToAnyPublisher()
+    }
+
     // MARK: - State
 
     private var isRecording = false
@@ -74,18 +86,23 @@ public final class TranscriptionPipeline: @unchecked Sendable {
 
     // MARK: - Init
 
+    // @MainActor required: SettingsManager default value is @MainActor-isolated.
+    // TranscriptionPipeline is always constructed on the main thread (AppDelegate).
+    @MainActor
     public init(
         audioCapture: AudioCaptureService = AudioCaptureService(),
         whisper: WhisperBridge = .shared,
         injector: TextInjector = TextInjector(),
         permissions: PermissionsManager = PermissionsManager(),
-        historyStore: HistoryStore = HistoryStore()
+        historyStore: HistoryStore = HistoryStore(),
+        settings: SettingsManager = SettingsManager()
     ) {
         self.audioCapture = audioCapture
         self.whisper = whisper
         self.injector = injector
         self.permissions = permissions
         self.historyStore = historyStore
+        self.settings = settings
     }
 
     // MARK: - Public API
@@ -129,6 +146,15 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             flog.log(.warn, "No audio samples captured — check Microphone permission.")
             logger.warning("No audio samples captured; skipping transcription.")
             return nil
+        }
+
+        // Snapshot the focused AX element NOW — before transcription latency causes focus to change.
+        let capturedAXElement: AXUIElement? = await MainActor.run {
+            guard AXIsProcessTrusted() else { return nil }
+            let sysWide = AXUIElementCreateSystemWide()
+            var ref: CFTypeRef?
+            AXUIElementCopyAttributeValue(sysWide, kAXFocusedUIElementAttribute as CFString, &ref)
+            return ref.map { $0 as! AXUIElement }  // swiftlint:disable:this force_cast
         }
 
         // Run transcription.
@@ -181,11 +207,35 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             textToInject = result.text
         }
 
-        // Inject text into focused window.
-        await injector.inject(textToInject)
+        // Dispatch text according to the configured output mode.
+        let mode = await MainActor.run { settings.outputMode }
+
+        switch mode {
+        case .activeWindow:
+            await injector.inject(textToInject, capturedElement: capturedAXElement)
+
+        case .clipboard:
+            await clipboardOnly(textToInject)
+
+        case .both:
+            await injector.inject(textToInject, capturedElement: capturedAXElement)
+            await clipboardOnly(textToInject)
+
+        case .hudOnly:
+            break  // transcription flows to history + HUD only
+        }
 
         await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
         return result
+    }
+
+    /// Writes `text` to the system clipboard without simulating Cmd-V or restoring
+    /// prior clipboard contents. Called when the output mode is `.clipboard` or `.both`.
+    @MainActor
+    private func clipboardOnly(_ text: String) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
     }
 
     private func persistAndNotify(result: TranscriptionResult, textToInject: String, bundleID: String) async {

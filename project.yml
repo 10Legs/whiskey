@@ -60,6 +60,33 @@ targets:
         Release:
           SWIFT_OPTIMIZATION_LEVEL: "-O"
           SWIFT_COMPILATION_MODE: "wholemodule"
+    preBuildScripts:
+      - name: "Compile ggml-metal.metal → default.metallib"
+        script: |
+          set -e
+          METAL_SRC="${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal"
+          AIR="${DERIVED_FILE_DIR}/ggml-metal.air"
+          DEST_DIR="${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+          DEST_LIB="${DEST_DIR}/default.metallib"
+          mkdir -p "$DEST_DIR"
+          xcrun metal -sdk macosx \
+            -I "${SRCROOT}/CGGML" \
+            -I "${SRCROOT}/CGGML/include" \
+            -I "${SRCROOT}/CGGML/ggml-metal" \
+            -DGGML_USE_METAL \
+            -c "$METAL_SRC" -o "$AIR"
+          xcrun metallib "$AIR" -o "$DEST_LIB"
+        basedOnDependencyAnalysis: false
+
+    postBuildScripts:
+      - name: "Install to ~/Applications"
+        script: |
+          DEST="$HOME/Applications/$FULL_PRODUCT_NAME"
+          echo "Copying $BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME → $DEST"
+          rm -rf "$DEST"
+          cp -R "$BUILT_PRODUCTS_DIR/$FULL_PRODUCT_NAME" "$DEST"
+        runOnlyWhenInstalling: false
+        basedOnDependencyAnalysis: false
 
   WhisKeyCoreTests:
     type: bundle.unit-test

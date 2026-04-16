@@ -7,7 +7,7 @@ import AppKit
 ///   2. NSPasteboard + simulated Cmd+V — broad compatibility, restores prior clipboard.
 ///   3. CGEvent keyboard simulation — character-by-character fallback.
 public protocol TextInjecting: Sendable {
-    func inject(_ text: String) async
+    func inject(_ text: String, capturedElement: AXUIElement?) async
 }
 
 /// Orchestrator that tries each injection strategy in order.
@@ -23,8 +23,8 @@ public final class TextInjector: TextInjecting, @unchecked Sendable {
         cgEventInjector = CGEventInjector()
     }
 
-    public func inject(_ text: String) async {
-        if await axInjector.inject(text) { return }
+    public func inject(_ text: String, capturedElement: AXUIElement? = nil) async {
+        if await axInjector.inject(text, capturedElement: capturedElement) { return }
         if await pasteboardInjector.inject(text) { return }
         await cgEventInjector.inject(text)
     }
