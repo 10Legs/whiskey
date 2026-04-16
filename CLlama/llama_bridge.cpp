@@ -14,23 +14,31 @@
 #include <vector>
 
 #if defined(__APPLE__)
-#include <CoreFoundation/CoreFoundation.h>
+#include <mach-o/dyld.h>   // _NSGetExecutablePath
 #include <climits>
 
 // Point ggml_metal at the app bundle's Resources dir before any llama init.
-// This is done at the C++ level (CoreFoundation) to avoid Swift/ObjC NSBundle
-// lookup failures that occur in SPM-built apps when SWIFT_PACKAGE is defined.
+// Uses _NSGetExecutablePath to derive the path — immune to CFBundle / NSBundle
+// quirks that return the flat DerivedData build dir in SPM/Xcode hybrids.
+// Always overwrites the env var so it cannot be poisoned by earlier callers.
 static void set_metal_path_from_bundle() {
-    if (getenv("GGML_METAL_PATH_RESOURCES")) return; // already set
-    CFBundleRef bundle = CFBundleGetMainBundle();
-    if (!bundle) return;
-    CFURLRef resURL = CFBundleCopyResourcesDirectoryURL(bundle);
-    if (!resURL) return;
-    char path[PATH_MAX];
-    if (CFURLGetFileSystemRepresentation(resURL, true, (UInt8*)path, PATH_MAX)) {
-        setenv("GGML_METAL_PATH_RESOURCES", path, 1);
-    }
-    CFRelease(resURL);
+    char execPath[PATH_MAX];
+    uint32_t size = sizeof(execPath);
+    if (_NSGetExecutablePath(execPath, &size) != 0) return;
+
+    // Resolve symlinks so we get the canonical path.
+    char resolved[PATH_MAX];
+    if (!realpath(execPath, resolved)) return;
+
+    // Executable is at: WhisKey.app/Contents/MacOS/WhisKey
+    // Resources are at: WhisKey.app/Contents/Resources/
+    std::string path(resolved);
+    auto pos = path.rfind("/MacOS/");
+    if (pos == std::string::npos) return;
+
+    std::string resourcePath = path.substr(0, pos) + "/Resources";
+    setenv("GGML_METAL_PATH_RESOURCES", resourcePath.c_str(), 1);
+    fprintf(stderr, "llama_bridge: GGML_METAL_PATH_RESOURCES = %s\n", resourcePath.c_str());
 }
 #endif
 
