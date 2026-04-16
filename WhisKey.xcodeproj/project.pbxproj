@@ -453,7 +453,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy ggml-metal.metal into the app bundle's Resources folder.\n# ggml_metal locates the shader via [NSBundle mainBundle pathForResource:@\"ggml-metal\" ofType:@\"metal\"]\n# which resolves to UNLOCALIZED_RESOURCES_FOLDER_PATH inside the .app bundle.\n# Do NOT set GGML_METAL_PATH_RESOURCES — that env var overrides the bundle lookup\n# with a raw directory path and breaks when the binary is run from a .app bundle.\n\nset -e\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\nRES_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"${RES_DIR}\"\ncp \"${METAL_SRC}\" \"${RES_DIR}/ggml-metal.metal\"\n";
+			shellScript = "# Copy ggml-metal.metal to BUILT_PRODUCTS_DIR.\n#\n# WhisKey is an SPM executable target — there is no .app bundle in DerivedData.\n# Bundle.main resolves to BUILT_PRODUCTS_DIR (the flat directory containing the\n# WhisKey binary), so ggml_metal's bundle-class lookup finds the shader there.\n#\n# We also attempt a copy into UNLOCALIZED_RESOURCES_FOLDER_PATH for release\n# packaging builds where a .app bundle is assembled, but we do NOT abort if\n# that path doesn't exist (omit set -e).\n\nMETAL_SRC=\"${SRCROOT}/CGGML/ggml-metal/ggml-metal.metal\"\n\n# Primary: flat BUILT_PRODUCTS_DIR (dev/Xcode run)\ncp \"${METAL_SRC}\" \"${BUILT_PRODUCTS_DIR}/ggml-metal.metal\"\n\n# Secondary: app bundle resources (release packaging, if dir exists)\nRES_DIR=\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nif [ -d \"${RES_DIR}\" ]; then\n  cp \"${METAL_SRC}\" \"${RES_DIR}/ggml-metal.metal\"\nfi\n";
 		};
 		C8E6A92D1CF312C3E89A7270 /* Install to ~/Applications */ = {
 			isa = PBXShellScriptBuildPhase;

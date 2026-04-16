@@ -30,13 +30,20 @@ static void set_metal_path_from_bundle() {
     char resolved[PATH_MAX];
     if (!realpath(execPath, resolved)) return;
 
-    // Executable is at: WhisKey.app/Contents/MacOS/WhisKey
-    // Resources are at: WhisKey.app/Contents/Resources/
     std::string path(resolved);
-    auto pos = path.rfind("/MacOS/");
-    if (pos == std::string::npos) return;
+    std::string resourcePath;
 
-    std::string resourcePath = path.substr(0, pos) + "/Resources";
+    // .app bundle: WhisKey.app/Contents/MacOS/WhisKey → Contents/Resources/
+    auto pos = path.rfind("/MacOS/");
+    if (pos != std::string::npos) {
+        resourcePath = path.substr(0, pos) + "/Resources";
+    } else {
+        // SPM executable: binary lives in BUILT_PRODUCTS_DIR alongside resources.
+        auto slash = path.rfind('/');
+        if (slash == std::string::npos) return;
+        resourcePath = path.substr(0, slash);
+    }
+
     setenv("GGML_METAL_PATH_RESOURCES", resourcePath.c_str(), 1);
     fprintf(stderr, "llama_bridge: GGML_METAL_PATH_RESOURCES = %s\n", resourcePath.c_str());
 }
