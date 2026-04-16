@@ -157,76 +157,72 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             return ref.map { $0 as! AXUIElement }  // swiftlint:disable:this force_cast
         }
 
-        // Run transcription.
-        flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
-        let result: TranscriptionResult
-        do {
-            result = try await whisper.transcribe(pcm: pcmSamples, languageHint: languageHint)
-            flog.log(.info, "Whisper returned: \"\(result.text)\"")
-        } catch {
-            flog.log(.error, "Whisper error: \(error.localizedDescription)")
-            logger.error("Transcription error: \(error.localizedDescription)")
-            await MainActor.run { onError?(PipelineError.transcriptionError(error)) }
-            return nil
-        }
-
-        logger.info("Transcription complete: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]")
+        guard let result = await runTranscription(pcmSamples: pcmSamples) else { return nil }
 
         guard !result.text.isEmpty else {
             logger.info("Empty transcription result; nothing to inject.")
             return result
         }
 
-        // Read the frontmost application context and resolve tone style.
         let injectionContext = await MainActor.run { contextService.currentContext() }
+        let textToInject = await applyLLMCleanup(rawText: result.text, context: injectionContext)
+
+        await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
+        await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
+        return result
+    }
+
+    private func runTranscription(pcmSamples: [Float]) async -> TranscriptionResult? {
+        let flog = FileLogger.shared
+        flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
+        do {
+            let result = try await whisper.transcribe(pcm: pcmSamples, languageHint: languageHint)
+            flog.log(.info, "Whisper returned: \"\(result.text)\"")
+            logger.info("Transcription complete: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]")
+            return result
+        } catch {
+            flog.log(.error, "Whisper error: \(error.localizedDescription)")
+            logger.error("Transcription error: \(error.localizedDescription)")
+            await MainActor.run { onError?(PipelineError.transcriptionError(error)) }
+            return nil
+        }
+    }
+
+    private func applyLLMCleanup(rawText: String, context: InjectionContext) async -> String {
         var profile = cleanupProfile
-        // If the profile has not been manually configured with a non-default tone,
-        // auto-select tone from the active app's bundle ID.
         if profile.toneStyle == .casual && !profile.rawMode {
             profile = CleanupProfile(
                 removeFillers: profile.removeFillers,
                 addPunctuation: profile.addPunctuation,
-                toneStyle: contextService.suggestedToneStyle(for: injectionContext.activeAppBundleID),
+                toneStyle: contextService.suggestedToneStyle(for: context.activeAppBundleID),
                 rawMode: profile.rawMode
             )
         }
-
-        // LLM cleanup step — never blocks injection on failure.
-        let textToInject: String
         do {
-            textToInject = try await llmProvider.cleanup(
-                rawTranscript: result.text,
-                context: injectionContext,
-                profile: profile
-            )
-            if textToInject != result.text {
-                logger.info("LLM cleanup applied. Original: \"\(result.text)\" → Cleaned: \"\(textToInject)\"")
+            let cleaned = try await llmProvider.cleanup(rawTranscript: rawText, context: context, profile: profile)
+            if cleaned != rawText {
+                logger.info("LLM cleanup applied. Original: \"\(rawText)\" → Cleaned: \"\(cleaned)\"")
             }
+            return cleaned
         } catch {
             logger.error("LLM cleanup threw an error: \(error.localizedDescription) — injecting raw transcript.")
-            textToInject = result.text
+            return rawText
         }
+    }
 
-        // Dispatch text according to the configured output mode.
+    private func dispatchOutput(text: String, capturedElement: AXUIElement?) async {
         let mode = await MainActor.run { settings.outputMode }
-
         switch mode {
         case .activeWindow:
-            await injector.inject(textToInject, capturedElement: capturedAXElement)
-
+            await injector.inject(text, capturedElement: capturedElement)
         case .clipboard:
-            await clipboardOnly(textToInject)
-
+            await clipboardOnly(text)
         case .both:
-            await injector.inject(textToInject, capturedElement: capturedAXElement)
-            await clipboardOnly(textToInject)
-
+            await injector.inject(text, capturedElement: capturedElement)
+            await clipboardOnly(text)
         case .hudOnly:
-            break  // transcription flows to history + HUD only
+            break
         }
-
-        await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
-        return result
     }
 
     /// Writes `text` to the system clipboard without simulating Cmd-V or restoring
