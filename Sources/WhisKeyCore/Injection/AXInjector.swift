@@ -8,7 +8,7 @@ private let logger = Logger(subsystem: "com.whiskey.app", category: "AXInjector"
 private let candidateRoles: Set<String> = [
     kAXTextFieldRole as String,
     kAXTextAreaRole as String,
-    kAXComboBoxRole as String,
+    kAXComboBoxRole as String
 ]
 
 /// Apps that report AXTextArea but silently ignore kAXSelectedTextAttribute write.
@@ -22,7 +22,7 @@ private let axBlocklist: Set<String> = [
     "org.mozilla.firefox",
     "com.microsoft.edgemac",
     "com.brave.Browser",
-    "com.todesktop.230313mzl4w4u92", // Cursor
+    "com.todesktop.230313mzl4w4u92" // Cursor
 ]
 
 /// Injects text via the Accessibility API (AXUIElement).

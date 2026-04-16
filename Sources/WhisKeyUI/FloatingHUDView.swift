@@ -114,27 +114,27 @@ public struct WaveformHUDView: View {
         phase: Double,
         level: Float
     ) {
-        let w = size.width
-        let h = size.height
-        let midY = h / 2
-        let amplitude = CGFloat(level) * (h / 2 - 4)
+        let canvasWidth = size.width
+        let canvasHeight = size.height
+        let midY = canvasHeight / 2
+        let amplitude = CGFloat(level) * (canvasHeight / 2 - 4)
 
         var path = Path()
-        let steps = Int(w)
+        let steps = Int(canvasWidth)
 
-        for x in 0...steps {
-            let t = Double(x) / Double(steps)
+        for step in 0...steps {
+            let fraction = Double(step) / Double(steps)
             // Two sine waves at different frequencies + small noise term for organic feel
-            let noise = sin(t * 47.3 + phase * 3.7) * 0.15
-            let y = midY - amplitude * CGFloat(
-                sin(t * .pi * 4 + phase * 5) * 0.6 +
-                sin(t * .pi * 7 + phase * 3) * 0.3 +
+            let noise = sin(fraction * 47.3 + phase * 3.7) * 0.15
+            let yPos = midY - amplitude * CGFloat(
+                sin(fraction * .pi * 4 + phase * 5) * 0.6 +
+                sin(fraction * .pi * 7 + phase * 3) * 0.3 +
                 noise
             )
-            if x == 0 {
-                path.move(to: CGPoint(x: CGFloat(x), y: y))
+            if step == 0 {
+                path.move(to: CGPoint(x: CGFloat(step), y: yPos))
             } else {
-                path.addLine(to: CGPoint(x: CGFloat(x), y: y))
+                path.addLine(to: CGPoint(x: CGFloat(step), y: yPos))
             }
         }
 
