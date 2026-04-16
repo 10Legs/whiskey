@@ -10,14 +10,16 @@ private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
 public struct SettingsView: View {
 
     @Bindable private var settings: SettingsManager
+    private let modelManager: ModelManager
 
-    public init(settings: SettingsManager) {
+    public init(settings: SettingsManager, modelManager: ModelManager) {
         self.settings = settings
+        self.modelManager = modelManager
     }
 
     public var body: some View {
         TabView {
-            GeneralTab(settings: settings)
+            GeneralTab(settings: settings, modelManager: modelManager)
                 .tabItem { Label("General", systemImage: "gear") }
 
             HotkeyTab()
@@ -43,6 +45,7 @@ public struct SettingsView: View {
 
 private struct GeneralTab: View {
     @Bindable var settings: SettingsManager
+    let modelManager: ModelManager
 
     var body: some View {
         ScrollView {
@@ -56,15 +59,7 @@ private struct GeneralTab: View {
                 }
 
                 PhosphorSection(title: "WHISPER MODEL") {
-                    Picker("Active Model", selection: $settings.whisperModel) {
-                        Text("ggml-tiny.en").tag("ggml-tiny.en")
-                        Text("ggml-base.en").tag("ggml-base.en")
-                        Text("ggml-small.en").tag("ggml-small.en")
-                        Text("ggml-medium.en").tag("ggml-medium.en")
-                    }
-                    .pickerStyle(.menu)
-                    .accentColor(phosphorGreen)
-                    .foregroundColor(phosphorGreen)
+                    ModelPickerView(modelManager: modelManager)
                 }
 
                 PhosphorSection(title: "OUTPUT MODE") {
