@@ -136,7 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startHotkey() {
         let flog = FileLogger.shared
-        flog.log(.info, "WhisKey started. Log: \(flog.logFilePath)")
+        flog.log(.info, "WhisKey started (build: \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")). Log: \(flog.logFilePath)")
 
         // Apply persisted settings to pipeline.
         pipeline.languageHint = settingsManager.languageHint
