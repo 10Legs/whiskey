@@ -6,6 +6,4 @@ public enum OutputMode: String, Codable, Sendable, CaseIterable {
     case clipboard
     /// Inject into the focused window AND leave a copy on the clipboard.
     case both
-    /// Transcribe and show in HUD/history only; do not inject or copy to clipboard.
-    case hudOnly
 }

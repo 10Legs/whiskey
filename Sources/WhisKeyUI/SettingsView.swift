@@ -67,13 +67,12 @@ private struct GeneralTab: View {
                         Text("Active Window").tag(OutputMode.activeWindow)
                         Text("Clipboard").tag(OutputMode.clipboard)
                         Text("Both").tag(OutputMode.both)
-                        Text("HUD Only").tag(OutputMode.hudOnly)
                     }
                     .pickerStyle(.segmented)
                     .accentColor(phosphorGreen)
                     Text(
                         "Active Window injects into focused field. Clipboard copies without injecting." +
-                        " Both does both. HUD Only shows in history without injecting or copying."
+                        " Both does both."
                     )
                         .font(.caption)
                         .foregroundColor(phosphorGreen.opacity(0.5))
