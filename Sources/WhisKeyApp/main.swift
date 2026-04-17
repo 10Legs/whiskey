@@ -1,8 +1,37 @@
 import AppKit
+import Darwin
 import os.log
 import SwiftUI
 import WhisKeyCore
 import WhisKeyUI
+
+// ggml-metal-device.m looks for default.metallib ONLY in:
+//   1. [NSBundle bundleForClass:[GGMLMetalClass class]] (= NSBundle.main for static libs)
+//   2. The directory containing the binary (argv[0] parent)
+// GGML_METAL_PATH_RESOURCES is used ONLY for the ggml-metal.metal source fallback, not precompiled lib.
+//
+// SPM places .copy resources into WhisKey_WhisKeyApp.bundle/Contents/Resources/ — neither
+// location ggml checks. Fix: copy the metallib into the binary dir at launch so ggml finds it.
+do {
+    let binaryDir = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0])
+        .deletingLastPathComponent()
+    let destURL = binaryDir.appendingPathComponent("default.metallib")
+
+    if !FileManager.default.fileExists(atPath: destURL.path) {
+        if let src = Bundle.module.url(forResource: "default", withExtension: "metallib") {
+            do {
+                try FileManager.default.copyItem(at: src, to: destURL)
+                fputs("WhisKey[startup]: copied default.metallib → \(destURL.path)\n", stderr)
+            } catch {
+                fputs("WhisKey[startup]: ERROR copying default.metallib: \(error)\n", stderr)
+            }
+        } else {
+            fputs("WhisKey[startup]: ERROR — default.metallib not found in Bundle.module\n", stderr)
+        }
+    } else {
+        fputs("WhisKey[startup]: default.metallib already present at \(destURL.path)\n", stderr)
+    }
+}
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "AppDelegate")
 

@@ -14,38 +14,35 @@
 #include <vector>
 
 #if defined(__APPLE__)
-#include <mach-o/dyld.h>   // _NSGetExecutablePath
+#include <mach-o/dyld.h>
 #include <climits>
 
-// Point ggml_metal at the app bundle's Resources dir before any llama init.
-// Uses _NSGetExecutablePath to derive the path — immune to CFBundle / NSBundle
-// quirks that return the flat DerivedData build dir in SPM/Xcode hybrids.
-// Always overwrites the env var so it cannot be poisoned by earlier callers.
+// Note: GGML_METAL_PATH_RESOURCES is used by ggml ONLY for finding ggml-metal.metal (JIT source),
+// NOT for finding default.metallib (which ggml finds via NSBundle or argv[0] directory).
+// Swift startup code copies default.metallib to the binary dir — this is just a belt-and-suspenders
+// path setup so the JIT fallback also points somewhere sensible.
 static void set_metal_path_from_bundle() {
     char execPath[PATH_MAX];
     uint32_t size = sizeof(execPath);
     if (_NSGetExecutablePath(execPath, &size) != 0) return;
 
-    // Resolve symlinks so we get the canonical path.
     char resolved[PATH_MAX];
     if (!realpath(execPath, resolved)) return;
 
     std::string path(resolved);
     std::string resourcePath;
 
-    // .app bundle: WhisKey.app/Contents/MacOS/WhisKey → Contents/Resources/
     auto pos = path.rfind("/MacOS/");
     if (pos != std::string::npos) {
         resourcePath = path.substr(0, pos) + "/Resources";
     } else {
-        // SPM executable: binary lives in BUILT_PRODUCTS_DIR alongside resources.
         auto slash = path.rfind('/');
         if (slash == std::string::npos) return;
         resourcePath = path.substr(0, slash);
     }
 
-    setenv("GGML_METAL_PATH_RESOURCES", resourcePath.c_str(), 1);
-    fprintf(stderr, "llama_bridge: GGML_METAL_PATH_RESOURCES = %s\n", resourcePath.c_str());
+    setenv("GGML_METAL_PATH_RESOURCES", resourcePath.c_str(), 0);
+    fprintf(stderr, "llama_bridge: GGML_METAL_PATH_RESOURCES = %s\n", getenv("GGML_METAL_PATH_RESOURCES"));
 }
 #endif
 
