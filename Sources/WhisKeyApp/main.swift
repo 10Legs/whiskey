@@ -227,6 +227,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkey.mode = .pushToTalk
 
+        Task.detached(priority: .background) { [weak self] in
+            guard let self else { return }
+            await self.pipeline.warmUpLLM()
+            logger.info("LLM warmup complete.")
+        }
+
         let started = hotkey.start()
         if started {
             flog.log(.info, "HotkeyManager started. Hold Right Option to record.")

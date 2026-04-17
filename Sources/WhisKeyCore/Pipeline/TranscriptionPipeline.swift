@@ -107,6 +107,11 @@ public final class TranscriptionPipeline: @unchecked Sendable {
 
     // MARK: - Public API
 
+    /// Preload the LLM model in the background so first-use latency is eliminated.
+    public func warmUpLLM() async {
+        await llmProvider.warmUp()
+    }
+
     /// Begin audio capture. Call when the hotkey is pressed.
     /// - Throws: `PipelineError.alreadyRecording` if already active.
     public func startRecording() {

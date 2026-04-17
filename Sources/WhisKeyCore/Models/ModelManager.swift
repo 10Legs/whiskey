@@ -57,6 +57,14 @@ public final class ModelManager: @unchecked Sendable {
     public static let availableModels: [ModelInfo] = [
         // MARK: ASR — Whisper transcription models
         ModelInfo(
+            id: "ggml-tiny.en",
+            name: "Whisper Tiny (English, fastest)",
+            sizeGB: 0.039,
+            url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin")!, // swiftlint:disable:this force_unwrapping
+            filename: "ggml-tiny.en.bin",
+            kind: .asr
+        ),
+        ModelInfo(
             id: "ggml-base.en",
             name: "Whisper Base (English)",
             sizeGB: 0.142,

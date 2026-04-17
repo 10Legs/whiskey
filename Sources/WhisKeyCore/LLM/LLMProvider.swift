@@ -12,4 +12,10 @@ public protocol LLMProvider: Sendable {
         context: InjectionContext,
         profile: CleanupProfile
     ) async throws -> String
+
+    func warmUp() async
+}
+
+public extension LLMProvider {
+    func warmUp() async {}
 }
