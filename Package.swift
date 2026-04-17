@@ -151,7 +151,14 @@ let package = Package(
             name: "WhisKeyApp",
             dependencies: ["WhisKeyCore", "WhisKeyUI"],
             path: "Sources/WhisKeyApp",
-            exclude: ["Info.plist"]
+            exclude: ["Info.plist"],
+            resources: [
+                // Precompiled ggml Metal library. SPM copies executable-target resources
+                // directly to the binary's directory (Build/Products/Debug/), which is
+                // where ggml_metal_library_init looks when GGML_METAL_PATH_RESOURCES
+                // is set to that path by llama_bridge.cpp's set_metal_path_from_bundle().
+                .copy("default.metallib"),
+            ]
         ),
 
         // MARK: - Tests
