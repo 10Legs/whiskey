@@ -165,6 +165,15 @@ private struct AICleanupTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                PhosphorSection(title: "AI CLEANUP") {
+                    Toggle("Enable AI Cleanup", isOn: $settings.llmEnabled)
+                        .tint(phosphorGreen)
+                        .foregroundColor(phosphorGreen)
+                    Text("When off, raw Whisper output is injected verbatim — no LLM runs.")
+                        .font(.caption)
+                        .foregroundColor(phosphorGreen.opacity(0.5))
+                }
+
                 PhosphorSection(title: "LLM PROVIDER") {
                     Picker("Provider", selection: $settings.llmProviderName) {
                         Text("None (raw transcript)").tag("none")
@@ -175,6 +184,8 @@ private struct AICleanupTab: View {
                     .accentColor(phosphorGreen)
                     .foregroundColor(phosphorGreen)
                 }
+                .opacity(settings.llmEnabled ? 1 : 0.35)
+                .disabled(!settings.llmEnabled)
 
                 PhosphorSection(title: "CLEANUP OPTIONS") {
                     Toggle("Remove Filler Words", isOn: $settings.removeFillers)
@@ -183,10 +194,12 @@ private struct AICleanupTab: View {
                     Toggle("Add Punctuation", isOn: $settings.addPunctuation)
                         .tint(phosphorGreen)
                         .foregroundColor(phosphorGreen)
-                    Toggle("Raw Mode (skip cleanup)", isOn: $settings.rawMode)
+                    Toggle("Raw Mode (skip LLM, keep options)", isOn: $settings.rawMode)
                         .tint(phosphorGreen)
                         .foregroundColor(phosphorGreen)
                 }
+                .opacity(settings.llmEnabled ? 1 : 0.35)
+                .disabled(!settings.llmEnabled)
 
                 PhosphorSection(title: "TONE STYLE") {
                     Picker("Default Tone", selection: $settings.toneStyle) {
@@ -200,6 +213,8 @@ private struct AICleanupTab: View {
                         .font(.caption)
                         .foregroundColor(phosphorGreen.opacity(0.5))
                 }
+                .opacity(settings.llmEnabled ? 1 : 0.35)
+                .disabled(!settings.llmEnabled)
             }
             .padding()
         }

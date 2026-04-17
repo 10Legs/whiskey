@@ -165,7 +165,10 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         }
 
         let injectionContext = await MainActor.run { contextService.currentContext() }
-        let textToInject = await applyLLMCleanup(rawText: result.text, context: injectionContext)
+        let llmEnabled = await MainActor.run { settings.llmEnabled }
+        let textToInject = llmEnabled
+            ? await applyLLMCleanup(rawText: result.text, context: injectionContext)
+            : result.text
 
         await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
         await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)

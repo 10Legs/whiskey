@@ -12,4 +12,5 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     case outputMode
     case notificationsEnabled
     case activeModelID
+    case llmEnabled
 }

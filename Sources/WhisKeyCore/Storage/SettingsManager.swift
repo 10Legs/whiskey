@@ -130,6 +130,13 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.notificationsEnabled, value: newValue) }
     }
 
+    /// When `false`, the LLM cleanup step is skipped entirely and the raw Whisper
+    /// transcript is injected verbatim. Defaults to `true`.
+    public var llmEnabled: Bool {
+        get { get(.llmEnabled, default: true) }
+        set { set(.llmEnabled, value: newValue) }
+    }
+
     /// Currently selected Whisper model ID (e.g. "ggml-base.en").
     public var activeModelID: String? {
         get { get(.activeModelID, default: nil as String?) }
