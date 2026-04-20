@@ -16,10 +16,12 @@ final class PasteboardInjector: @unchecked Sendable {
 
         pb.clearContents()
         pb.setString(text, forType: .string)
+        // Signal clipboard managers (Raycast, Paste, CopyClip, etc.) to skip persisting this transient write
+        pb.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
 
         simulateCmdV()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             pb.clearContents()
             if let prior = priorString {
                 pb.setString(prior, forType: .string)
