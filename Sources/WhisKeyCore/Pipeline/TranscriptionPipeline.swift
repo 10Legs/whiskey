@@ -40,6 +40,14 @@ public enum PipelineError: Error, LocalizedError {
 /// ```
 public final class TranscriptionPipeline: @unchecked Sendable {
 
+    // MARK: - Constants
+
+    /// Whisper special-token strings that indicate no real speech was detected.
+    /// Results matching these tokens are suppressed — nothing is injected or typed.
+    private static let whisperNoiseTokens: Set<String> = [
+        "[BLANK_AUDIO]", "[MUSIC]", "[NOISE]", "[INAUDIBLE]"
+    ]
+
     // MARK: - Dependencies
 
     private let audioCapture: AudioCaptureService
@@ -107,6 +115,11 @@ public final class TranscriptionPipeline: @unchecked Sendable {
 
     // MARK: - Public API
 
+    /// Preload the LLM model in the background so first-use latency is eliminated.
+    public func warmUpLLM() async {
+        await llmProvider.warmUp()
+    }
+
     /// Begin audio capture. Call when the hotkey is pressed.
     /// - Throws: `PipelineError.alreadyRecording` if already active.
     public func startRecording() {
@@ -159,8 +172,9 @@ public final class TranscriptionPipeline: @unchecked Sendable {
 
         guard let result = await runTranscription(pcmSamples: pcmSamples) else { return nil }
 
-        guard !result.text.isEmpty else {
-            logger.info("Empty transcription result; nothing to inject.")
+        guard !result.text.isEmpty,
+              !Self.whisperNoiseTokens.contains(result.text) else {
+            logger.info("Suppressing output — blank or noise-only transcription: \"\(result.text)\"")
             return result
         }
 

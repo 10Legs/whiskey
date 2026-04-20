@@ -30,8 +30,8 @@ public actor LlamaCppProvider: LLMProvider {
 
     public init(
         modelName: String = "phi-3.5-mini-q4_k_m",
-        nCtx: Int32 = 2048,
-        maxTokens: Int32 = 512,
+        nCtx: Int32 = 512,
+        maxTokens: Int32 = 200,
         temperature: Float = 0.1,
         nThreads: Int32 = 4
     ) {
@@ -49,6 +49,10 @@ public actor LlamaCppProvider: LLMProvider {
     }
 
     // MARK: - LLMProvider
+
+    public func warmUp() async {
+        _ = loadContextIfNeeded()
+    }
 
     public func cleanup(
         rawTranscript: String,

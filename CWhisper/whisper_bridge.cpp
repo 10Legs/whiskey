@@ -18,7 +18,7 @@ whisper_context * whisper_bridge_init(const char * model_path) {
     // bundle to initialise the GPU backend. When running from an SPM build (no
     // bundle), the shader is unavailable and ggml aborts. CPU path via Accelerate
     // is still fast on Apple Silicon. Re-enable once bundle/metallib is wired up.
-    cparams.use_gpu = false;
+    cparams.use_gpu = true;
     struct whisper_context * ctx = whisper_init_from_file_with_params(model_path, cparams);
     return ctx;
 }
