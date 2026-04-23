@@ -18,14 +18,13 @@ jobs:
   build-and-test:
     name: Build & Test (macOS)
     runs-on: [self-hosted, macos]
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_16.3.app/Contents/Developer
 
     steps:
       - name: Runner info
         run: |
           echo "Hostname:  $(hostname)"
           echo "OS:        $(sw_vers -productName) $(sw_vers -productVersion)"
+          echo "Xcode path: $(xcode-select -p 2>/dev/null || echo 'not set')"
           echo "Xcode:     $(xcodebuild -version 2>/dev/null | head -1 || echo 'not found')"
           echo "Swift:     $(swift --version 2>/dev/null | head -1 || echo 'not found')"
           echo "CPU:       $(sysctl -n machdep.cpu.brand_string)"
@@ -64,8 +63,6 @@ jobs:
   swiftlint:
     name: SwiftLint
     runs-on: [self-hosted, macos]
-    env:
-      DEVELOPER_DIR: /Applications/Xcode_16.3.app/Contents/Developer
 
     steps:
       - uses: actions/checkout@v4
