@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test (macOS)
-    runs-on: macos-15
+    runs-on: [self-hosted, macos]
 
     steps:
       - name: Checkout (with submodules)
@@ -54,13 +54,13 @@ jobs:
 # ---------------------------------------------------------------------------
   swiftlint:
     name: SwiftLint
-    runs-on: macos-15
+    runs-on: [self-hosted, macos]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install SwiftLint
-        run: brew install swiftlint
+        run: which swiftlint || brew install swiftlint
 
       - name: Run SwiftLint
         # --strict turns warnings into errors, blocking the PR.
@@ -73,7 +73,7 @@ jobs:
 # ---------------------------------------------------------------------------
   code-quality:
     name: Code Quality Checks
-    runs-on: macos-15
+    runs-on: [self-hosted, macos]
 
     steps:
       - uses: actions/checkout@v4
