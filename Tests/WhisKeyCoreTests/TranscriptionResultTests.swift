@@ -1,30 +1,30 @@
 import Foundation
-import Testing
 @testable import WhisKeyCore
+import XCTest
 
-@Suite struct TranscriptionResultTests {
+class TranscriptionResultTests: XCTestCase {
 
-    @Test func textTrimsWhitespace() {
+    func testTextTrimsWhitespace() {
         let result = TranscriptionResult(text: "  hello world  ", durationMs: 100, language: "en")
-        #expect(result.text == "hello world")
+        XCTAssertEqual(result.text, "hello world")
     }
 
-    @Test func emptyTextRemainsEmpty() {
+    func testEmptyTextRemainsEmpty() {
         let result = TranscriptionResult(text: "", durationMs: 0, language: "en")
-        #expect(result.text == "")
+        XCTAssertEqual(result.text, "")
     }
 
-    @Test func propertiesRoundTrip() {
+    func testPropertiesRoundTrip() {
         let date = Date(timeIntervalSince1970: 1_000_000)
         let result = TranscriptionResult(text: "test", durationMs: 500, language: "es", timestamp: date)
-        #expect(result.text == "test")
-        #expect(result.durationMs == 500)
-        #expect(result.language == "es")
-        #expect(result.timestamp == date)
+        XCTAssertEqual(result.text, "test")
+        XCTAssertEqual(result.durationMs, 500)
+        XCTAssertEqual(result.language, "es")
+        XCTAssertEqual(result.timestamp, date)
     }
 
-    @Test func whitespaceOnlyTextBecomesEmpty() {
+    func testWhitespaceOnlyTextBecomesEmpty() {
         let result = TranscriptionResult(text: "   ", durationMs: 50, language: "en")
-        #expect(result.text == "")
+        XCTAssertEqual(result.text, "")
     }
 }

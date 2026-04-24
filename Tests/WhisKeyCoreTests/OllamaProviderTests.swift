@@ -1,8 +1,8 @@
 import Foundation
-import Testing
 @testable import WhisKeyCore
+import XCTest
 
-@Suite struct OllamaProviderTests {
+class OllamaProviderTests: XCTestCase {
 
     private let context = InjectionContext(
         activeAppName: "Test",
@@ -14,7 +14,7 @@ import Testing
 
     /// When Ollama is not running, provider returns raw transcript rather than throwing.
     /// Points at an unreachable port — connection is refused immediately (not a timeout).
-    @Test func fallsBackToRawTranscriptOnConnectionFailure() async throws {
+    func testFallsBackToRawTranscriptOnConnectionFailure() async throws {
         let provider = OllamaProvider(
             modelName: "llama3.2",
             baseURL: URL(string: "http://127.0.0.1:19999")! // swiftlint:disable:this force_unwrapping
@@ -25,12 +25,12 @@ import Testing
             context: context,
             profile: CleanupProfile()
         )
-        #expect(result == input, "OllamaProvider should return raw transcript on network failure")
+        XCTAssertEqual(result, input, "OllamaProvider should return raw transcript on network failure")
     }
 
     // MARK: - rawMode short-circuit
 
-    @Test func rawModeSkipsLLMCall() async throws {
+    func testRawModeSkipsLLMCall() async throws {
         let provider = OllamaProvider()
         let input = "um yeah so like"
         let result = try await provider.cleanup(
@@ -38,12 +38,12 @@ import Testing
             context: context,
             profile: .passthrough
         )
-        #expect(result == input)
+        XCTAssertEqual(result, input)
     }
 
     // MARK: - .literal tone short-circuit
 
-    @Test func literalToneSkipsLLMCall() async throws {
+    func testLiteralToneSkipsLLMCall() async throws {
         let provider = OllamaProvider(
             baseURL: URL(string: "http://127.0.0.1:19999")! // swiftlint:disable:this force_unwrapping
         )
@@ -54,6 +54,6 @@ import Testing
             context: context,
             profile: profile
         )
-        #expect(result == input)
+        XCTAssertEqual(result, input)
     }
 }

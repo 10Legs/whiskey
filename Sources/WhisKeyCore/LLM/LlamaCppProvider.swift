@@ -23,7 +23,7 @@ public actor LlamaCppProvider: LLMProvider {
 
     // MARK: - State
 
-    private var ctx: OpaquePointer?
+    nonisolated(unsafe) private var ctx: OpaquePointer?
     private var modelMissing = false
 
     // MARK: - Init
@@ -77,13 +77,20 @@ public actor LlamaCppProvider: LLMProvider {
         let userPrompt = buildUserPrompt(rawTranscript: rawTranscript, profile: profile)
 
         // llama_bridge_complete is a blocking C call — run it off the actor executor.
+        // Capture primitive values before crossing into the detached task so the
+        // closure does not capture the actor-isolated `self` (Swift 6 sending rule).
+        let maxTokens = self.maxTokens
+        let temperature = self.temperature
+        // OpaquePointer is not Sendable; erase to UInt for the task boundary.
+        let ctxBits = UInt(bitPattern: bridgeCtx)
         let result: String = await Task.detached(priority: .userInitiated) {
+            guard let ctx = OpaquePointer(bitPattern: ctxBits) else { return rawTranscript }
             var completion = llama_bridge_complete(
-                bridgeCtx,
+                ctx,
                 systemPrompt,
                 userPrompt,
-                self.maxTokens,
-                self.temperature
+                maxTokens,
+                temperature
             )
             defer { llama_bridge_completion_free(&completion) }
             guard let cStr = completion.text else { return rawTranscript }

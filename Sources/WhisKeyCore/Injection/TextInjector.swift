@@ -1,4 +1,4 @@
-import AppKit
+@preconcurrency import AppKit
 
 /// Injects text into the currently focused UI element using a strategy chain.
 ///

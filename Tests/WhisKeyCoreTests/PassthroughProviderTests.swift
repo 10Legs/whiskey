@@ -1,7 +1,7 @@
-import Testing
 @testable import WhisKeyCore
+import XCTest
 
-@Suite struct PassthroughProviderTests {
+class PassthroughProviderTests: XCTestCase {
 
     private let provider = PassthroughProvider()
     private let context = InjectionContext(
@@ -10,32 +10,32 @@ import Testing
         focusedFieldContent: nil
     )
 
-    @Test func returnsRawTranscriptUnchanged() async throws {
+    func testReturnsRawTranscriptUnchanged() async throws {
         let input = "um yeah so like I wanted to talk about this thing"
         let result = try await provider.cleanup(
             rawTranscript: input,
             context: context,
             profile: CleanupProfile()
         )
-        #expect(result == input)
+        XCTAssertEqual(result, input)
     }
 
-    @Test func returnsEmptyStringUnchanged() async throws {
+    func testReturnsEmptyStringUnchanged() async throws {
         let result = try await provider.cleanup(
             rawTranscript: "",
             context: context,
             profile: CleanupProfile()
         )
-        #expect(result == "")
+        XCTAssertEqual(result, "")
     }
 
-    @Test func rawModeProfileAlsoReturnsUnchanged() async throws {
+    func testRawModeProfileAlsoReturnsUnchanged() async throws {
         let input = "hello world"
         let result = try await provider.cleanup(
             rawTranscript: input,
             context: context,
             profile: .passthrough
         )
-        #expect(result == input)
+        XCTAssertEqual(result, input)
     }
 }

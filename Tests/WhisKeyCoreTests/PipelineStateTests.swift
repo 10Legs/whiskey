@@ -1,21 +1,21 @@
-import Testing
 @testable import WhisKeyCore
+import XCTest
 
-@Suite @MainActor struct PipelineStateTests {
+@MainActor class PipelineStateTests: XCTestCase {
 
     /// stopAndTranscribe while not recording returns nil without crashing.
-    @Test func stopWhileNotRecordingReturnsNil() async {
+    func testStopWhileNotRecordingReturnsNil() async {
         let pipeline = TranscriptionPipeline()
         let result = await pipeline.stopAndTranscribe()
-        #expect(result == nil)
+        XCTAssertNil(result)
     }
 
     /// onError callback not invoked when stop is called with no active session.
-    @Test func noErrorCallbackOnIdleStop() async {
+    func testNoErrorCallbackOnIdleStop() async {
         let pipeline = TranscriptionPipeline()
         var errorCalled = false
         pipeline.onError = { _ in errorCalled = true }
         _ = await pipeline.stopAndTranscribe()
-        #expect(!errorCalled)
+        XCTAssertFalse(errorCalled)
     }
 }

@@ -129,21 +129,21 @@ private struct ModelRowView: View {
             }
 
             // Progress bar
-            if let p = progress {
+            if let pct = progress {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Rectangle()
                             .frame(width: geo.size.width, height: 3)
                             .foregroundColor(phosphorGreen.opacity(0.15))
                         Rectangle()
-                            .frame(width: geo.size.width * p, height: 3)
+                            .frame(width: geo.size.width * pct, height: 3)
                             .foregroundColor(phosphorGreen)
                     }
                 }
                 .frame(height: 3)
-                .animation(.linear(duration: 0.2), value: p)
+                .animation(.linear(duration: 0.2), value: pct)
 
-                Text("\(Int(p * 100))% — \(downloadedSizeLabel(progress: p))")
+                Text("\(Int(pct * 100))% — \(downloadedSizeLabel(progress: pct))")
                     .font(.caption2)
                     .fontDesign(.monospaced)
                     .foregroundColor(phosphorGreen.opacity(0.5))

@@ -20,13 +20,21 @@ jobs:
     runs-on: [self-hosted, macos]
 
     steps:
+      - name: Runner info
+        run: |
+          echo "Hostname:  $(hostname)"
+          echo "OS:        $(sw_vers -productName) $(sw_vers -productVersion)"
+          echo "Xcode path: $(xcode-select -p 2>/dev/null || echo 'not set')"
+          echo "Xcode:     $(xcodebuild -version 2>/dev/null | head -1 || echo 'not found')"
+          echo "Swift:     $(swift --version 2>/dev/null | head -1 || echo 'not found')"
+          echo "CPU:       $(sysctl -n machdep.cpu.brand_string)"
+          echo "Cores:     $(sysctl -n hw.logicalcpu)"
+          echo "RAM:       $(($(sysctl -n hw.memsize) / 1073741824)) GB"
+
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.3.app
 
       - name: Cache SPM dependencies
         uses: actions/cache@v4

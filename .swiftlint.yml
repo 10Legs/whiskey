@@ -20,6 +20,10 @@ opt_in_rules:
   - redundant_nil_coalescing
   - sorted_imports
   - unneeded_parentheses_in_closure_argument
+
+# Analyzer rules run only via `swiftlint analyze`, not `swiftlint lint`.
+# unused_import requires the full compiler index and must live here.
+analyzer_rules:
   - unused_import
 
 disabled_rules:

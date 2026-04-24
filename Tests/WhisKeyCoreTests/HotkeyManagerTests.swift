@@ -1,11 +1,11 @@
-import Testing
 @testable import WhisKeyCore
+import XCTest
 
-@Suite struct HotkeyManagerTests {
+class HotkeyManagerTests: XCTestCase {
 
     // MARK: - Mode enumeration
 
-    @Test func modeEnumCasesExist() {
+    func testModeEnumCasesExist() {
         let manager = HotkeyManager()
         manager.mode = .pushToTalk
         manager.mode = .toggle
@@ -14,68 +14,68 @@ import Testing
 
     // MARK: - Default configuration
 
-    @Test func defaultModePushToTalk() {
+    func testDefaultModePushToTalk() {
         let manager = HotkeyManager()
-        #expect(manager.mode == .pushToTalk)
+        XCTAssertEqual(manager.mode, .pushToTalk)
     }
 
-    @Test func defaultWatchedKeyCode() {
+    func testDefaultWatchedKeyCode() {
         let manager = HotkeyManager()
-        #expect(manager.watchedKeyCode == 0x3D) // Right Option
+        XCTAssertEqual(manager.watchedKeyCode, 0x3D) // Right Option
     }
 
     // MARK: - Mutability
 
-    @Test func modeCanBeChanged() {
+    func testModeCanBeChanged() {
         let manager = HotkeyManager()
         manager.mode = .toggle
-        #expect(manager.mode == .toggle)
+        XCTAssertEqual(manager.mode, .toggle)
         manager.mode = .pushToTalk
-        #expect(manager.mode == .pushToTalk)
+        XCTAssertEqual(manager.mode, .pushToTalk)
     }
 
-    @Test func watchedKeyCodeCanBeChanged() {
+    func testWatchedKeyCodeCanBeChanged() {
         let manager = HotkeyManager()
         manager.watchedKeyCode = 0x00 // A key
-        #expect(manager.watchedKeyCode == 0x00)
+        XCTAssertEqual(manager.watchedKeyCode, 0x00)
     }
 
     // MARK: - Callbacks
 
-    @Test func onStartRecordingCallbackCanBeSet() {
+    func testOnStartRecordingCallbackCanBeSet() {
         let manager = HotkeyManager()
         var called = false
         manager.onStartRecording = { called = true }
         manager.onStartRecording?()
-        #expect(called)
+        XCTAssertTrue(called)
     }
 
-    @Test func onStopRecordingCallbackCanBeSet() {
+    func testOnStopRecordingCallbackCanBeSet() {
         let manager = HotkeyManager()
         var called = false
         manager.onStopRecording = { called = true }
         manager.onStopRecording?()
-        #expect(called)
+        XCTAssertTrue(called)
     }
 
-    @Test func callbacksCanBeCleared() {
+    func testCallbacksCanBeCleared() {
         let manager = HotkeyManager()
         manager.onStartRecording = { }
         manager.onStartRecording = nil
-        #expect(manager.onStartRecording == nil)
+        XCTAssertNil(manager.onStartRecording)
     }
 
-    @Test func callbackMultipleInvocations() {
+    func testCallbackMultipleInvocations() {
         let manager = HotkeyManager()
         var count = 0
         manager.onStartRecording = { count += 1 }
         manager.onStartRecording?()
         manager.onStartRecording?()
         manager.onStartRecording?()
-        #expect(count == 3)
+        XCTAssertEqual(count, 3)
     }
 
-    @Test func independentCallbacks() {
+    func testIndependentCallbacks() {
         let manager = HotkeyManager()
         var startCount = 0
         var stopCount = 0
@@ -84,39 +84,39 @@ import Testing
         manager.onStartRecording?()
         manager.onStopRecording?()
         manager.onStartRecording?()
-        #expect(startCount == 2)
-        #expect(stopCount == 1)
+        XCTAssertEqual(startCount, 2)
+        XCTAssertEqual(stopCount, 1)
     }
 
     // MARK: - Lifecycle
 
-    @Test(.disabled("Depends on system Input Monitoring state — CGEventTap succeeds when permission is granted"))
-    func startReturnsFalseWithoutInputMonitoring() {
-        let manager = HotkeyManager()
-        #expect(!manager.start())
+    // Disabled: Depends on system Input Monitoring state — CGEventTap succeeds when permission is granted.
+    // Manual test: grant Input Monitoring, run testStartReturnsFalseWithoutInputMonitoring, expect false.
+    func testStartReturnsFalseWithoutInputMonitoring() throws {
+        throw XCTSkip("Depends on system Input Monitoring state — CGEventTap succeeds when permission is granted")
     }
 
-    @Test func stopSafeWithoutStart() {
+    func testStopSafeWithoutStart() {
         let manager = HotkeyManager()
         manager.stop() // Must not crash
     }
 
-    @Test func multipleStopsAreSafe() {
+    func testMultipleStopsAreSafe() {
         let manager = HotkeyManager()
         manager.stop()
         manager.stop()
         manager.stop()
     }
 
-    @Test func configurationPersistsAcrossLifecycle() {
+    func testConfigurationPersistsAcrossLifecycle() {
         let manager = HotkeyManager()
         manager.mode = .toggle
         manager.watchedKeyCode = 0x01
         _ = manager.start() // expected false in test env
-        #expect(manager.mode == .toggle)
-        #expect(manager.watchedKeyCode == 0x01)
+        XCTAssertEqual(manager.mode, .toggle)
+        XCTAssertEqual(manager.watchedKeyCode, 0x01)
         manager.stop()
-        #expect(manager.mode == .toggle)
-        #expect(manager.watchedKeyCode == 0x01)
+        XCTAssertEqual(manager.mode, .toggle)
+        XCTAssertEqual(manager.watchedKeyCode, 0x01)
     }
 }
