@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite @MainActor struct PipelineStateTests {
+@MainActor struct PipelineStateTests {
 
     /// stopAndTranscribe while not recording returns nil without crashing.
     @Test func stopWhileNotRecordingReturnsNil() async {

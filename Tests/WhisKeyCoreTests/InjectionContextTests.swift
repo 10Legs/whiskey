@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct InjectionContextTests {
+struct InjectionContextTests {
 
     @Test func initStoresBundleID() {
         let ctx = InjectionContext(

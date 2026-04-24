@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct OllamaProviderTests {
+struct OllamaProviderTests {
 
     private let context = InjectionContext(
         activeAppName: "Test",

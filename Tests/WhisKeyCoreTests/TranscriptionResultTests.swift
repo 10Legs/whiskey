@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct TranscriptionResultTests {
+struct TranscriptionResultTests {
 
     @Test func textTrimsWhitespace() {
         let result = TranscriptionResult(text: "  hello world  ", durationMs: 100, language: "en")

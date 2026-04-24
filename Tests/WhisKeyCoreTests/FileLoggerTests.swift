@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct FileLoggerTests {
+struct FileLoggerTests {
 
     // MARK: - Initialization
 

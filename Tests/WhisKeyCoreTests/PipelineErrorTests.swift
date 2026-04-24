@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct PipelineErrorTests {
+struct PipelineErrorTests {
 
     @Test func alreadyRecordingDescription() {
         let error = PipelineError.alreadyRecording

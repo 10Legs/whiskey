@@ -129,14 +129,14 @@ private struct ModelRowView: View {
             }
 
             // Progress bar
-            if let p = progress {
+            if let pct = progress {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Rectangle()
                             .frame(width: geo.size.width, height: 3)
                             .foregroundColor(phosphorGreen.opacity(0.15))
                         Rectangle()
-                            .frame(width: geo.size.width * p, height: 3)
+                            .frame(width: geo.size.width * pct, height: 3)
                             .foregroundColor(phosphorGreen)
                     }
                 }

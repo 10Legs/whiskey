@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct CleanupProfileTests {
+struct CleanupProfileTests {
 
     // MARK: - ToneStyle.systemPrompt
 

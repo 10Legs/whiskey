@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct ContextServiceTests {
+struct ContextServiceTests {
 
     private let service = ContextService()
 

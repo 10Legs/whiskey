@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct HotkeyManagerTests {
+struct HotkeyManagerTests {
 
     // MARK: - Mode enumeration
 

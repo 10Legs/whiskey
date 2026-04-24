@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct PermissionsManagerTests {
+struct PermissionsManagerTests {
 
     // MARK: - PermissionType enumeration
 

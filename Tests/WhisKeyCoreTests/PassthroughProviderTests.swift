@@ -1,7 +1,7 @@
 import Testing
 @testable import WhisKeyCore
 
-@Suite struct PassthroughProviderTests {
+struct PassthroughProviderTests {
 
     private let provider = PassthroughProvider()
     private let context = InjectionContext(
