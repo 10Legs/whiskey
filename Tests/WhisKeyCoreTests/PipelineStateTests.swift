@@ -1,5 +1,5 @@
-import XCTest
 @testable import WhisKeyCore
+import XCTest
 
 @MainActor class PipelineStateTests: XCTestCase {
 

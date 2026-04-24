@@ -1,6 +1,6 @@
 import Foundation
-import XCTest
 @testable import WhisKeyCore
+import XCTest
 
 class PipelineErrorTests: XCTestCase {
 
