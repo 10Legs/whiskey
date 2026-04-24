@@ -129,14 +129,14 @@ public final class AudioCaptureService: @unchecked Sendable {
             frameCapacity: outputFrameCapacity
         ) else { return }
 
-        var inputConsumed = false
+        let inputConsumed = OSAllocatedUnfairLock(initialState: false)
         let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
-            if inputConsumed {
+            if inputConsumed.withLock({ $0 }) {
                 outStatus.pointee = .noDataNow
                 return nil
             }
             outStatus.pointee = .haveData
-            inputConsumed = true
+            inputConsumed.withLock { $0 = true }
             return inBuffer
         }
 

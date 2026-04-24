@@ -141,9 +141,9 @@ private struct ModelRowView: View {
                     }
                 }
                 .frame(height: 3)
-                .animation(.linear(duration: 0.2), value: p)
+                .animation(.linear(duration: 0.2), value: pct)
 
-                Text("\(Int(p * 100))% — \(downloadedSizeLabel(progress: p))")
+                Text("\(Int(pct * 100))% — \(downloadedSizeLabel(progress: pct))")
                     .font(.caption2)
                     .fontDesign(.monospaced)
                     .foregroundColor(phosphorGreen.opacity(0.5))

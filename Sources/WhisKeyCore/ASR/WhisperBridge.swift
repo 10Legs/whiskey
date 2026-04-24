@@ -102,7 +102,10 @@ public actor WhisperBridge {
             group.addTask { @Sendable in
                 try await withCheckedThrowingContinuation { continuation in
                     DispatchQueue.global(qos: .userInitiated).async {
-                        let ctxPtr = OpaquePointer(bitPattern: ctxBits)!
+                        guard let ctxPtr = OpaquePointer(bitPattern: ctxBits) else {
+                            continuation.resume(throwing: WhisperError.transcriptionFailed)
+                            return
+                        }
                         let bridgeResult = pcm.withUnsafeBufferPointer { buf in
                             whisper_bridge_transcribe(
                                 ctxPtr,
