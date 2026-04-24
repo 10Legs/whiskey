@@ -1,76 +1,76 @@
-import Testing
+import XCTest
 @testable import WhisKeyCore
 
-struct FileLoggerTests {
+class FileLoggerTests: XCTestCase {
 
     // MARK: - Initialization
 
-    @Test func loggerHasValidLogFilePath() {
+    func testLoggerHasValidLogFilePath() {
         let logger = FileLogger()
         let path = logger.logFilePath
-        #expect(!path.isEmpty)
-        #expect(path.contains("Library/Logs/WhisKey"))
+        XCTAssertFalse(path.isEmpty)
+        XCTAssertTrue(path.contains("Library/Logs/WhisKey"))
     }
 
-    @Test func logFilePathEndsWithFileName() {
+    func testLogFilePathEndsWithFileName() {
         let logger = FileLogger()
-        #expect(logger.logFilePath.hasSuffix("whiskey.log"))
+        XCTAssertTrue(logger.logFilePath.hasSuffix("whiskey.log"))
     }
 
     // MARK: - Log Level enumeration
 
-    @Test func logLevelRawValues() {
-        #expect(FileLogger.Level.info.rawValue == "INFO ")
-        #expect(FileLogger.Level.warn.rawValue == "WARN ")
-        #expect(FileLogger.Level.error.rawValue == "ERROR")
+    func testLogLevelRawValues() {
+        XCTAssertEqual(FileLogger.Level.info.rawValue, "INFO ")
+        XCTAssertEqual(FileLogger.Level.warn.rawValue, "WARN ")
+        XCTAssertEqual(FileLogger.Level.error.rawValue, "ERROR")
     }
 
     // MARK: - Logging (smoke tests — verify no crash)
 
-    @Test func logDefaultLevel() {
+    func testLogDefaultLevel() {
         let logger = FileLogger()
         logger.log(.info, "test message")
     }
 
-    @Test func logWithExplicitLevels() {
+    func testLogWithExplicitLevels() {
         let logger = FileLogger()
         logger.log(.info, "info message")
         logger.log(.warn, "warning message")
         logger.log(.error, "error message")
     }
 
-    @Test func logWithFileAndLineInfo() {
+    func testLogWithFileAndLineInfo() {
         let logger = FileLogger()
         logger.log(.info, "message", file: #file, line: #line)
     }
 
-    @Test func multipleLogsWithoutCrashing() {
+    func testMultipleLogsWithoutCrashing() {
         let logger = FileLogger()
         for index in 1...5 {
             logger.log(.info, "message \(index)")
         }
     }
 
-    @Test func logEmptyMessage() {
+    func testLogEmptyMessage() {
         let logger = FileLogger()
         logger.log(.info, "")
     }
 
-    @Test func logLongMessage() {
+    func testLogLongMessage() {
         let logger = FileLogger()
         logger.log(.warn, String(repeating: "x", count: 10_000))
     }
 
-    @Test func logSpecialCharacters() {
+    func testLogSpecialCharacters() {
         let logger = FileLogger()
         logger.log(.info, "Special: 🔧 \n\t\"quotes\" & symbols!")
     }
 
     // MARK: - Shared instance
 
-    @Test func sharedInstanceIsConsistent() {
+    func testSharedInstanceIsConsistent() {
         let shared1 = FileLogger.shared
         let shared2 = FileLogger.shared
-        #expect(shared1.logFilePath == shared2.logFilePath)
+        XCTAssertEqual(shared1.logFilePath, shared2.logFilePath)
     }
 }

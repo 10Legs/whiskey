@@ -1,30 +1,30 @@
-import Testing
+import XCTest
 @testable import WhisKeyCore
 
-struct PermissionsManagerTests {
+class PermissionsManagerTests: XCTestCase {
 
     // MARK: - PermissionType enumeration
 
-    @Test func permissionTypeRawValues() {
-        #expect(PermissionType.microphone.rawValue == "Microphone")
-        #expect(PermissionType.accessibility.rawValue == "Accessibility")
-        #expect(PermissionType.inputMonitoring.rawValue == "Input Monitoring")
+    func testPermissionTypeRawValues() {
+        XCTAssertEqual(PermissionType.microphone.rawValue, "Microphone")
+        XCTAssertEqual(PermissionType.accessibility.rawValue, "Accessibility")
+        XCTAssertEqual(PermissionType.inputMonitoring.rawValue, "Input Monitoring")
     }
 
-    @Test func allCasesIncludesThreePermissions() {
-        #expect(PermissionType.allCases.count == 3)
+    func testAllCasesIncludesThreePermissions() {
+        XCTAssertEqual(PermissionType.allCases.count, 3)
     }
 
     // MARK: - PermissionStatus enum completeness
 
-    @Test func permissionStatusCasesExist() {
+    func testPermissionStatusCasesExist() {
         let statuses: [PermissionStatus] = [.granted, .denied, .notDetermined, .restricted]
-        #expect(statuses.count == 4)
+        XCTAssertEqual(statuses.count, 4)
     }
 
     // MARK: - Status checks
 
-    @Test func statusMethodReturnsValidStatus() {
+    func testStatusMethodReturnsValidStatus() {
         let manager = PermissionsManager()
         let status = manager.status(for: .microphone)
         // Exhaustive switch — compile error if new case added without handling
@@ -34,16 +34,16 @@ struct PermissionsManagerTests {
         }
     }
 
-    @Test func statusesReturnsAllThreePermissions() {
+    func testStatusesReturnsAllThreePermissions() {
         let manager = PermissionsManager()
         let statuses = manager.statuses()
-        #expect(statuses.count == 3)
-        #expect(statuses.keys.contains(.microphone))
-        #expect(statuses.keys.contains(.accessibility))
-        #expect(statuses.keys.contains(.inputMonitoring))
+        XCTAssertEqual(statuses.count, 3)
+        XCTAssertTrue(statuses.keys.contains(.microphone))
+        XCTAssertTrue(statuses.keys.contains(.accessibility))
+        XCTAssertTrue(statuses.keys.contains(.inputMonitoring))
     }
 
-    @Test func allGrantedReturnsBool() {
+    func testAllGrantedReturnsBool() {
         let manager = PermissionsManager()
         // Smoke test — exact value depends on system state
         _ = manager.allGranted()
@@ -51,19 +51,19 @@ struct PermissionsManagerTests {
 
     // MARK: - Initialization
 
-    @Test func managerInitializes() {
+    func testManagerInitializes() {
         _ = PermissionsManager()
     }
 
     // MARK: - Settings URL (UI side effects — skipped in automated runs)
 
-    @Test(.disabled("Opens System Settings — manual verification only"))
-    func openAccessibilitySettingsDoesNotCrash() {
-        PermissionsManager().openAccessibilitySettings()
+    // Disabled: Opens System Settings — manual verification only.
+    func testOpenAccessibilitySettingsDoesNotCrash() throws {
+        throw XCTSkip("Opens System Settings — manual verification only")
     }
 
-    @Test(.disabled("Opens System Settings — manual verification only"))
-    func openInputMonitoringSettingsDoesNotCrash() {
-        PermissionsManager().openInputMonitoringSettings()
+    // Disabled: Opens System Settings — manual verification only.
+    func testOpenInputMonitoringSettingsDoesNotCrash() throws {
+        throw XCTSkip("Opens System Settings — manual verification only")
     }
 }
