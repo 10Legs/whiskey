@@ -51,7 +51,7 @@ public actor WhisperBridge {
 
     // MARK: - State
 
-    private var context: OpaquePointer?
+    nonisolated(unsafe) private var context: OpaquePointer?
 
     // MARK: - Init
 
@@ -94,15 +94,18 @@ public actor WhisperBridge {
         let ctx = try loadContextIfNeeded()
         // Capture actor-isolated state before escaping to nonisolated context.
         let threadCount = nThreads
+        // OpaquePointer is not Sendable; erase to UInt (Sendable) for the task boundary.
+        let ctxBits = UInt(bitPattern: ctx)
 
         let result: TranscriptionResult = try await withThrowingTaskGroup(of: TranscriptionResult.self) { group in
             // Inference task — runs whisper.cpp off the actor via a continuation.
             group.addTask { @Sendable in
                 try await withCheckedThrowingContinuation { continuation in
                     DispatchQueue.global(qos: .userInitiated).async {
+                        let ctxPtr = OpaquePointer(bitPattern: ctxBits)!
                         let bridgeResult = pcm.withUnsafeBufferPointer { buf in
                             whisper_bridge_transcribe(
-                                ctx,
+                                ctxPtr,
                                 buf.baseAddress,
                                 Int32(buf.count),
                                 languageHint,
