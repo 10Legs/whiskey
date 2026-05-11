@@ -193,22 +193,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
         pipeline.onError = { error in
+            // Always log every error, regardless of severity or actionability.
             logger.error("Pipeline error: \(error.localizedDescription)")
-            flog.log(.error, error.localizedDescription)
-            // Map PipelineError cases to user-visible notification categories.
-            if let pipelineError = error as? PipelineError {
-                switch pipelineError {
-                case .captureError:
-                    AppNotifications.post(.permissionDenied("Microphone access is required for audio capture."))
-                case .transcriptionError(let underlying):
-                    AppNotifications.post(.transcriptionFailed(underlying))
-                case .injectionSkipped(let reason):
-                    AppNotifications.post(.injectionFailed(reason))
-                case .alreadyRecording, .notRecording:
-                    break // internal state errors — no user notification needed
-                }
-            } else {
+            flog.log(.error, "Pipeline error: \(error.localizedDescription)")
+
+            guard let pipelineError = error as? PipelineError else {
+                // Untyped error — escalate as a generic transcription failure so
+                // the user is at least told something went wrong.
+                flog.log(.error, "Pipeline error of unknown type: \(String(describing: error))")
                 AppNotifications.post(.transcriptionFailed(error))
+                return
+            }
+
+            // Filter: info-severity errors are logged only, never surfaced as notifications.
+            guard pipelineError.severity != .info else {
+                flog.log(.info, "Pipeline state event (suppressed from UI): \(pipelineError.localizedDescription)")
+                return
+            }
+
+            // Structured mapping: each PipelineError case maps to exactly one
+            // AppNotifications.Category. No string sniffing, no guessing.
+            switch pipelineError {
+            case .alreadyRecording, .notRecording:
+                // Already filtered above by severity; included here for exhaustiveness.
+                break
+
+            case .captureError(let underlying):
+                AppNotifications.post(.captureUnavailable(underlying.localizedDescription))
+
+            case .microphonePermissionDenied:
+                AppNotifications.post(.permissionDenied("Microphone access is required for audio capture."))
+
+            case .transcriptionError(let underlying):
+                AppNotifications.post(.transcriptionFailed(underlying))
+
+            case .injectionSkipped(let reason):
+                AppNotifications.post(.injectionFailed(reason))
+
+            case .hotkeyUnavailable(let reason):
+                AppNotifications.post(.hotkeyUnavailable(reason))
+
+            case .llmCleanupFailed:
+                // Warning severity: log only — the raw transcript was still injected,
+                // so the user isn't blocked. No notification spam for cosmetic failures.
+                break
             }
         }
 
@@ -238,11 +266,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             flog.log(.info, "HotkeyManager started. Hold Right Option to record.")
             logger.info("HotkeyManager started. Hold Right Option to record.")
         } else {
-            flog.log(
-                .error,
-                "HotkeyManager failed to start — Input Monitoring permission required."
-            )
-            logger.error("Failed to start HotkeyManager — Input Monitoring permission required.")
+            let reason = "Input Monitoring permission required. Open System Settings → Privacy & Security → Input Monitoring and enable WhisKey."
+            flog.log(.error, "HotkeyManager failed to start — \(reason)")
+            logger.error("Failed to start HotkeyManager — \(reason)")
+            // Route through the same structured error path so the UI mapping is
+            // consistent with pipeline-originated errors.
+            pipeline.onError?(PipelineError.hotkeyUnavailable(reason))
         }
     }
 }
