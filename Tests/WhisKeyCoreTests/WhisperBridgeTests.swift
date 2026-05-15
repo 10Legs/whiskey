@@ -32,7 +32,7 @@ class WhisperErrorTests: XCTestCase {
 
 class WhisperBridgeTests: XCTestCase {
 
-    var bridge: WhisperBridge!
+    var bridge: WhisperBridge! // swiftlint:disable:this implicitly_unwrapped_optional
 
     override func setUp() {
         super.setUp()

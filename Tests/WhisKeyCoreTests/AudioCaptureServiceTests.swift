@@ -3,7 +3,7 @@ import XCTest
 
 class AudioCaptureServiceTests: XCTestCase {
 
-    var service: AudioCaptureService!
+    var service: AudioCaptureService! // swiftlint:disable:this implicitly_unwrapped_optional
 
     override func setUp() {
         super.setUp()
