@@ -1,6 +1,6 @@
 @preconcurrency import AVFoundation
-import CoreAudio
 import Combine
+import CoreAudio
 import os.lock
 
 /// Errors thrown by AudioCaptureService.
