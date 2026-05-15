@@ -6,15 +6,15 @@ import os.lock
 /// Errors thrown by AudioCaptureService.
 public enum AudioCaptureError: Error, LocalizedError {
     case engineStartFailed(Error)
-    case converterCreationFailed
+    case converterCreationFailed(String)
     case alreadyRecording
 
     public var errorDescription: String? {
         switch self {
         case .engineStartFailed(let err):
             return "AVAudioEngine failed to start: \(err.localizedDescription)"
-        case .converterCreationFailed:
-            return "Could not create AVAudioConverter for 16 kHz resampling."
+        case .converterCreationFailed(let reason):
+            return "Could not create AVAudioConverter for 16 kHz resampling: \(reason)"
         case .alreadyRecording:
             return "A capture session is already in progress."
         }
@@ -45,6 +45,10 @@ public final class AudioCaptureService: @unchecked Sendable {
     // Fix C: Retained reference to the CoreAudio listener block so it is not
     // deallocated while the service is alive.
     private var defaultDeviceListenerBlock: AudioObjectPropertyListenerBlock?
+
+    // Fix 2: Debounce state for rapid device-change notifications.
+    private var restartWorkItem: DispatchWorkItem?
+    private var isRestarting = false
 
     // MARK: - Audio Level Publisher
 
@@ -99,18 +103,27 @@ public final class AudioCaptureService: @unchecked Sendable {
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
+        // Fix 3: Bluetooth device negotiation can leave sampleRate == 0 briefly.
+        guard inputFormat.sampleRate > 0 else {
+            throw AudioCaptureError.converterCreationFailed(
+                "Input sample rate is 0 — device format not ready."
+            )
+        }
+
         guard let whisperFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: Self.whisperSampleRate,
             channels: 1,
             interleaved: false
         ) else {
-            throw AudioCaptureError.converterCreationFailed
+            throw AudioCaptureError.converterCreationFailed("Could not build 16 kHz AVAudioFormat.")
         }
 
         // Create converter once; reuse across callbacks.
         guard let conv = AVAudioConverter(from: inputFormat, to: whisperFormat) else {
-            throw AudioCaptureError.converterCreationFailed
+            throw AudioCaptureError.converterCreationFailed(
+                "AVAudioConverter init failed (\(inputFormat.sampleRate) Hz → 16000 Hz)."
+            )
         }
         converter = conv
 
@@ -137,6 +150,21 @@ public final class AudioCaptureService: @unchecked Sendable {
         isCapturing = true
     }
 
+    /// Hard-reset all capture state without returning samples.
+    ///
+    /// Fix 4: Called by TranscriptionPipeline in error paths to ensure
+    /// `AudioCaptureService.isCapturing` and `TranscriptionPipeline.isRecording`
+    /// always move together. Safe to call even when not capturing.
+    public func reset() {
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        converter = nil
+        isCapturing = false
+        os_unfair_lock_lock(&bufferLock)
+        pcmBuffer = []
+        os_unfair_lock_unlock(&bufferLock)
+    }
+
     /// Stop capturing and return the accumulated PCM samples.
     /// - Returns: Float32 array at 16 kHz, mono.
     public func stopCapture() -> [Float] {
@@ -158,19 +186,37 @@ public final class AudioCaptureService: @unchecked Sendable {
 
     /// Unified handler called by both the AVFoundation notification (Fix A) and
     /// the CoreAudio property listener (Fix C).
+    ///
+    /// Fix 2: Debounced — coalesces rapid-fire notifications into a single restart
+    /// 300 ms after the last event. A re-entrancy guard (`isRestarting`) prevents
+    /// concurrent restarts when the CoreAudio and AVFoundation paths both fire.
     private func handleEngineConfigurationChange() {
-        guard isCapturing else { return }
-        print("[AudioCaptureService] Device configuration changed — restarting capture.")
-        do {
-            try restartCapture()
-        } catch {
-            print("[AudioCaptureService] restartCapture() failed: \(error.localizedDescription)")
+        guard isCapturing || !isRestarting else { return }
+        restartWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, !self.isRestarting else { return }
+            self.isRestarting = true
+            defer { self.isRestarting = false }
+            do {
+                try self.restartCapture()
+            } catch {
+                print("[AudioCaptureService] restartCapture() failed: \(error.localizedDescription)")
+            }
         }
+        restartWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
     }
 
-    // Fix B: Tear down the existing tap/engine state and rebuild everything
+    // Fix B / Fix 1: Tear down the existing tap/engine state and rebuild everything
     // against the new default input device format.
+    //
+    // isCapturing is set to false at entry so that any failure path leaves the
+    // flag clear. It is only restored to true after engine.start() succeeds,
+    // preventing the stuck-flag that causes .alreadyRecording on the next hotkey.
     private func restartCapture() throws {
+        // Fix 1: Clear flag first — any throw below leaves it false (safe).
+        isCapturing = false
+
         // Remove tap — ignore errors; it may already be detached by the engine.
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
@@ -180,17 +226,27 @@ public final class AudioCaptureService: @unchecked Sendable {
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
+        // Fix 3: BT negotiation can leave sampleRate == 0. Bail and reschedule.
+        guard inputFormat.sampleRate > 0 else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.handleEngineConfigurationChange()
+            }
+            return
+        }
+
         guard let whisperFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: Self.whisperSampleRate,
             channels: 1,
             interleaved: false
         ) else {
-            throw AudioCaptureError.converterCreationFailed
+            throw AudioCaptureError.converterCreationFailed("Could not build 16 kHz AVAudioFormat.")
         }
 
         guard let conv = AVAudioConverter(from: inputFormat, to: whisperFormat) else {
-            throw AudioCaptureError.converterCreationFailed
+            throw AudioCaptureError.converterCreationFailed(
+                "AVAudioConverter init failed (\(inputFormat.sampleRate) Hz → 16000 Hz)."
+            )
         }
         converter = conv
 
@@ -203,6 +259,8 @@ public final class AudioCaptureService: @unchecked Sendable {
         }
 
         try engine.start()
+        // Fix 1: Only set true after a successful start.
+        isCapturing = true
     }
 
     // Fix C: Register a CoreAudio property listener for the system default
