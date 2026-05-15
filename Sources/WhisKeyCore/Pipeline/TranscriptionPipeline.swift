@@ -211,6 +211,9 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             logger.error("Audio capture failed to start: \(error.localizedDescription)")
             flog.log(.error, "Pipeline: capture failed to start: \(error.localizedDescription)")
 
+            // Fix 4: Reset capture state so both flags are clear on failure.
+            audioCapture.reset()
+
             // Discriminate: permission denied vs. engine error. AVFoundation surfaces
             // microphone-denial as a specific AVError; treat anything else as a
             // generic engine failure so the user gets the right remediation.
@@ -256,6 +259,8 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         guard !pcmSamples.isEmpty else {
             flog.log(.warn, "No audio samples captured — check Microphone permission.")
             logger.warning("No audio samples captured; skipping transcription.")
+            // Fix 4: Ensure capture flags are fully cleared on this error path.
+            audioCapture.reset()
             return nil
         }
 
