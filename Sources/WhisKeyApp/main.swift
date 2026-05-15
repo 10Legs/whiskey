@@ -192,24 +192,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "Transcription: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]"
             )
         }
-        pipeline.onError = { error in
-            logger.error("Pipeline error: \(error.localizedDescription)")
-            flog.log(.error, error.localizedDescription)
-            // Map PipelineError cases to user-visible notification categories.
-            if let pipelineError = error as? PipelineError {
-                switch pipelineError {
-                case .captureError:
-                    AppNotifications.post(.permissionDenied("Microphone access is required for audio capture."))
-                case .transcriptionError(let underlying):
-                    AppNotifications.post(.transcriptionFailed(underlying))
-                case .injectionSkipped(let reason):
-                    AppNotifications.post(.injectionFailed(reason))
-                case .alreadyRecording, .notRecording:
-                    break // internal state errors — no user notification needed
-                }
-            } else {
-                AppNotifications.post(.transcriptionFailed(error))
-            }
+        pipeline.onError = { [weak self] error in
+            self?.handlePipelineError(error)
         }
 
         // Wire hotkey to pipeline.
@@ -238,11 +222,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             flog.log(.info, "HotkeyManager started. Hold Right Option to record.")
             logger.info("HotkeyManager started. Hold Right Option to record.")
         } else {
-            flog.log(
-                .error,
-                "HotkeyManager failed to start — Input Monitoring permission required."
-            )
-            logger.error("Failed to start HotkeyManager — Input Monitoring permission required.")
+            let reason = "Input Monitoring permission required. Open System Settings → " +
+                "Privacy & Security → Input Monitoring and enable WhisKey."
+            flog.log(.error, "HotkeyManager failed to start — \(reason)")
+            logger.error("Failed to start HotkeyManager — \(reason)")
+            // Route through the same structured error path so the UI mapping is
+            // consistent with pipeline-originated errors.
+            pipeline.onError?(PipelineError.hotkeyUnavailable(reason))
+        }
+    }
+
+    // MARK: - Pipeline Error Handling
+
+    private func handlePipelineError(_ error: Error) {
+        let flog = FileLogger.shared
+        logger.error("Pipeline error: \(error.localizedDescription)")
+        flog.log(.error, "Pipeline error: \(error.localizedDescription)")
+
+        guard let pipelineError = error as? PipelineError else {
+            // Untyped error — escalate as a generic transcription failure.
+            flog.log(.error, "Pipeline error of unknown type: \(String(describing: error))")
+            AppNotifications.post(.transcriptionFailed(error))
+            return
+        }
+
+        // Info-severity errors are logged only, never surfaced as notifications.
+        guard pipelineError.severity != .info else {
+            flog.log(.info, "Pipeline state event (suppressed from UI): \(pipelineError.localizedDescription)")
+            return
+        }
+
+        switch pipelineError {
+        case .alreadyRecording, .notRecording:
+            break
+        case .captureError(let underlying):
+            AppNotifications.post(.captureUnavailable(underlying.localizedDescription))
+        case .microphonePermissionDenied:
+            AppNotifications.post(.permissionDenied("Microphone access is required for audio capture."))
+        case .transcriptionError(let underlying):
+            AppNotifications.post(.transcriptionFailed(underlying))
+        case .injectionSkipped(let reason):
+            AppNotifications.post(.injectionFailed(reason))
+        case .hotkeyUnavailable(let reason):
+            AppNotifications.post(.hotkeyUnavailable(reason))
+        case .llmCleanupFailed:
+            break
         }
     }
 }

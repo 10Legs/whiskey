@@ -8,6 +8,18 @@ import Carbon
 ///
 /// Push-to-talk mode: hold key → recording starts; release → recording stops and transcription runs.
 /// Toggle mode:       first press → starts; second press → stops.
+///
+/// ## Rapid re-entry protection
+///
+/// `flagsChanged` and `keyDown` for the same modifier key can be reported by macOS
+/// in rapid succession (observed: two `keyDown` events ~4 ms apart). Without a
+/// debounce, this caused `AudioCaptureService.startCapture()` to be invoked twice,
+/// raising "already in progress" and propagating an error to the UI layer.
+///
+/// `HotkeyManager` enforces:
+///   - Strict `isRecording` state transitions (existing).
+///   - A per-edge debounce window (`minEdgeIntervalMillis`) that drops any
+///     down → down or up → up transitions occurring within the window.
 public final class HotkeyManager: @unchecked Sendable {
 
     // MARK: - Mode
@@ -26,6 +38,11 @@ public final class HotkeyManager: @unchecked Sendable {
     /// The virtual key code to watch (default: Right Option = 0x3D).
     public var watchedKeyCode: CGKeyCode = 0x3D
 
+    /// Minimum interval (milliseconds) between two same-edge transitions before
+    /// the second one is honoured. Tuned to drop OS-level duplicate events
+    /// (typical jitter ≤ 10 ms) while preserving fast push-to-talk taps.
+    public var minEdgeIntervalMillis: Double = 50.0
+
     // MARK: - Callbacks
 
     public var onStartRecording: (() -> Void)?
@@ -38,6 +55,11 @@ public final class HotkeyManager: @unchecked Sendable {
     private var isRecording = false
     /// Retains `self` for the CGEventTap callback; released in `stop()`.
     private var retainedSelf: Unmanaged<HotkeyManager>?
+
+    /// Mach absolute time (ms since boot, monotonic) of the last accepted
+    /// start/stop transition. Used to debounce duplicate OS events.
+    private var lastStartEdgeMillis: Double = -Double.infinity
+    private var lastStopEdgeMillis: Double = -Double.infinity
 
     public init() {}
 
@@ -105,6 +127,33 @@ public final class HotkeyManager: @unchecked Sendable {
         }
     }
 
+    /// Monotonic millisecond timestamp suitable for debounce arithmetic.
+    private func nowMillis() -> Double {
+        // ProcessInfo.systemUptime is documented monotonic since boot and is
+        // unaffected by wall-clock adjustments.
+        return ProcessInfo.processInfo.systemUptime * 1000.0
+    }
+
+    /// Returns true if the start edge should fire (and records the timestamp);
+    /// false if it falls inside the debounce window.
+    private func acceptStartEdge() -> Bool {
+        let now = nowMillis()
+        guard now - lastStartEdgeMillis >= minEdgeIntervalMillis else {
+            return false
+        }
+        lastStartEdgeMillis = now
+        return true
+    }
+
+    private func acceptStopEdge() -> Bool {
+        let now = nowMillis()
+        guard now - lastStopEdgeMillis >= minEdgeIntervalMillis else {
+            return false
+        }
+        lastStopEdgeMillis = now
+        return true
+    }
+
     private func handlePushToTalk(event: CGEvent, type: CGEventType, keyCode: CGKeyCode) {
         if type == .flagsChanged {
             // For modifier keys (Option, Command, etc.), flagsChanged fires on both
@@ -114,17 +163,21 @@ public final class HotkeyManager: @unchecked Sendable {
 
             if keyCode == watchedKeyCode {
                 if optionDown && !isRecording {
+                    guard acceptStartEdge() else { return }
                     isRecording = true
                     onStartRecording?()
                 } else if !optionDown && isRecording {
+                    guard acceptStopEdge() else { return }
                     isRecording = false
                     onStopRecording?()
                 }
             }
         } else if type == .keyDown && keyCode == watchedKeyCode && !isRecording {
+            guard acceptStartEdge() else { return }
             isRecording = true
             onStartRecording?()
         } else if type == .keyUp && keyCode == watchedKeyCode && isRecording {
+            guard acceptStopEdge() else { return }
             isRecording = false
             onStopRecording?()
         }
@@ -133,9 +186,11 @@ public final class HotkeyManager: @unchecked Sendable {
     private func handleToggle(event: CGEvent, type: CGEventType, keyCode: CGKeyCode) {
         guard type == .keyDown && keyCode == watchedKeyCode else { return }
         if isRecording {
+            guard acceptStopEdge() else { return }
             isRecording = false
             onStopRecording?()
         } else {
+            guard acceptStartEdge() else { return }
             isRecording = true
             onStartRecording?()
         }

@@ -7,12 +7,40 @@ import os.log
 private let logger = Logger(subsystem: "com.whiskey.app", category: "TranscriptionPipeline")
 
 /// Errors produced by the pipeline.
+///
+/// Cases are categorised so the UI layer can decide presentation (notification,
+/// silent log, status-bar badge) without doing brittle string-matching on the
+/// underlying message. See `severity` and `isUserActionable`.
 public enum PipelineError: Error, LocalizedError {
+    /// `startRecording` was invoked while a session was already in flight.
+    /// Internal state; not user-actionable; never surface as a notification.
     case alreadyRecording
+
+    /// `stopAndTranscribe` was invoked while no session was active.
+    /// Internal state; not user-actionable; never surface as a notification.
     case notRecording
+
+    /// Audio capture machinery (AVFoundation / CoreAudio) failed to start or run.
+    /// Distinct from `microphonePermissionDenied` — this is a device/engine
+    /// error, not a permission problem.
     case captureError(Error)
+
+    /// Microphone access was denied or revoked at the system level.
+    /// User-actionable: prompt them to open System Settings.
+    case microphonePermissionDenied
+
+    /// Whisper transcription produced an error or returned no usable result.
     case transcriptionError(Error)
+
+    /// Text injection into the focused window was deliberately skipped.
+    /// User-visible reason describes why (no AX permission, no focused field, etc.).
     case injectionSkipped(String)
+
+    /// CGEventTap could not be installed — Input Monitoring permission missing.
+    case hotkeyUnavailable(String)
+
+    /// LLM cleanup failed but raw transcript was injected. Informational only.
+    case llmCleanupFailed(Error)
 
     public var errorDescription: String? {
         switch self {
@@ -22,10 +50,50 @@ public enum PipelineError: Error, LocalizedError {
             return "No recording session is active."
         case .captureError(let err):
             return "Audio capture failed: \(err.localizedDescription)"
+        case .microphonePermissionDenied:
+            return "Microphone access is required. Grant permission in System Settings → Privacy & Security → Microphone."
         case .transcriptionError(let err):
             return "Transcription failed: \(err.localizedDescription)"
         case .injectionSkipped(let reason):
             return "Text injection skipped: \(reason)"
+        case .hotkeyUnavailable(let reason):
+            return "Hotkey unavailable: \(reason)"
+        case .llmCleanupFailed(let err):
+            return "LLM cleanup failed: \(err.localizedDescription) — raw transcript was used."
+        }
+    }
+
+    /// Severity classification used by callers to pick a presentation channel.
+    public enum Severity: Sendable {
+        /// Internal state transition; log only.
+        case info
+        /// Non-fatal degradation (e.g. LLM cleanup fell back to raw text).
+        case warning
+        /// User-actionable failure that should be surfaced via a notification.
+        case error
+    }
+
+    public var severity: Severity {
+        switch self {
+        case .alreadyRecording, .notRecording:
+            return .info
+        case .injectionSkipped, .llmCleanupFailed:
+            return .warning
+        case .captureError, .microphonePermissionDenied,
+             .transcriptionError, .hotkeyUnavailable:
+            return .error
+        }
+    }
+
+    /// True when the user can take a concrete remediation step
+    /// (grant a permission, free disk space, etc.).
+    public var isUserActionable: Bool {
+        switch self {
+        case .microphonePermissionDenied, .hotkeyUnavailable, .injectionSkipped:
+            return true
+        case .captureError, .transcriptionError, .llmCleanupFailed,
+             .alreadyRecording, .notRecording:
+            return false
         }
     }
 }
@@ -121,10 +189,17 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     }
 
     /// Begin audio capture. Call when the hotkey is pressed.
-    /// - Throws: `PipelineError.alreadyRecording` if already active.
+    ///
+    /// On failure, `onError` is invoked on the main thread with a typed
+    /// `PipelineError`. When the underlying cause is a denied microphone
+    /// permission, the error is surfaced as `.microphonePermissionDenied`
+    /// rather than the generic `.captureError` so the UI can prompt the user
+    /// to open System Settings. All error paths are mirrored to `FileLogger`.
     public func startRecording() {
+        let flog = FileLogger.shared
         guard !isRecording else {
             logger.warning("startRecording called while already recording — ignored.")
+            flog.log(.warn, "Pipeline: startRecording called while already recording (debounced).")
             return
         }
 
@@ -134,10 +209,33 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             logger.info("Recording started.")
         } catch {
             logger.error("Audio capture failed to start: \(error.localizedDescription)")
+            flog.log(.error, "Pipeline: capture failed to start: \(error.localizedDescription)")
+
+            // Discriminate: permission denied vs. engine error. AVFoundation surfaces
+            // microphone-denial as a specific AVError; treat anything else as a
+            // generic engine failure so the user gets the right remediation.
+            let mapped: PipelineError
+            if Self.isMicrophonePermissionError(error) {
+                mapped = .microphonePermissionDenied
+            } else {
+                mapped = .captureError(error)
+            }
             DispatchQueue.main.async { [weak self] in
-                self?.onError?(PipelineError.captureError(error))
+                self?.onError?(mapped)
             }
         }
+    }
+
+    /// Best-effort classifier: returns true when `error` indicates that the
+    /// system refused microphone access (as opposed to an engine failure).
+    private static func isMicrophonePermissionError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        // AVFoundation surfaces denial via AVAudioSession.ErrorCode on iOS-style APIs;
+        // on macOS the same path raises a CoreAudio error whose domain string contains
+        // "permission" or "AudioSession". Keep this resilient with a string fallback.
+        if nsError.domain.contains("AudioSession") { return true }
+        let desc = nsError.localizedDescription.lowercased()
+        return desc.contains("permission") || desc.contains("not authorized") || desc.contains("denied")
     }
 
     /// Stop recording, run transcription, and inject the result into the focused window.
@@ -223,6 +321,13 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             return cleaned
         } catch {
             logger.error("LLM cleanup threw an error: \(error.localizedDescription) — injecting raw transcript.")
+            FileLogger.shared.log(
+                .warn,
+                "Pipeline: LLM cleanup failed (\(error.localizedDescription)); falling back to raw transcript."
+            )
+            await MainActor.run { [weak self] in
+                self?.onError?(PipelineError.llmCleanupFailed(error))
+            }
             return rawText
         }
     }
@@ -255,6 +360,10 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             try await historyStore.insert(entry)
         } catch {
             logger.error("Failed to persist history entry: \(error.localizedDescription)")
+            FileLogger.shared.log(
+                .error,
+                "Pipeline: failed to persist history entry: \(error.localizedDescription)"
+            )
         }
         await MainActor.run { onTranscriptionReady?(result) }
     }

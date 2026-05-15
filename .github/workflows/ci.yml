@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build-and-test:
     name: Build & Test (macOS)
-    runs-on: [self-hosted, macos]
+    runs-on: [self-hosted, macOS]
 
     steps:
       - name: Runner info
@@ -62,7 +62,7 @@ jobs:
 # ---------------------------------------------------------------------------
   swiftlint:
     name: SwiftLint
-    runs-on: [self-hosted, macos]
+    runs-on: [self-hosted, macOS]
 
     steps:
       - uses: actions/checkout@v4
@@ -81,7 +81,7 @@ jobs:
 # ---------------------------------------------------------------------------
   code-quality:
     name: Code Quality Checks
-    runs-on: [self-hosted, macos]
+    runs-on: [self-hosted, macOS]
 
     steps:
       - uses: actions/checkout@v4
