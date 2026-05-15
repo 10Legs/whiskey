@@ -191,7 +191,7 @@ public final class AudioCaptureService: @unchecked Sendable {
     /// 300 ms after the last event. A re-entrancy guard (`isRestarting`) prevents
     /// concurrent restarts when the CoreAudio and AVFoundation paths both fire.
     private func handleEngineConfigurationChange() {
-        guard isCapturing || !isRestarting else { return }
+        guard isCapturing else { return }
         restartWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             guard let self, !self.isRestarting else { return }
