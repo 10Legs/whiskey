@@ -38,7 +38,7 @@ public struct SilenceTrimmer: Sendable {
     ///   - samples: Mono Float32 PCM at `sampleRate`.
     ///   - sampleRate: Samples per second. Defaults to 16 000 Hz.
     /// - Returns: Trimmed buffer, empty array (< 200 ms speech), or original array (no speech).
-    public static func trim(_ samples: [Float], sampleRate: Double = defaultSampleRate) -> [Float] {
+    public static func trim(_ samples: [Float], sampleRate: Double = 16_000) -> [Float] {
         let frameSize = Int(sampleRate * frameDurationSeconds)
         guard frameSize > 0, samples.count >= frameSize else { return samples }
 
