@@ -33,24 +33,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          # clean: false preserves .build across runs on the self-hosted runner,
-          # turning cold 14-min builds into ~30-second incremental ones.
-          clean: false
 
-      - name: Cache SPM dependencies
-        uses: actions/cache@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
+      - name: Restore local SPM cache
+        # ~/whiskey-spm-cache lives outside the workspace so it survives
+        # git clean from concurrent SwiftLint/Code Quality jobs. On the first
+        # run the directory won't exist and the build is cold; subsequent runs
+        # are incremental (~30s instead of 14+ min).
+        run: |
+          CACHE_DIR="${HOME}/.whiskey-spm-cache"
+          if [ -d "$CACHE_DIR" ]; then
+            echo "Restoring local SPM cache from $CACHE_DIR"
+            rsync -a "$CACHE_DIR/" .build/
+          else
+            echo "No local SPM cache — cold build"
+          fi
 
       - name: Install SQLCipher
         run: /opt/homebrew/bin/brew install sqlcipher 2>&1 || /opt/homebrew/bin/brew upgrade sqlcipher 2>&1 || true
 
       - name: Build (debug)
-        # --jobs 4 on an 8-core machine leaves 4 cores for the runner's HTTP
-        # threads so renewjob POSTs succeed even during a cold full build.
+        # --jobs 4 on an 8-core machine leaves 4 cores free for the runner's
+        # HTTP threads so renewjob POSTs succeed during the cold first build.
         # Heartbeat keeps log-streaming alive across the 10-minute renewal window.
         run: |
           while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
@@ -59,6 +62,14 @@ jobs:
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
+
+      - name: Save local SPM cache
+        # Save even on failure so partial builds warm the cache for the next run.
+        if: success() || failure()
+        run: |
+          CACHE_DIR="${HOME}/.whiskey-spm-cache"
+          echo "Saving SPM cache to $CACHE_DIR"
+          rsync -a .build/ "$CACHE_DIR/"
 
       - name: Run tests
         run: swift test --filter WhisKeyCoreTests 2>&1
