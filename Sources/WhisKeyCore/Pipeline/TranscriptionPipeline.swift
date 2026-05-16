@@ -99,7 +99,6 @@ public enum PipelineError: Error, LocalizedError {
     }
 }
 
-// swiftlint:disable type_body_length
 /// Async orchestrator wiring AudioCaptureService → WhisperBridge → TextInjector.
 ///
 /// Typical usage:
@@ -430,4 +429,3 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         await MainActor.run { onTranscriptionReady?(result) }
     }
 }
-// swiftlint:enable type_body_length

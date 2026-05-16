@@ -21,7 +21,6 @@ public enum AudioCaptureError: Error, LocalizedError {
     }
 }
 
-// swiftlint:disable type_body_length
 /// Captures microphone audio via AVAudioEngine and resamples to the format
 /// expected by whisper.cpp: 16 kHz, mono, Float32.
 ///
@@ -340,4 +339,3 @@ public final class AudioCaptureService: @unchecked Sendable {
         }
     }
 }
-// swiftlint:enable type_body_length
