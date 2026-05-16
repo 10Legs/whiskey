@@ -73,19 +73,19 @@ extension CleanupProfile: Codable {
     }
 
     public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.removeFillers = try c.decode(Bool.self, forKey: .removeFillers)
-        self.addPunctuation = try c.decode(Bool.self, forKey: .addPunctuation)
-        let toneRaw = try c.decode(String.self, forKey: .toneStyle)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.removeFillers = try container.decode(Bool.self, forKey: .removeFillers)
+        self.addPunctuation = try container.decode(Bool.self, forKey: .addPunctuation)
+        let toneRaw = try container.decode(String.self, forKey: .toneStyle)
         self.toneStyle = ToneStyle(rawValue: toneRaw) ?? .casual
-        self.rawMode = try c.decode(Bool.self, forKey: .rawMode)
+        self.rawMode = try container.decode(Bool.self, forKey: .rawMode)
     }
 
     public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(removeFillers, forKey: .removeFillers)
-        try c.encode(addPunctuation, forKey: .addPunctuation)
-        try c.encode(toneStyle.rawValue, forKey: .toneStyle)
-        try c.encode(rawMode, forKey: .rawMode)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(removeFillers, forKey: .removeFillers)
+        try container.encode(addPunctuation, forKey: .addPunctuation)
+        try container.encode(toneStyle.rawValue, forKey: .toneStyle)
+        try container.encode(rawMode, forKey: .rawMode)
     }
 }

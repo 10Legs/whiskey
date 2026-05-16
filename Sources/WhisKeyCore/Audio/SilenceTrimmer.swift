@@ -19,7 +19,7 @@ public struct SilenceTrimmer: Sendable {
 
     // MARK: - Constants
 
-    private static let defaultSampleRate: Double = 16_000
+    public static let defaultSampleRate: Double = 16_000
     private static let frameDurationSeconds: Double = 0.020      // 20 ms
     private static let hangoverFrames: Int = 3                   // 60 ms
     private static let paddingFrames: Int = 5                    // 100 ms

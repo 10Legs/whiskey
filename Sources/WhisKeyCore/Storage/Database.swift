@@ -49,7 +49,11 @@ public final class AppDatabase: Sendable {
             #if DEBUG
             let path = AppDatabase.defaultDatabasePath()
             try? AppDatabase.wipe(path: path, reason: "DEBUG: State B recovery — orphaned DB auto-wiped")
-            return try! AppDatabase(path: path)
+            do {
+                return try AppDatabase(path: path)
+            } catch {
+                fatalError("AppDatabase DEBUG recovery failed after wipe: \(error)")
+            }
             #else
             fatalError("AppDatabase: Keychain key missing for existing DB — surface DatabaseError.keyMissing to the user")
             #endif

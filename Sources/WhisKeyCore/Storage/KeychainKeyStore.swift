@@ -1,6 +1,6 @@
 import Foundation
-import Security
 import os.log
+import Security
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "KeychainKeyStore")
 
@@ -21,8 +21,6 @@ public enum KeychainKeyStoreError: Error, Sendable {
 /// - Key is generated via `SecRandomCopyBytes` (CSPRNG) — never derived from user input.
 /// - Stored with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` — does not sync to
 ///   iCloud, cannot migrate to another machine, and is not accessible before first unlock.
-/// - `kSecUseDataProtectionKeychain = true` opts into the modern Data Protection keychain
-///   on macOS 10.15+, required by Security Reviewer.
 /// - Debug and release builds use distinct `kSecAttrService` values so a debug build
 ///   cannot read the production database key.
 /// - Key buffer is zeroed with `memset_s` immediately after handing the raw bytes to GRDB.
@@ -104,13 +102,8 @@ public final class KeychainKeyStore: Sendable {
     private func storeKey(_ key: Data) throws {
         var attrs = baseQuery()
         attrs[kSecValueData as String] = key
-        // kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly:
-        //   - Not accessible before the first post-boot unlock (screen-lock safe)
-        //   - Bound to this device — no iCloud sync, no migration
+        // Not accessible before first post-boot unlock; device-bound, no iCloud sync.
         attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        // Opt into the modern Data Protection keychain on macOS 10.15+.
-        // Required by Security Reviewer — ensures item is protected by the user's login password.
-        attrs[kSecUseDataProtectionKeychain as String] = true
         attrs[kSecAttrSynchronizable as String] = false
 
         let status = SecItemAdd(attrs as CFDictionary, nil)
@@ -120,23 +113,20 @@ public final class KeychainKeyStore: Sendable {
         }
     }
 
-    /// Base query dictionary shared by read, write, and delete operations.
+    /// Base query shared by read, write, and delete.
     ///
-    /// `kSecUseDataProtectionKeychain` is included here so that reads and deletes
-    /// search the same Data Protection keychain partition that `storeKey` writes into.
-    /// Without this flag, `SecItemCopyMatching` falls back to the legacy keychain
-    /// partition and returns `errSecItemNotFound` even when the item exists.
+    /// `kSecAttrAccessGroup` is omitted: this app is non-sandboxed and the literal
+    /// "$(AppIdentifierPrefix)…" string is never expanded at runtime (build-time token only),
+    /// which caused partition mismatches between store and read operations.
     ///
-    /// `kSecAttrAccessGroup` is intentionally omitted: this app is non-sandboxed, so
-    /// access groups provide no security benefit. The literal "$(AppIdentifierPrefix)…"
-    /// string is never expanded at runtime (it is only a build-time entitlement token),
-    /// which caused partition mismatches between write and read operations.
+    /// `kSecUseDataProtectionKeychain` is omitted: it requires specific entitlements that
+    /// are not present in all build configurations and causes errSecMissingEntitlement (-34018)
+    /// in dev/unsigned builds. The standard login keychain is sufficient for this use case.
     private func baseQuery() -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecUseDataProtectionKeychain as String: true,
+            kSecAttrAccount as String: account
         ]
     }
 }

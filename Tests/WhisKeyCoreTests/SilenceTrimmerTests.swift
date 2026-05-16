@@ -11,8 +11,8 @@ class SilenceTrimmerTests: XCTestCase {
     /// Generate `frames` frames of a pure sine wave at `amplitude`.
     private func sine(frames: Int, amplitude: Float) -> [Float] {
         let total = frames * frameSize
-        return (0..<total).map { i in
-            amplitude * sin(2 * Float.pi * 440 * Float(i) / Float(sampleRate))
+        return (0..<total).map { sampleIndex in
+            amplitude * sin(2 * Float.pi * 440 * Float(sampleIndex) / Float(sampleRate))
         }
     }
 

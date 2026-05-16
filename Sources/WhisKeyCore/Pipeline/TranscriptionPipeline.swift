@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 @preconcurrency import ApplicationServices
 import Combine
@@ -51,7 +52,6 @@ public enum PipelineError: Error, LocalizedError {
         case .captureError(let err):
             return "Audio capture failed: \(err.localizedDescription)"
         case .microphonePermissionDenied:
-            // swiftlint:disable:next line_length
             return "Microphone access is required. Grant permission in System Settings → Privacy & Security → Microphone."
         case .transcriptionError(let err):
             return "Transcription failed: \(err.localizedDescription)"
@@ -107,6 +107,7 @@ public enum PipelineError: Error, LocalizedError {
 /// pipeline.startRecording()           // called from hotkey down
 /// let result = try await pipeline.stopAndTranscribe()  // called from hotkey up
 /// ```
+// swiftlint:disable:next type_body_length
 public final class TranscriptionPipeline: @unchecked Sendable {
 
     // MARK: - Constants
@@ -249,6 +250,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     /// Stop recording, run transcription, and inject the result into the focused window.
     /// Call when the hotkey is released.
     @discardableResult
+    // swiftlint:disable:next function_body_length
     public func stopAndTranscribe() async -> TranscriptionResult? {
         guard isRecording else {
             logger.warning("stopAndTranscribe called while not recording — ignored.")
