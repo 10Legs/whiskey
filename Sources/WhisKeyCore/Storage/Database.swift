@@ -182,6 +182,33 @@ public final class AppDatabase: Sendable {
         return migrator
     }
 
+    // MARK: - Temporary File (Testing)
+
+    /// Creates an **unencrypted** temporary-file `AppDatabase` for unit tests.
+    ///
+    /// The database is written to a unique file under the system temp directory
+    /// and is automatically deleted when the `AppDatabase` object is deallocated.
+    ///
+    /// - Does not touch the Keychain.
+    /// - Schema is identical to production (same migrations run).
+    ///
+    /// Use this in test targets to avoid `AppDatabase.shared` fatalError
+    /// when Keychain is unavailable in unsigned test environments.
+    public static func makeInMemory() throws -> AppDatabase {
+        // DatabasePool requires WAL mode which is unsupported for :memory: paths.
+        // Use a uniquely-named temp file instead. The private init stores the path
+        // so it can be removed on deinit.
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("whiskey-test-\(UUID().uuidString).sqlite")
+        return try AppDatabase(testPath: tmp.path)
+    }
+
+    /// Private init for temporary test databases (no Keychain, no SQLCipher passphrase).
+    private init(testPath: String) throws {
+        pool = try DatabasePool(path: testPath)
+        try migrator.migrate(pool)
+    }
+
     // MARK: - Default Path
 
     /// `~/Library/Application Support/WhisKey/whiskey.sqlite`

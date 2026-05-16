@@ -55,8 +55,12 @@ class SilenceTrimmerTests: XCTestCase {
     // MARK: - Short buffer (< 200 ms) returns empty
 
     func testShortSpeechBufferReturnsEmpty() {
-        // Exactly 1 frame of speech (20 ms) — well below the 200 ms minimum.
-        let samples = silence(frames: 5) + sine(frames: 1, amplitude: 0.8) + silence(frames: 5)
+        // 3 frames of speech (60 ms) with no surrounding silence.
+        // The hangover detector (3 consecutive loud frames) is satisfied, so a speech
+        // region IS found. Padding clamps to buffer edges (0 silent frames on either
+        // side), leaving a 3-frame trimmed region (60 ms) which is below the 200 ms
+        // minimum → trim() returns an empty array.
+        let samples = sine(frames: 3, amplitude: 0.8)
         let result = SilenceTrimmer.trim(samples, sampleRate: sampleRate)
         XCTAssertTrue(result.isEmpty,
                       "Speech region shorter than 200 ms should return empty array.")
