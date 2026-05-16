@@ -51,6 +51,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var transcriptionTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
 
+    // MARK: - Whisper Glass state
+
+    private let pipelineState = PipelineStateModel()
+    /// Held alive for audio level forwarding.
+    private var hudController: FloatingHUDWindowController?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // hide from Dock
 
@@ -60,17 +66,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkModelPresence()
     }
 
-    // MARK: - Status Item
+    // MARK: - Status Item (Task 3)
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem?.button {
+            applyStatusIcon(.idle)
+            button.action = #selector(statusItemClicked)
+            button.target = self
+        }
+    }
+
+    private enum IconState { case idle, recording, processing, error }
+
+    private func applyStatusIcon(_ state: IconState) {
+        guard let button = statusItem?.button else { return }
+        button.image = nil
+
+        switch state {
+        case .idle:
             button.image = NSImage(
                 systemSymbolName: "waveform.and.mic",
                 accessibilityDescription: "WhisKey"
             )
-            button.action = #selector(statusItemClicked)
-            button.target = self
+        case .recording:
+            // pulse applied via symbolEffect in SwiftUI; NSStatusItem uses NSImage directly.
+            // Use a distinct filled icon so the recording state is visually obvious.
+            button.image = NSImage(
+                systemSymbolName: "mic.fill",
+                accessibilityDescription: "Recording"
+            )
+        case .processing:
+            button.image = NSImage(
+                systemSymbolName: "waveform",
+                accessibilityDescription: "Transcribing"
+            )
+        case .error:
+            button.image = NSImage(
+                systemSymbolName: "exclamationmark.triangle",
+                accessibilityDescription: "WhisKey Error"
+            )
+        }
+    }
+
+    private func transitionToRecording() {
+        applyStatusIcon(.recording)
+        pipelineState.recordingState = .recording
+    }
+
+    private func transitionToProcessing() {
+        applyStatusIcon(.processing)
+        pipelineState.recordingState = .processing
+    }
+
+    private func transitionToIdle() {
+        applyStatusIcon(.idle)
+        pipelineState.recordingState = .idle
+    }
+
+    private func transitionToError(_ message: String) {
+        applyStatusIcon(.error)
+        pipelineState.recordingState = .error(message)
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            transitionToIdle()
         }
     }
 
@@ -78,16 +137,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 300, height: 260)
+        popover.contentSize = NSSize(width: 320, height: 300)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
-            rootView: MenuBarView(
-                onOpenSettings: { [weak self] in
-                    self?.popover?.performClose(nil)
-                    self?.openSettings()
-                }
-            )
+        let view = MenuBarView(
+            modelManager: modelManager,
+            pipelineState: pipelineState,
+            onOpenSettings: { [weak self] in
+                self?.popover?.performClose(nil)
+                self?.openSettings()
+            },
+            onClear: {}
         )
+        popover.contentViewController = NSHostingController(rootView: view)
         self.popover = popover
     }
 
@@ -189,26 +250,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appContextService.start()
         pipeline.appContextService = appContextService
 
+        // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
+        let hud = FloatingHUDWindowController(pipeline: pipeline)
+        hudController = hud
+        pipelineState.subscribe(toAudioLevel: pipeline.audioLevelPublisher)
+
         // Wire pipeline callbacks.
-        pipeline.onTranscriptionReady = { result in
+        pipeline.onTranscriptionReady = { [weak self] result in
             logger.info("Transcription ready: \"\(result.text)\"")
             flog.log(
                 .info,
                 "Transcription: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]"
             )
+            Task { @MainActor in
+                self?.transitionToIdle()
+            }
         }
         pipeline.onError = { [weak self] error in
             self?.handlePipelineError(error)
         }
 
-        // Wire hotkey to pipeline.
-        hotkey.onStartRecording = { [weak self] in
+        // Wire hotkey to pipeline + state model.
+        hotkey.onStartRecording = { [weak self, weak hud] in
             flog.log(.info, "Hotkey down — recording started.")
             self?.pipeline.startRecording()
+            self?.transitionToRecording()
+            hud?.recordingDidStart()
         }
-        hotkey.onStopRecording = { [weak self] in
+        hotkey.onStopRecording = { [weak self, weak hud] in
             guard let self else { return }
             flog.log(.info, "Hotkey up — running transcription.")
+            self.transitionToProcessing()
+            hud?.recordingDidStop()
             self.transcriptionTask?.cancel()
             self.transcriptionTask = Task {
                 await self.pipeline.stopAndTranscribe()
@@ -231,8 +304,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 "Privacy & Security → Input Monitoring and enable WhisKey."
             flog.log(.error, "HotkeyManager failed to start — \(reason)")
             logger.error("Failed to start HotkeyManager — \(reason)")
-            // Route through the same structured error path so the UI mapping is
-            // consistent with pipeline-originated errors.
             pipeline.onError?(PipelineError.hotkeyUnavailable(reason))
         }
     }
@@ -245,13 +316,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         flog.log(.error, "Pipeline error: \(error.localizedDescription)")
 
         guard let pipelineError = error as? PipelineError else {
-            // Untyped error — escalate as a generic transcription failure.
             flog.log(.error, "Pipeline error of unknown type: \(String(describing: error))")
             AppNotifications.post(.transcriptionFailed(error))
+            surfaceErrorInPopover(error.localizedDescription, action: nil)
             return
         }
 
-        // Info-severity errors are logged only, never surfaced as notifications.
         guard pipelineError.severity != .info else {
             flog.log(.info, "Pipeline state event (suppressed from UI): \(pipelineError.localizedDescription)")
             return
@@ -262,17 +332,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             break
         case .captureError(let underlying):
             AppNotifications.post(.captureUnavailable(underlying.localizedDescription))
+            surfaceErrorInPopover(underlying.localizedDescription, action: .retry)
         case .microphonePermissionDenied:
             AppNotifications.post(.permissionDenied("Microphone access is required for audio capture."))
+            surfaceErrorInPopover(
+                "Microphone access denied. Grant permission in System Settings.",
+                action: .openSettings
+            )
         case .transcriptionError(let underlying):
             AppNotifications.post(.transcriptionFailed(underlying))
+            surfaceErrorInPopover(underlying.localizedDescription, action: .retry)
         case .injectionSkipped(let reason):
             AppNotifications.post(.injectionFailed(reason))
+            surfaceErrorInPopover("Text injection skipped: \(reason)", action: nil)
         case .hotkeyUnavailable(let reason):
             AppNotifications.post(.hotkeyUnavailable(reason))
+            surfaceErrorInPopover("Hotkey unavailable: \(reason)", action: .openSettings)
         case .llmCleanupFailed:
             break
         }
+
+        transitionToError(pipelineError.localizedDescription)
+    }
+
+    private func surfaceErrorInPopover(_ text: String, action: PipelineErrorMessage.ErrorAction?) {
+        let msg = PipelineErrorMessage(text: text, action: action)
+        pipelineState.postError(msg)
     }
 }
 
