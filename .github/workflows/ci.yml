@@ -53,8 +53,17 @@ jobs:
 
       - name: Build (release) — catch release-only issues
         # Only on PRs to main; skip on push to keep push CI fast.
+        # --jobs 2 prevents swift from saturating all CPU cores, which starves
+        # the runner's I/O threads and causes the renewjob connection to drop.
+        # The heartbeat loop emits a line every 30 s to keep log-streaming alive.
         if: github.event_name == 'pull_request'
-        run: swift build -c release 2>&1
+        run: |
+          while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
+          HPID=$!
+          swift build -c release --jobs 2 2>&1
+          STATUS=$?
+          kill $HPID 2>/dev/null || true
+          exit $STATUS
 
 # ---------------------------------------------------------------------------
 # Job: swiftlint
