@@ -13,4 +13,7 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     case notificationsEnabled
     case activeModelID
     case llmEnabled
+    case silenceTrimEnabled
+    case fillerScrubberEnabled
+    case appProfiles
 }
