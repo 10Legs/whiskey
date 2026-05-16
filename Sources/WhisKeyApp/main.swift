@@ -37,6 +37,7 @@ private let logger = Logger(subsystem: "com.whiskey.app", category: "AppDelegate
 
 // MARK: - App Delegate
 
+// swiftlint:disable type_body_length
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -360,6 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pipelineState.postError(msg)
     }
 }
+// swiftlint:enable type_body_length
 
 // MARK: - Entry Point
 
