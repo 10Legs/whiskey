@@ -30,9 +30,6 @@ public final class KeychainKeyStore: Sendable {
 
     private let service: String
     private let account = "default"
-    // Access group ties the item to the app's provisioning profile prefix.
-    // The $(AppIdentifierPrefix) placeholder is resolved at runtime by the entitlement.
-    private let accessGroup = "$(AppIdentifierPrefix)com.whiskey.app"
 
     public init() {
         #if DEBUG
@@ -124,12 +121,22 @@ public final class KeychainKeyStore: Sendable {
     }
 
     /// Base query dictionary shared by read, write, and delete operations.
+    ///
+    /// `kSecUseDataProtectionKeychain` is included here so that reads and deletes
+    /// search the same Data Protection keychain partition that `storeKey` writes into.
+    /// Without this flag, `SecItemCopyMatching` falls back to the legacy keychain
+    /// partition and returns `errSecItemNotFound` even when the item exists.
+    ///
+    /// `kSecAttrAccessGroup` is intentionally omitted: this app is non-sandboxed, so
+    /// access groups provide no security benefit. The literal "$(AppIdentifierPrefix)…"
+    /// string is never expanded at runtime (it is only a build-time entitlement token),
+    /// which caused partition mismatches between write and read operations.
     private func baseQuery() -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecAttrAccessGroup as String: accessGroup,
+            kSecUseDataProtectionKeychain as String: true,
         ]
     }
 }

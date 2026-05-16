@@ -44,9 +44,15 @@ public final class AppDatabase: Sendable {
             let path = AppDatabase.defaultDatabasePath()
             return try AppDatabase(path: path)
         } catch DatabaseError.keyMissing {
-            // Surface to the app; do not swallow. The app layer is responsible for
-            // presenting the "wipe to start fresh?" dialog before re-initializing.
+            // In DEBUG: auto-wipe the orphaned DB and start fresh (dev data isn't precious).
+            // In release: crash — the UI layer must intercept this before shared is accessed.
+            #if DEBUG
+            let path = AppDatabase.defaultDatabasePath()
+            try? AppDatabase.wipe(path: path, reason: "DEBUG: State B recovery — orphaned DB auto-wiped")
+            return try! AppDatabase(path: path)
+            #else
             fatalError("AppDatabase: Keychain key missing for existing DB — surface DatabaseError.keyMissing to the user")
+            #endif
         } catch {
             fatalError("AppDatabase failed to initialize: \(error)")
         }
