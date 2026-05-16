@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsManager = SettingsManager()
     private lazy var modelManager = ModelManager(settings: settingsManager)
     private lazy var pipeline = TranscriptionPipeline(settings: settingsManager)
+    private lazy var appContextService = AppContextService(settingsManager: settingsManager)
     private var transcriptionTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
 
@@ -183,6 +184,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Apply persisted settings to pipeline.
         pipeline.languageHint = settingsManager.languageHint
         pipeline.cleanupProfile = settingsManager.cleanupProfile
+
+        // Feature 1.3: Start active-app profile service and inject into pipeline.
+        appContextService.start()
+        pipeline.appContextService = appContextService
 
         // Wire pipeline callbacks.
         pipeline.onTranscriptionReady = { result in

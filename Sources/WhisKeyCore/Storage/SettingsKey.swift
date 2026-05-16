@@ -16,4 +16,7 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     /// Maximum number of history entries to retain. Older entries are trimmed on insert.
     /// Default: 500. Valid range: 50–10000.
     case historyRetentionMax
+    case silenceTrimEnabled
+    case fillerScrubberEnabled
+    case appProfiles
 }

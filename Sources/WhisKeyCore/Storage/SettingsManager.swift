@@ -154,6 +154,28 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.historyRetentionMax, value: max(50, min(10_000, newValue))) }
     }
 
+    /// When `false`, the energy-based silence trimmer is not applied to captured PCM. Defaults to `true`.
+    public var silenceTrimEnabled: Bool {
+        get { get(.silenceTrimEnabled, default: true) }
+        set { set(.silenceTrimEnabled, value: newValue) }
+    }
+
+    /// When `false`, the post-Whisper filler-word regex scrubber is not applied. Defaults to `true`.
+    public var fillerScrubberEnabled: Bool {
+        get { get(.fillerScrubberEnabled, default: true) }
+        set { set(.fillerScrubberEnabled, value: newValue) }
+    }
+
+    /// Per-application transcription profiles stored as a JSON array.
+    /// Defaults to a single wildcard profile when empty.
+    public var appProfiles: [AppProfile] {
+        get {
+            let profiles: [AppProfile] = get(.appProfiles, default: [])
+            return profiles.isEmpty ? [AppProfile.makeDefault()] : profiles
+        }
+        set { set(.appProfiles, value: newValue) }
+    }
+
     /// Builds a `CleanupProfile` from current settings.
     public var cleanupProfile: CleanupProfile {
         CleanupProfile(
