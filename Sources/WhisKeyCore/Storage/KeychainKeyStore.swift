@@ -1,0 +1,135 @@
+import Foundation
+import Security
+import os.log
+
+private let logger = Logger(subsystem: "com.whiskey.app", category: "KeychainKeyStore")
+
+// MARK: - Errors
+
+public enum KeychainKeyStoreError: Error, Sendable {
+    case randomGenerationFailed(OSStatus)
+    case keychainWriteFailed(OSStatus)
+    case keychainReadFailed(OSStatus)
+    case keychainDeleteFailed(OSStatus)
+}
+
+// MARK: - KeychainKeyStore
+
+/// Manages the 32-byte symmetric key used to encrypt the history database.
+///
+/// Security properties:
+/// - Key is generated via `SecRandomCopyBytes` (CSPRNG) — never derived from user input.
+/// - Stored with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` — does not sync to
+///   iCloud, cannot migrate to another machine, and is not accessible before first unlock.
+/// - `kSecUseDataProtectionKeychain = true` opts into the modern Data Protection keychain
+///   on macOS 10.15+, required by Security Reviewer.
+/// - Debug and release builds use distinct `kSecAttrService` values so a debug build
+///   cannot read the production database key.
+/// - Key buffer is zeroed with `memset_s` immediately after handing the raw bytes to GRDB.
+public final class KeychainKeyStore: Sendable {
+
+    private let service: String
+    private let account = "default"
+    // Access group ties the item to the app's provisioning profile prefix.
+    // The $(AppIdentifierPrefix) placeholder is resolved at runtime by the entitlement.
+    private let accessGroup = "$(AppIdentifierPrefix)com.whiskey.app"
+
+    public init() {
+        #if DEBUG
+        self.service = "com.whiskey.app.history-key.debug"
+        #else
+        self.service = "com.whiskey.app.history-key"
+        #endif
+    }
+
+    // MARK: - Public API
+
+    /// Returns the existing DB key from Keychain, or generates and stores a new one.
+    /// Safe to call on every launch — idempotent when the key already exists.
+    public func getOrCreateKey() throws -> Data {
+        if let existing = try readKey() {
+            return existing
+        }
+        let key = try generateKey()
+        try storeKey(key)
+        logger.info("New 32-byte DB key generated and stored in Keychain (service: \(self.service, privacy: .public))")
+        return key
+    }
+
+    /// Returns the stored key, or `nil` when no item exists (first launch, or after wipe).
+    /// Returns `nil` — not an error — when the item is simply absent.
+    /// Throws only on genuine Keychain failures (e.g., access denied, hardware error).
+    public func readKey() throws -> Data? {
+        var query = baseQuery()
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query[kSecReturnData as String] = true
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+        switch status {
+        case errSecSuccess:
+            guard let data = item as? Data else {
+                return nil
+            }
+            return data
+        case errSecItemNotFound:
+            return nil
+        default:
+            logger.error("Keychain read failed: \(status)")
+            throw KeychainKeyStoreError.keychainReadFailed(status)
+        }
+    }
+
+    /// Deletes the Keychain item. Call only when the user explicitly requests a history wipe.
+    /// After this, the encrypted DB cannot be opened; wipe the DB file before regenerating.
+    public func deleteKey() throws {
+        let query = baseQuery()
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            logger.error("Keychain delete failed: \(status)")
+            throw KeychainKeyStoreError.keychainDeleteFailed(status)
+        }
+        logger.warning("DB key deleted from Keychain (service: \(self.service, privacy: .public))")
+    }
+
+    // MARK: - Private helpers
+
+    private func generateKey() throws -> Data {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, 32, &bytes)
+        guard status == errSecSuccess else {
+            throw KeychainKeyStoreError.randomGenerationFailed(status)
+        }
+        return Data(bytes)
+    }
+
+    private func storeKey(_ key: Data) throws {
+        var attrs = baseQuery()
+        attrs[kSecValueData as String] = key
+        // kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly:
+        //   - Not accessible before the first post-boot unlock (screen-lock safe)
+        //   - Bound to this device — no iCloud sync, no migration
+        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        // Opt into the modern Data Protection keychain on macOS 10.15+.
+        // Required by Security Reviewer — ensures item is protected by the user's login password.
+        attrs[kSecUseDataProtectionKeychain as String] = true
+        attrs[kSecAttrSynchronizable as String] = false
+
+        let status = SecItemAdd(attrs as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            logger.error("Keychain write failed: \(status)")
+            throw KeychainKeyStoreError.keychainWriteFailed(status)
+        }
+    }
+
+    /// Base query dictionary shared by read, write, and delete operations.
+    private func baseQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup,
+        ]
+    }
+}

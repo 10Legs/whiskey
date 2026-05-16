@@ -1,0 +1,15 @@
+// SQLCipher module map for GRDB integration.
+// The module is named `SQLCipher` to match GRDB Export.swift's
+// `#elseif GRDBCIPHER` branch: `@_exported import SQLCipher`.
+//
+// shim.h includes the SQLCipher sqlite3.h and adds the C inline helpers
+// (_registerErrorLogCallback, _enableDoubleQuotedStringLiterals,
+// _disableDoubleQuotedStringLiterals) that GRDB normally gets from its
+// bundled CSQLite/shim.h.
+//
+// Required: brew install sqlcipher
+module SQLCipher [system] {
+    header "shim.h"
+    link "sqlcipher"
+    export *
+}
