@@ -1,5 +1,5 @@
 import Foundation
-import GRDB
+import GRDBEncrypted
 import os.log
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "SettingsManager")
@@ -141,6 +141,17 @@ public final class SettingsManager: @unchecked Sendable {
     public var activeModelID: String? {
         get { get(.activeModelID, default: nil as String?) }
         set { set(.activeModelID, value: newValue) }
+    }
+
+    /// Maximum number of history entries to retain.
+    /// After every insert, `HistoryStore` trims entries beyond this count (oldest first).
+    /// Clamped to the range 50–10000. Default: 500.
+    public var historyRetentionMax: Int {
+        get {
+            let raw: Int = get(.historyRetentionMax, default: 500)
+            return max(50, min(10_000, raw))
+        }
+        set { set(.historyRetentionMax, value: max(50, min(10_000, newValue))) }
     }
 
     /// Builds a `CleanupProfile` from current settings.
