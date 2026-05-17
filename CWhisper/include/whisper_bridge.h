@@ -26,12 +26,16 @@ typedef struct {
 /// Transcribe PCM audio (16kHz, mono, Float32).
 /// language_hint: NULL for auto-detect; "en", "es", etc. for forced language.
 /// n_threads: number of CPU threads (recommend 4 on Apple Silicon).
+/// initial_prompt: NULL for no bias; comma-separated vocabulary terms to bias
+///   Whisper's beam search toward (e.g. "SwiftUI, Xcode, WhisKey"). Maps
+///   directly to whisper_full_params.initial_prompt.
 whisper_bridge_result whisper_bridge_transcribe(
     whisper_context * ctx,
     const float * pcm_data,
     int pcm_len,
     const char * language_hint,
-    int n_threads
+    int n_threads,
+    const char * initial_prompt
 );
 
 /// Free strings inside a whisper_bridge_result.

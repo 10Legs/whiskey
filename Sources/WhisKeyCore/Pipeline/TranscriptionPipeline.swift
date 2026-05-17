@@ -22,7 +22,7 @@ public enum PipelineError: Error, LocalizedError {
     case notRecording
 
     /// Audio capture machinery (AVFoundation / CoreAudio) failed to start or run.
-    /// Distinct from `microphonePermissionDenied` — this is a device/engine
+    /// Distinct from `microphonePermissionDenied` -- this is a device/engine
     /// error, not a permission problem.
     case captureError(Error)
 
@@ -37,7 +37,7 @@ public enum PipelineError: Error, LocalizedError {
     /// User-visible reason describes why (no AX permission, no focused field, etc.).
     case injectionSkipped(String)
 
-    /// CGEventTap could not be installed — Input Monitoring permission missing.
+    /// CGEventTap could not be installed -- Input Monitoring permission missing.
     case hotkeyUnavailable(String)
 
     /// LLM cleanup failed but raw transcript was injected. Informational only.
@@ -52,7 +52,7 @@ public enum PipelineError: Error, LocalizedError {
         case .captureError(let err):
             return "Audio capture failed: \(err.localizedDescription)"
         case .microphonePermissionDenied:
-            return "Microphone access is required. Grant permission in System Settings → Privacy & Security → Microphone."
+            return "Microphone access is required. Grant permission in System Settings \u{2192} Privacy & Security \u{2192} Microphone."
         case .transcriptionError(let err):
             return "Transcription failed: \(err.localizedDescription)"
         case .injectionSkipped(let reason):
@@ -60,7 +60,7 @@ public enum PipelineError: Error, LocalizedError {
         case .hotkeyUnavailable(let reason):
             return "Hotkey unavailable: \(reason)"
         case .llmCleanupFailed(let err):
-            return "LLM cleanup failed: \(err.localizedDescription) — raw transcript was used."
+            return "LLM cleanup failed: \(err.localizedDescription) \u{2014} raw transcript was used."
         }
     }
 
@@ -100,7 +100,7 @@ public enum PipelineError: Error, LocalizedError {
 }
 
 // swiftlint:disable type_body_length
-/// Async orchestrator wiring AudioCaptureService → WhisperBridge → TextInjector.
+/// Async orchestrator wiring AudioCaptureService \u{2192} WhisperBridge \u{2192} TextInjector.
 ///
 /// `TranscriptionPipeline` is a Swift actor: all mutable state (`isRecording`) is
 /// automatically protected by actor isolation. Callers must `await` actor-isolated
@@ -117,7 +117,7 @@ public actor TranscriptionPipeline {
     // MARK: - Constants
 
     /// Whisper special-token strings that indicate no real speech was detected.
-    /// Results matching these tokens are suppressed — nothing is injected or typed.
+    /// Results matching these tokens are suppressed -- nothing is injected or typed.
     private static let whisperNoiseTokens: Set<String> = [
         "[BLANK_AUDIO]", "[MUSIC]", "[NOISE]", "[INAUDIBLE]"
     ]
@@ -159,11 +159,16 @@ public actor TranscriptionPipeline {
     /// Actor-isolated; use `setSnippetStore(_:)` to update from outside the actor.
     private var snippetStore: SnippetStore?
 
+    /// Personal vocabulary store used to bias Whisper transcription (S4-T5).
+    /// When `nil` no initial prompt is sent to Whisper.
+    /// Actor-isolated; use `setVocabularyStore(_:)` to update from outside the actor.
+    private var vocabularyStore: PersonalVocabularyStore?
+
     // MARK: - Audio Level
 
-    /// Normalized RMS audio level (0.0–1.0) forwarded from AudioCaptureService.
+    /// Normalized RMS audio level (0.0-1.0) forwarded from AudioCaptureService.
     /// Subscribe from UI layers for real-time waveform visualization.
-    /// `nonisolated` because `audioCapture` is a `let` stored property — actors
+    /// `nonisolated` because `audioCapture` is a `let` stored property -- actors
     /// expose `let` properties nonisolated by default, so this computed property
     /// is safe to call without `await`.
     public nonisolated var audioLevelPublisher: AnyPublisher<Float, Never> {
@@ -244,9 +249,18 @@ public actor TranscriptionPipeline {
     ///
     /// After this is called, every completed transcription is run through
     /// `SnippetExpander` before injection. The injection itself still routes
-    /// through the existing `SensitiveAppRegistry` guard — no bypass.
+    /// through the existing `SensitiveAppRegistry` guard -- no bypass.
     public func setSnippetStore(_ store: SnippetStore) {
         self.snippetStore = store
+    }
+
+    /// Wires the personal vocabulary store into the pipeline (S4-T5).
+    ///
+    /// When set, `store.promptString` is forwarded to Whisper as `initial_prompt`
+    /// on every transcription call, biasing beam search toward the user's terms.
+    /// Pass `nil` to disable vocabulary biasing.
+    public func setVocabularyStore(_ store: PersonalVocabularyStore?) {
+        self.vocabularyStore = store
     }
 
     /// Convenience setter for both pipeline callbacks in a single actor hop.
@@ -279,7 +293,7 @@ public actor TranscriptionPipeline {
     public func startRecording() async {
         let flog = FileLogger.shared
         guard !isRecording else {
-            logger.warning("startRecording called while already recording — ignored.")
+            logger.warning("startRecording called while already recording -- ignored.")
             flog.log(.warn, "Pipeline: startRecording called while already recording (debounced).")
             return
         }
@@ -326,7 +340,7 @@ public actor TranscriptionPipeline {
     // swiftlint:disable:next function_body_length
     public func stopAndTranscribe() async -> TranscriptionResult? {
         guard isRecording else {
-            logger.warning("stopAndTranscribe called while not recording — ignored.")
+            logger.warning("stopAndTranscribe called while not recording -- ignored.")
             return nil
         }
 
@@ -337,7 +351,7 @@ public actor TranscriptionPipeline {
         logger.info("Recording stopped. Captured \(rawSamples.count) samples.")
 
         guard !rawSamples.isEmpty else {
-            flog.log(.warn, "No audio samples captured — check Microphone permission.")
+            flog.log(.warn, "No audio samples captured -- check Microphone permission.")
             logger.warning("No audio samples captured; skipping transcription.")
             // Fix 4: Ensure capture flags are fully cleared on this error path.
             audioCapture.reset()
@@ -358,17 +372,17 @@ public actor TranscriptionPipeline {
         if trimEnabled {
             let trimmed = SilenceTrimmer.trim(rawSamples)
             if trimmed.isEmpty {
-                flog.log(.warn, "SilenceTrimmer: buffer contained < 200 ms of speech — skipping.")
+                flog.log(.warn, "SilenceTrimmer: buffer contained < 200 ms of speech -- skipping.")
                 logger.warning("SilenceTrimmer returned empty buffer; skipping transcription.")
                 return nil
             }
-            flog.log(.info, "SilenceTrimmer: \(rawSamples.count) → \(trimmed.count) samples.")
+            flog.log(.info, "SilenceTrimmer: \(rawSamples.count) \u{2192} \(trimmed.count) samples.")
             pcmSamples = trimmed
         } else {
             pcmSamples = rawSamples
         }
 
-        // Snapshot the focused AX element NOW — before transcription latency causes focus to change.
+        // Snapshot the focused AX element NOW -- before transcription latency causes focus to change.
         let capturedAXElement: AXUIElement? = await MainActor.run {
             guard AXIsProcessTrusted() else { return nil }
             let sysWide = AXUIElementCreateSystemWide()
@@ -383,7 +397,7 @@ public actor TranscriptionPipeline {
 
         guard !result.text.isEmpty,
               !Self.whisperNoiseTokens.contains(result.text) else {
-            logger.info("Suppressing output — blank or noise-only transcription (\(result.text.count) chars)")
+            logger.info("Suppressing output -- blank or noise-only transcription (\(result.text.count) chars)")
             return result
         }
 
@@ -404,7 +418,7 @@ public actor TranscriptionPipeline {
             ? await applyLLMCleanup(rawText: scrubbed, context: injectionContext, profile: effectiveCleanup)
             : scrubbed
 
-        // S3-T5: Voice Snippets — post-LLM, pre-injection trigger expansion.
+        // S3-T5: Voice Snippets -- post-LLM, pre-injection trigger expansion.
         let (textToInject, expandedSnippet) = await applySnippetExpansion(afterLLM)
 
         // Block expanded text from reaching sensitive apps (password managers, terminals, etc.).
@@ -412,7 +426,7 @@ public actor TranscriptionPipeline {
         // same security bar as history re-injection.
         if expandedSnippet != nil,
            SensitiveAppRegistry.isSensitive(injectionContext.activeAppBundleID) {
-            logger.warning("Snippet expansion blocked — sensitive app: \(injectionContext.activeAppBundleID)")
+            logger.warning("Snippet expansion blocked -- sensitive app: \(injectionContext.activeAppBundleID)")
             FileLogger.shared.log(.warn, "Pipeline: snippet expansion blocked in sensitive app.")
             await MainActor.run {
                 onError?(PipelineError.injectionSkipped("Snippet expansion blocked in sensitive app."))
@@ -446,7 +460,7 @@ public actor TranscriptionPipeline {
         guard let result = SnippetExpander.expand(text, snippets: snippets) else {
             return (text, nil)
         }
-        logger.info("SnippetExpander: trigger \"\(result.matchedSnippet.triggerPhrase)\" matched — \(result.originalText.count) → \(result.expandedText.count) chars.")
+        logger.info("SnippetExpander: trigger \"\(result.matchedSnippet.triggerPhrase)\" matched -- \(result.originalText.count) \u{2192} \(result.expandedText.count) chars.")
         FileLogger.shared.log(
             .info,
             "Pipeline: snippet trigger \"\(result.matchedSnippet.triggerPhrase)\" expanded."
@@ -457,10 +471,21 @@ public actor TranscriptionPipeline {
     private func runTranscription(pcmSamples: [Float], langHint: String?) async -> TranscriptionResult? {
         let flog = FileLogger.shared
         flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
+        // Capture the vocabulary store reference (pipeline-actor-isolated), then hop
+        // to @MainActor to read the @MainActor-isolated `promptString` property.
+        let vocabStore = vocabularyStore
+        let vocabPrompt: String? = await MainActor.run {
+            let ps = vocabStore?.promptString
+            return ps.flatMap { $0.isEmpty ? nil : $0 }
+        }
         do {
-            let result = try await whisper.transcribe(pcm: pcmSamples, languageHint: langHint)
-            flog.log(.info, "Whisper returned \(result.text.count) chars [\(result.language ?? "auto")]")
-            logger.info("Transcription complete: \(result.text.count) chars [\(result.language ?? "auto"), \(result.durationMs)ms]")
+            let result = try await whisper.transcribe(
+                pcm: pcmSamples,
+                languageHint: langHint,
+                initialPrompt: vocabPrompt
+            )
+            flog.log(.info, "Whisper returned \(result.text.count) chars [\(result.language)]")
+            logger.info("Transcription complete: \(result.text.count) chars [\(result.language), \(result.durationMs)ms]")
             return result
         } catch {
             flog.log(.error, "Whisper error: \(error.localizedDescription)")
@@ -491,11 +516,11 @@ public actor TranscriptionPipeline {
                 profile: resolvedProfile
             )
             if cleaned != rawText {
-                logger.info("LLM cleanup applied. \(rawText.count) → \(cleaned.count) chars")
+                logger.info("LLM cleanup applied. \(rawText.count) \u{2192} \(cleaned.count) chars")
             }
             return cleaned
         } catch {
-            logger.error("LLM cleanup threw an error: \(error.localizedDescription) — injecting raw transcript.")
+            logger.error("LLM cleanup threw an error: \(error.localizedDescription) -- injecting raw transcript.")
             FileLogger.shared.log(
                 .warn,
                 "Pipeline: LLM cleanup failed (\(error.localizedDescription)); falling back to raw transcript."

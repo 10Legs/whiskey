@@ -1,4 +1,4 @@
-// whisper_bridge.cpp — thin C++ wrapper over whisper.cpp for Swift consumption.
+// whisper_bridge.cpp -- thin C++ wrapper over whisper.cpp for Swift consumption.
 // Exposes a pure-C API so Swift can call it without a C++ bridging header.
 
 #include "whisper_bridge.h"
@@ -34,7 +34,8 @@ whisper_bridge_result whisper_bridge_transcribe(
     const float * pcm_data,
     int pcm_len,
     const char * language_hint,
-    int n_threads
+    int n_threads,
+    const char * initial_prompt
 ) {
     whisper_bridge_result out;
     out.text = nullptr;
@@ -55,8 +56,16 @@ whisper_bridge_result whisper_bridge_transcribe(
     wparams.translate      = false;
     wparams.n_threads      = (n_threads > 0) ? n_threads : 4;
 
+    // Initial prompt: biases the beam search toward specific vocabulary terms.
+    // Passed as-is to whisper_full_params.initial_prompt (whisper.cpp stores a
+    // char* pointer -- the caller owns the lifetime; safe here because wparams is
+    // only alive for the duration of whisper_full below).
+    if (initial_prompt && strlen(initial_prompt) > 0) {
+        wparams.initial_prompt = initial_prompt;
+    }
+
     // Language: NULL means auto-detect; otherwise force the given language code.
-    // .en models have no language detection head — detect_language=true produces
+    // .en models have no language detection head -- detect_language=true produces
     // garbage output. Fall back to "en" for non-multilingual models.
     if (language_hint && strlen(language_hint) > 0) {
         wparams.language = language_hint;
@@ -86,7 +95,7 @@ whisper_bridge_result whisper_bridge_transcribe(
         }
     }
 
-    // Compute duration from last segment end time (in centiseconds → ms)
+    // Compute duration from last segment end time (in centiseconds -> ms)
     if (n_segments > 0) {
         int64_t t1_cs = whisper_full_get_segment_t1(ctx, n_segments - 1);
         out.duration_ms = t1_cs * 10; // whisper timestamps are in centiseconds
