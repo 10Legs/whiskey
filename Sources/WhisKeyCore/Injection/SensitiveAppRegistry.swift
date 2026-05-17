@@ -13,7 +13,11 @@ public struct SensitiveAppRegistry: Sendable {
         "com.googlecode.iterm2",
         "com.agilebits.onepassword7",
         "com.agilebits.onepassword-osx",
+        "com.1password.1password",
         "com.bitwarden.desktop",
+        "org.keepassxc.keepassxc",
+        "com.authy.authy-mac",
+        "com.microsoft.authenticator",
         "com.apple.SecurityAgent"
     ]
 

@@ -29,8 +29,24 @@ final class SensitiveAppRegistryTests: XCTestCase {
         XCTAssertTrue(SensitiveAppRegistry.isSensitive("com.agilebits.onepassword-osx"))
     }
 
+    func testOnePassword8IsBlocked() {
+        XCTAssertTrue(SensitiveAppRegistry.isSensitive("com.1password.1password"))
+    }
+
     func testBitwardenIsBlocked() {
         XCTAssertTrue(SensitiveAppRegistry.isSensitive("com.bitwarden.desktop"))
+    }
+
+    func testKeePassXCIsBlocked() {
+        XCTAssertTrue(SensitiveAppRegistry.isSensitive("org.keepassxc.keepassxc"))
+    }
+
+    func testAuthyIsBlocked() {
+        XCTAssertTrue(SensitiveAppRegistry.isSensitive("com.authy.authy-mac"))
+    }
+
+    func testMicrosoftAuthenticatorIsBlocked() {
+        XCTAssertTrue(SensitiveAppRegistry.isSensitive("com.microsoft.authenticator"))
     }
 
     func testSecurityAgentIsBlocked() {
