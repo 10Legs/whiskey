@@ -329,12 +329,20 @@ class URLSessionAuditCoverageTests: XCTestCase {
             // Async/await variants — added Sprint 4 to close Issue #33.
             "URLSession.shared.data(for:",
             "URLSession.shared.data(from:",
+            // Additional async/await variants — added S4 egress audit fix.
+            "URLSession.shared.upload(for:",
+            "URLSession.shared.upload(from:",
+            "URLSession.shared.download(from:",
+            "URLSession.shared.bytes(for:",
+            "URLSession.shared.bytes(from:",
         ]
         // EgressAuditor itself is exempt — it is the audit boundary.
         let exemptFile = "EgressAuditor.swift"
         // A file that uses a raw URLSession.shared pattern is considered audited
         // when, within the same file, it also routes through this auditor symbol.
         // This is the documented contract for new outbound call sites.
+        // S2 fix: the marker must appear on a non-comment line to prevent a source
+        // comment containing the symbol string from silencing the lint check.
         let auditMarker = "EgressAuditor.shared.recordCompleted"
 
         while let fileURL = enumerator?.nextObject() as? URL {
@@ -344,9 +352,18 @@ class URLSessionAuditCoverageTests: XCTestCase {
             let content = (try? String(contentsOf: fileURL, encoding: .utf8)) ?? ""
             for pattern in rawPatterns {
                 if content.contains(pattern) {
-                    if !content.contains(auditMarker) {
+                    // S2: verify the audit marker exists on a non-comment line —
+                    // a comment such as `// EgressAuditor.shared.recordCompleted`
+                    // must not satisfy the audit requirement.
+                    let markerOnCodeLine = content
+                        .components(separatedBy: .newlines)
+                        .contains { line in
+                            let trimmed = line.trimmingCharacters(in: .whitespaces)
+                            return !trimmed.hasPrefix("//") && trimmed.contains(auditMarker)
+                        }
+                    if !markerOnCodeLine {
                         violations.append(
-                            "\(fileURL.lastPathComponent): contains '\(pattern)' without '\(auditMarker)'"
+                            "\(fileURL.lastPathComponent): contains '\(pattern)' without '\(auditMarker)' on a non-comment line"
                         )
                     }
                 }
