@@ -51,13 +51,13 @@ public struct VoiceCommandProcessor: Sendable {
     // MARK: - Command table
 
     private static let commandTable: [(phrases: [String], command: VoiceCommand)] = [
-        (["new paragraph"],  .insertNewParagraph),
-        (["new line"],       .insertNewLine),
+        (["new paragraph"], .insertNewParagraph),
+        (["new line"], .insertNewLine),
         (["scratch that", "delete that"], .deleteLastUtterance),
-        (["all caps"],       .uppercaseLastWord),
-        (["question mark"],  .insertQuestionMark),
-        (["period"],         .insertPeriod),
-        (["comma"],          .insertComma),
+        (["all caps"], .uppercaseLastWord),
+        (["question mark"], .insertQuestionMark),
+        (["period"], .insertPeriod),
+        (["comma"], .insertComma)
     ]
 
     public init() {}
@@ -97,15 +97,22 @@ public struct VoiceCommandProcessor: Sendable {
 
     // MARK: - Private helpers
 
+    /// A matched voice command with its NS ranges used for phrase removal.
+    private struct CommandMatch {
+        let command: VoiceCommand
+        let matchRange: NSRange
+        let absorb: NSRange
+    }
+
     /// Scans all command phrases from `fromOffset` and returns the one whose
     /// match position is smallest (leftmost). When two phrases tie on position,
     /// the longer phrase (earlier in table) wins.
     private func findLeftmostMatch(
         in text: String,
         fromUTF16Offset fromOffset: Int
-    ) -> (command: VoiceCommand, matchRange: NSRange, absorb: NSRange)? {
+    ) -> CommandMatch? {
         let ns = text as NSString
-        var best: (command: VoiceCommand, matchRange: NSRange, absorb: NSRange)?
+        var best: CommandMatch?
 
         for entry in Self.commandTable {
             for phrase in entry.phrases {
@@ -119,10 +126,10 @@ public struct VoiceCommandProcessor: Sendable {
                     // Prefer the leftmost match; on ties prefer the one already found
                     // (earlier in table = higher priority for same position).
                     if matchRange.location < current.matchRange.location {
-                        best = (entry.command, matchRange, absorb)
+                        best = CommandMatch(command: entry.command, matchRange: matchRange, absorb: absorb)
                     }
                 } else {
-                    best = (entry.command, matchRange, absorb)
+                    best = CommandMatch(command: entry.command, matchRange: matchRange, absorb: absorb)
                 }
             }
         }
@@ -160,9 +167,9 @@ public struct VoiceCommandProcessor: Sendable {
     /// Returns `true` when the characters flanking `range` in `ns` are word
     /// boundaries (whitespace, punctuation, symbol, or string edge).
     private func isWholePhraseMatch(ns: NSString, at range: NSRange) -> Bool {
-        let isBoundary: (unichar) -> Bool = { c in
+        let isBoundary: (unichar) -> Bool = { charCode in
             // unichar is UInt16; all BMP characters have non-optional Unicode.Scalar
-            guard let scalar = Unicode.Scalar(c) else { return false }
+            guard let scalar = Unicode.Scalar(charCode) else { return false }
             return CharacterSet.whitespacesAndNewlines.contains(scalar)
                 || CharacterSet.punctuationCharacters.contains(scalar)
                 || CharacterSet.symbols.contains(scalar)

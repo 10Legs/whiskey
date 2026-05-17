@@ -1,5 +1,5 @@
-import XCTest
 @testable import WhisKeyCore
+import XCTest
 
 final class VoiceCommandProcessorTests: XCTestCase {
 
@@ -100,8 +100,8 @@ final class VoiceCommandProcessorTests: XCTestCase {
         let commaIdx   = result.commands.firstIndex(of: .insertComma)
         XCTAssertNotNil(newLineIdx)
         XCTAssertNotNil(commaIdx)
-        if let a = newLineIdx, let b = commaIdx {
-            XCTAssertLessThan(a, b, "new line should appear before comma in command list")
+        if let newLinePos = newLineIdx, let commaPos = commaIdx {
+            XCTAssertLessThan(newLinePos, commaPos, "new line should appear before comma in command list")
         }
     }
 

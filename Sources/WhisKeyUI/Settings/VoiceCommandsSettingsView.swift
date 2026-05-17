@@ -54,7 +54,7 @@ public struct VoiceCommandsSettingsView: View {
             phrases: ["question mark"],
             action: "Inserts a question mark (?). Phrase is stripped from text.",
             status: .stripped
-        ),
+        )
     ]
 
     public init() {}

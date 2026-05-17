@@ -413,13 +413,7 @@ public actor TranscriptionPipeline {
         let scrubbed = applyFillerScrubber(result.text, enabled: scrubEnabled)
 
         // S4-T6: Voice command processing (post-FillerScrubber, pre-LLM).
-        let vcResult = voiceCommandProcessor.process(scrubbed)
-        let afterVoiceCommands = vcResult.cleanedText
-        if !vcResult.commands.isEmpty {
-            flog.log(.info, "VoiceCommandProcessor: \(vcResult.commands.count) command(s) detected.")
-            logger.info("VoiceCommandProcessor: \(vcResult.commands.count) command(s) detected.")
-            await executeVoiceCommands(vcResult.commands, capturedElement: capturedAXElement)
-        }
+        let afterVoiceCommands = await applyVoiceCommands(scrubbed, capturedElement: capturedAXElement, flog: flog)
 
         let injectionContext = await MainActor.run { contextService.currentContext() }
         let llmEnabled = await MainActor.run { settings.llmEnabled }
@@ -468,6 +462,22 @@ public actor TranscriptionPipeline {
         if cleaned != text { FileLogger.shared.log(.info, "FillerScrubber applied.") }
         return cleaned
     }
+
+    /// Runs `VoiceCommandProcessor` on `text`, executes any detected commands,
+    /// and returns the cleaned text with command phrases stripped.
+    private func applyVoiceCommands(
+        _ text: String,
+        capturedElement: AXUIElement?,
+        flog: FileLogger
+    ) async -> String {
+        let vcResult = voiceCommandProcessor.process(text)
+        guard !vcResult.commands.isEmpty else { return vcResult.cleanedText }
+        flog.log(.info, "VoiceCommandProcessor: \(vcResult.commands.count) command(s) detected.")
+        logger.info("VoiceCommandProcessor: \(vcResult.commands.count) command(s) detected.")
+        await executeVoiceCommands(vcResult.commands, capturedElement: capturedElement)
+        return vcResult.cleanedText
+    }
+
 
     /// Applies silence trimming to `rawSamples` when `enabled` is true.
     ///
