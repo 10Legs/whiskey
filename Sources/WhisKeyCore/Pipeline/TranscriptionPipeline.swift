@@ -127,7 +127,7 @@ public actor TranscriptionPipeline {
     private let whisper: WhisperBridge
     private let injector: TextInjector
     private let permissions: PermissionsManager
-    private let historyStore: HistoryStore
+    public nonisolated let historyStore: HistoryStore
     private let settings: SettingsManager
 
     // MARK: - Configuration

@@ -74,7 +74,7 @@ public struct MenuBarView: View {
     private let onClear: () -> Void
 
     public init(
-        historyStore: HistoryStore = HistoryStore(),
+        historyStore: HistoryStore,
         modelManager: ModelManager,
         pipelineState: PipelineStateModel,
         onOpenSettings: @escaping () -> Void,

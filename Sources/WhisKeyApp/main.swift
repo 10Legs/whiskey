@@ -221,6 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentSize = NSSize(width: 320, height: 300)
         popover.behavior = .transient
         let view = MenuBarView(
+            historyStore: pipeline.historyStore,
             modelManager: modelManager,
             pipelineState: pipelineState,
             onOpenSettings: { [weak self] in
