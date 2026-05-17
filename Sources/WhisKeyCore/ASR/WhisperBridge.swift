@@ -87,8 +87,15 @@ public actor WhisperBridge {
     /// - Parameters:
     ///   - pcm: Array of Float32 samples at 16 kHz.
     ///   - languageHint: BCP-47 language code to force, or nil for auto-detect.
+    ///   - initialPrompt: Comma-separated vocabulary terms to bias Whisper beam
+    ///     search. Mapped to `whisper_full_params.initial_prompt`. Pass nil or
+    ///     empty string to disable. Example: "SwiftUI, Xcode, WhisKey".
     /// - Returns: A `TranscriptionResult` with the transcribed text and metadata.
-    public func transcribe(pcm: [Float], languageHint: String? = nil) async throws -> TranscriptionResult {
+    public func transcribe(
+        pcm: [Float],
+        languageHint: String? = nil,
+        initialPrompt: String? = nil
+    ) async throws -> TranscriptionResult {
         guard !pcm.isEmpty else { throw WhisperError.emptyAudio }
 
         let ctx = try loadContextIfNeeded()
@@ -96,9 +103,11 @@ public actor WhisperBridge {
         let threadCount = nThreads
         // OpaquePointer is not Sendable; erase to UInt (Sendable) for the task boundary.
         let ctxBits = UInt(bitPattern: ctx)
+        // Normalise prompt: treat empty string same as nil.
+        let prompt: String? = initialPrompt.flatMap { $0.isEmpty ? nil : $0 }
 
         let result: TranscriptionResult = try await withThrowingTaskGroup(of: TranscriptionResult.self) { group in
-            // Inference task — runs whisper.cpp off the actor via a continuation.
+            // Inference task -- runs whisper.cpp off the actor via a continuation.
             group.addTask { @Sendable in
                 try await withCheckedThrowingContinuation { continuation in
                     DispatchQueue.global(qos: .userInitiated).async {
@@ -112,7 +121,8 @@ public actor WhisperBridge {
                                 buf.baseAddress,
                                 Int32(buf.count),
                                 languageHint,
-                                Int32(threadCount)
+                                Int32(threadCount),
+                                prompt
                             )
                         }
 
@@ -132,7 +142,7 @@ public actor WhisperBridge {
                 }
             }
 
-            // Timeout task — fires after 30 seconds.
+            // Timeout task -- fires after 30 seconds.
             group.addTask {
                 try await Task.sleep(nanoseconds: 30_000_000_000)
                 throw WhisperError.timeout

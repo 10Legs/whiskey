@@ -14,19 +14,22 @@ public struct SettingsView: View {
     private let networkMonitor: NetworkActivityMonitor?
     @Binding private var hasPulsedRed: Bool
     private let bindingStore: HotkeyBindingStore
+    private let vocabularyStore: PersonalVocabularyStore
 
     public init(
         settings: SettingsManager,
         modelManager: ModelManager,
         networkMonitor: NetworkActivityMonitor? = nil,
         hasPulsedRed: Binding<Bool> = .constant(false),
-        bindingStore: HotkeyBindingStore
+        bindingStore: HotkeyBindingStore,
+        vocabularyStore: PersonalVocabularyStore = .shared
     ) {
         self.settings = settings
         self.modelManager = modelManager
         self.networkMonitor = networkMonitor
         self._hasPulsedRed = hasPulsedRed
         self.bindingStore = bindingStore
+        self.vocabularyStore = vocabularyStore
     }
 
     public var body: some View {
@@ -48,6 +51,9 @@ public struct SettingsView: View {
 
             SnippetsSettingsView()
                 .tabItem { Label("Snippets", systemImage: "text.badge.plus") }
+
+            VocabularyTab(store: vocabularyStore)
+                .tabItem { Label("Vocabulary", systemImage: "text.and.list.bullet") }
 
             if let monitor = networkMonitor {
                 PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)
@@ -365,6 +371,104 @@ private struct PrivacyRow: View {
                 }
             }
             .buttonStyle(PhosphorButtonStyle())
+        }
+    }
+}
+
+// MARK: - Vocabulary Tab
+
+private struct VocabularyTab: View {
+    @ObservedObject var store: PersonalVocabularyStore
+    @State private var newTerm: String = ""
+    @State private var errorMessage: String?
+
+    private let maxTerms = PersonalVocabularyStore.maximumTermCount
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                PhosphorSection(title: "PERSONAL VOCABULARY") {
+                    Text(
+                        "Terms are passed to Whisper as a prompt hint, improving accuracy for " +
+                        "proper nouns, product names, and domain-specific words."
+                    )
+                    .font(.caption)
+                    .foregroundColor(phosphorGreen.opacity(0.5))
+                }
+
+                PhosphorSection(title: "ADD TERM") {
+                    HStack(spacing: 8) {
+                        TextField("e.g. SwiftUI, Xcode, WhisKey", text: $newTerm)
+                            .textFieldStyle(.plain)
+                            .foregroundColor(phosphorGreen)
+                            .fontDesign(.monospaced)
+                            .onSubmit { commitNewTerm() }
+
+                        Button("ADD") { commitNewTerm() }
+                            .buttonStyle(PhosphorButtonStyle())
+                            .disabled(newTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .padding(6)
+                    .overlay(Rectangle().stroke(phosphorGreen.opacity(0.25), lineWidth: 1))
+
+                    if let msg = errorMessage {
+                        Text(msg)
+                            .font(.caption)
+                            .fontDesign(.monospaced)
+                            .foregroundColor(.red.opacity(0.85))
+                    }
+                }
+
+                PhosphorSection(title: "TERMS  (\(store.terms.count) / \(maxTerms))") {
+                    if store.terms.isEmpty {
+                        Text("No vocabulary terms added.")
+                            .font(.caption)
+                            .fontDesign(.monospaced)
+                            .foregroundColor(phosphorGreen.opacity(0.4))
+                            .padding(.vertical, 4)
+                    } else {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(store.terms, id: \.self) { term in
+                                HStack {
+                                    Text(term)
+                                        .foregroundColor(phosphorGreen)
+                                        .fontDesign(.monospaced)
+                                    Spacer()
+                                    Button {
+                                        store.remove(term)
+                                        errorMessage = nil
+                                    } label: {
+                                        Image(systemName: "xmark")
+                                            .font(.caption)
+                                            .foregroundColor(phosphorGreen.opacity(0.6))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove \(term)")
+                                }
+                                .padding(.vertical, 5)
+                                .padding(.horizontal, 4)
+
+                                Rectangle()
+                                    .frame(height: 1)
+                                    .foregroundColor(phosphorGreen.opacity(0.08))
+                            }
+                        }
+                        .overlay(Rectangle().stroke(phosphorGreen.opacity(0.15), lineWidth: 1))
+                    }
+                }
+            }
+            .padding()
+        }
+        .background(hudBackground)
+    }
+
+    private func commitNewTerm() {
+        do {
+            try store.add(newTerm)
+            newTerm = ""
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }
