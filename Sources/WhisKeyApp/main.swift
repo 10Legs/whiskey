@@ -190,11 +190,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         let popover = NSPopover()
-        // Do NOT set contentSize here. NSHostingController reports preferredContentSize
-        // matching MenuBarView's declared frame (320×480). If we override to a different
-        // size (e.g. 300 tall), AppKit resizes the popover after show(), which can
-        // trigger a reanchor that shifts the popover upward and covers the menu bar icon.
-        // Letting NSHostingController own the size prevents that post-show relayout.
+        // Match MenuBarView's declared frame exactly so NSHostingController reports
+        // the same preferredContentSize and no post-show resize/reanchor occurs.
+        popover.contentSize = NSSize(width: 320, height: 480)
         popover.behavior = .transient
         let view = MenuBarView(
             historyStore: pipeline.historyStore,
@@ -215,36 +213,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            // DEBUG — emit coordinate info to stderr/Console.app so we can diagnose
-            // flipped-coordinate issues in the NSStatusBar window hierarchy.
-            NSLog("DEBUG[WhisKey] button.bounds: %@", NSStringFromRect(button.bounds))
-            NSLog("DEBUG[WhisKey] button.frame: %@", NSStringFromRect(button.frame))
-            NSLog("DEBUG[WhisKey] button.isFlipped: %d", button.isFlipped ? 1 : 0)
-            NSLog("DEBUG[WhisKey] button.window?.frame: %@",
-                  button.window.map { NSStringFromRect($0.frame) } ?? "nil")
-            NSLog("DEBUG[WhisKey] button.window?.contentView?.isFlipped: %@",
-                  button.window?.contentView.map { "\($0.isFlipped)" } ?? "nil")
-            NSLog("DEBUG[WhisKey] NSScreen.main?.frame: %@",
-                  NSScreen.main.map { NSStringFromRect($0.frame) } ?? "nil")
-
-            // Previous attempts (all failed — popover covered the icon):
-            //   .minY + button.bounds         — attempt 1
-            //   .minY + .zero                 — attempt 2
-            //   .minY + subview.bounds        — attempt 3
-            //   .minY + zero-height anchorRect — attempt 4
+            // NSStatusBarButton is flipped (y=0 at visual top) and has a -4.5pt y offset
+            // in its parent window. Passing `button` as the anchor view for popover.show
+            // causes AppKit to mis-convert the flipped coordinate system through that offset,
+            // landing the popover on top of the icon regardless of preferredEdge.
             //
-            // Hypothesis: NSStatusBar windows use a flipped coordinate system even
-            // though NSButton reports isFlipped==false. In a flipped system, maxY is
-            // the visual BOTTOM of the button (below the menu bar), which is where we
-            // want the popover arrow. Switching to .maxY is robust either way:
-            //   - flipped window:     maxY = bottom edge = correct drop direction
-            //   - non-flipped window: maxY = top edge → AppKit falls back to .minY = correct
-            //
-            // NSApp.activate ensures the .accessory app is fully active before show(),
-            // which affects popover placement on some macOS versions.
-            NSApp.activate(ignoringOtherApps: true)
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
-            // Ensure the popover's window becomes key so keyboard shortcuts work.
+            // Fix: convert button.bounds into the window's NON-FLIPPED contentView space
+            // (confirmed isFlipped=false via debug). That gives AppKit an unambiguous rect
+            // in a known coordinate system. .minY on a non-flipped view = visual bottom =
+            // below the menu bar = correct drop direction.
+            if let contentView = button.window?.contentView {
+                let rectInContentView = button.convert(button.bounds, to: contentView)
+                popover.show(relativeTo: rectInContentView, of: contentView, preferredEdge: .minY)
+            } else {
+                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            }
             popover.contentViewController?.view.window?.makeKey()
         }
     }
