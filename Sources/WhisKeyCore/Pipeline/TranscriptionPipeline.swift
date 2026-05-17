@@ -133,26 +133,25 @@ public actor TranscriptionPipeline {
     // MARK: - Configuration
 
     /// BCP-47 language hint passed to Whisper. nil = auto-detect.
-    /// `nonisolated(unsafe)` — written once from `@MainActor` at startup before any
-    /// concurrent access begins; read inside the actor only during transcription.
-    public nonisolated(unsafe) var languageHint: String?
+    /// Actor-isolated; use `setLanguageHint(_:)` to update from outside the actor.
+    public var languageHint: String?
 
     /// LLM post-processing backend. Defaults to LlamaCppProvider; falls back to
     /// PassthroughProvider at runtime when the GGUF model file is absent.
-    /// `nonisolated(unsafe)` — written once from `@MainActor` at startup.
-    public nonisolated(unsafe) var llmProvider: any LLMProvider = LlamaCppProvider()
+    /// Actor-isolated; use `setLLMProvider(_:)` to update from outside the actor.
+    public var llmProvider: any LLMProvider = LlamaCppProvider()
 
     /// Cleanup profile applied to every transcription.
-    /// `nonisolated(unsafe)` — written once from `@MainActor` at startup.
-    public nonisolated(unsafe) var cleanupProfile: CleanupProfile = CleanupProfile()
+    /// Actor-isolated; use `setCleanupProfile(_:)` to update from outside the actor.
+    public var cleanupProfile: CleanupProfile = CleanupProfile()
 
     /// Context service used to read the frontmost application before injection.
     private let contextService = ContextService()
 
     /// Active-app profile service (Feature 1.3). Injected from `AppDelegate`.
     /// `nil` preserves pre-Sprint-1 behaviour for any caller that does not supply it.
-    /// `nonisolated(unsafe)` — written once from `@MainActor` after init.
-    public nonisolated(unsafe) var appContextService: AppContextService?
+    /// Actor-isolated; use `setAppContextService(_:)` to update from outside the actor.
+    public var appContextService: AppContextService?
 
     // MARK: - Audio Level
 
@@ -169,17 +168,28 @@ public actor TranscriptionPipeline {
 
     private var isRecording = false
 
-    // MARK: - Callbacks
+    // MARK: - Callbacks (lock-backed for nonisolated access)
+
+    /// Lock protecting both callback closures so they can be read/written
+    /// from any concurrency domain without `nonisolated(unsafe)`.
+    private let _callbackLock = OSAllocatedUnfairLock<
+        (onReady: (@Sendable (TranscriptionResult) -> Void)?,
+         onError: (@Sendable (Error) -> Void)?)
+    >(initialState: (onReady: nil, onError: nil))
 
     /// Called on the main thread when a transcription result is ready.
-    /// `nonisolated(unsafe)` — assigned from `@MainActor` before any concurrent
-    /// access and always invoked via `await MainActor.run { ... }` inside the actor.
-    public nonisolated(unsafe) var onTranscriptionReady: ((TranscriptionResult) -> Void)?
+    /// Backed by a lock so it can be assigned from any context without data races.
+    public nonisolated var onTranscriptionReady: (@Sendable (TranscriptionResult) -> Void)? {
+        get { _callbackLock.withLock { $0.onReady } }
+        set { _callbackLock.withLock { $0.onReady = newValue } }
+    }
 
     /// Called on the main thread when any pipeline error occurs.
-    /// `nonisolated(unsafe)` — assigned from `@MainActor` before any concurrent
-    /// access and always invoked via `await MainActor.run { ... }` inside the actor.
-    public nonisolated(unsafe) var onError: ((Error) -> Void)?
+    /// Backed by a lock so it can be assigned from any context without data races.
+    public nonisolated var onError: (@Sendable (Error) -> Void)? {
+        get { _callbackLock.withLock { $0.onError } }
+        set { _callbackLock.withLock { $0.onError = newValue } }
+    }
 
     // MARK: - Init
 
@@ -200,6 +210,41 @@ public actor TranscriptionPipeline {
         self.permissions = permissions
         self.historyStore = historyStore
         self.settings = settings
+    }
+
+    // MARK: - Actor-isolated configuration setters
+
+    /// Sets the BCP-47 language hint forwarded to Whisper. Pass `nil` for auto-detect.
+    public func setLanguageHint(_ value: String?) {
+        self.languageHint = value
+    }
+
+    /// Replaces the LLM post-processing backend.
+    public func setLLMProvider(_ value: any LLMProvider) {
+        self.llmProvider = value
+    }
+
+    /// Replaces the cleanup profile applied to every transcription.
+    public func setCleanupProfile(_ value: CleanupProfile) {
+        self.cleanupProfile = value
+    }
+
+    /// Sets the active-app profile service used to resolve per-app settings.
+    public func setAppContextService(_ value: AppContextService?) {
+        self.appContextService = value
+    }
+
+    /// Convenience setter for both pipeline callbacks in a single actor hop.
+    /// Prefer this over setting `onTranscriptionReady` and `onError` separately
+    /// when wiring from an `async` context.
+    public func setCallbacks(
+        onReady: (@Sendable (TranscriptionResult) -> Void)?,
+        onError: (@Sendable (Error) -> Void)?
+    ) {
+        _callbackLock.withLock {
+            $0.onReady = onReady
+            $0.onError = onError
+        }
     }
 
     // MARK: - Public API
@@ -285,7 +330,10 @@ public actor TranscriptionPipeline {
         }
 
         // Feature 1.3: resolve active-app profile once at call start for a stable view.
-        let profile = await MainActor.run { appContextService?.activeProfile }
+        // Capture the service reference from actor isolation first, then hop to @MainActor
+        // to read the @MainActor-isolated `activeProfile` property.
+        let capturedContextService = appContextService
+        let profile = await MainActor.run { capturedContextService?.activeProfile }
         let effectiveLangHint = profile?.languageHint ?? languageHint
         let effectiveCleanup = profile?.cleanupProfile ?? cleanupProfile
 

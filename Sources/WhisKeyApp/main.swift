@@ -359,20 +359,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         flog.log(.info, "WhisKey started (build: \(build)). Log: \(flog.logFilePath)")
 
-        // Apply persisted settings to pipeline.
-        pipeline.languageHint = settingsManager.languageHint
-        pipeline.cleanupProfile = settingsManager.cleanupProfile
+        // Apply persisted settings to pipeline (actor-isolated setters require await).
+        let langHint = settingsManager.languageHint
+        let cleanupProfile = settingsManager.cleanupProfile
+        let svc = appContextService
 
         // Feature 1.3: Start active-app profile service and inject into pipeline.
         appContextService.start()
-        pipeline.appContextService = appContextService
 
-        // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
-        let hud = FloatingHUDWindowController(pipeline: pipeline)
-        hudController = hud
-        pipelineState.subscribe(toAudioLevel: pipeline.audioLevelPublisher)
-
-        // Wire pipeline callbacks.
+        // Wire pipeline callbacks (nonisolated lock-backed; no await needed).
         pipeline.onTranscriptionReady = { [weak self] result in
             logger.info("Transcription ready: \"\(result.text)\"")
             flog.log(
@@ -384,8 +379,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         pipeline.onError = { [weak self] error in
-            self?.handlePipelineError(error)
+            Task { @MainActor [weak self] in
+                self?.handlePipelineError(error)
+            }
         }
+
+        // Push actor-isolated configuration via async setters.
+        Task {
+            await pipeline.setLanguageHint(langHint)
+            await pipeline.setCleanupProfile(cleanupProfile)
+            await pipeline.setAppContextService(svc)
+        }
+
+        // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
+        let hud = FloatingHUDWindowController(pipeline: pipeline)
+        hudController = hud
+        pipelineState.subscribe(toAudioLevel: pipeline.audioLevelPublisher)
 
         // Wire hotkey to pipeline + state model.
         hotkey.onStartRecording = { [weak self, weak hud] in
