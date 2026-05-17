@@ -60,8 +60,38 @@ public struct OllamaProvider: LLMProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = bodyData
 
+        // S1 fix: use defer + flag so egress is always recorded even when
+        // URLSession throws (timeout, DNS failure, TLS error, connection reset).
+        // The success path records actual byte counts; the error path records
+        // bytesSent = bodyData.count (body was transmitted) and bytesReceived = 0
+        // (response was never received), giving the auditor an accurate picture.
+        var egressRecorded = false
+        defer {
+            if !egressRecorded {
+                Task {
+                    await EgressAuditor.shared.recordCompleted(
+                        destination: baseURL.host ?? "ollama",
+                        bytesSent: Int64(bodyData.count),
+                        bytesReceived: 0,
+                        eventType: .cloudLLM
+                    )
+                }
+            }
+        }
+
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
+
+            // Record the completed egress before any return path so the audit
+            // surface reflects every byte that left the process, regardless of
+            // whether downstream parsing succeeds.
+            await EgressAuditor.shared.recordCompleted(
+                destination: baseURL.host ?? "ollama",
+                bytesSent: Int64(bodyData.count),
+                bytesReceived: Int64(data.count),
+                eventType: .cloudLLM
+            )
+            egressRecorded = true
 
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? -1
