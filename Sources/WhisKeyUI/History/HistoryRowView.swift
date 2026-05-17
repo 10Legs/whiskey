@@ -237,9 +237,9 @@ struct HistoryRowView: View {
         if totalSeconds < 60 {
             return "\(totalSeconds)s"
         } else {
-            let m = totalSeconds / 60
-            let s = totalSeconds % 60
-            return s == 0 ? "\(m)m" : "\(m)m \(s)s"
+            let minutes = totalSeconds / 60
+            let seconds = totalSeconds % 60
+            return seconds == 0 ? "\(minutes)m" : "\(minutes)m \(seconds)s"
         }
     }
 

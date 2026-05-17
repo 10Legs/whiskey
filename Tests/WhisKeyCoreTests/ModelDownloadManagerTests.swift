@@ -9,9 +9,10 @@
 // All tests use a temporary directory for the models directory to avoid
 // polluting ~/Library/Application Support/WhisKey/Models/.
 
-@testable import WhisKeyCore
 import Foundation
 import XCTest
+
+@testable import WhisKeyCore
 
 // MARK: - Helpers
 
@@ -29,9 +30,12 @@ private func makeTemporaryDirectory() throws -> URL {
 @MainActor
 class ModelStatusTests: XCTestCase {
 
+    // swiftlint:disable implicitly_unwrapped_optional
+    // XCTest lifecycle: setUp initialises before each test, tearDown nils after — IUO is idiomatic.
     private var settings: SettingsManager!
     private var manager: ModelManager!
     private var status: ModelStatus!
+    // swiftlint:enable implicitly_unwrapped_optional
 
     override func setUp() async throws {
         try await super.setUp()
@@ -51,11 +55,13 @@ class ModelStatusTests: XCTestCase {
 
     func test_state_returnsNotDownloaded_whenModelAbsent() {
         // All models default to absent (test environment has no models dir).
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first!
         XCTAssertEqual(status.state(for: model), .notDownloaded)
     }
 
     func test_state_returnsDownloading_whenProgressExists() {
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first!
         manager.downloadProgress[model.id] = 0.42
         if case .downloading(let pct) = status.state(for: model) {
@@ -67,6 +73,7 @@ class ModelStatusTests: XCTestCase {
 
     func test_state_returnsDownloading_prioritisedOverDownloaded() {
         // Progress takes priority even if the model id is also in downloadedModels.
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first!
         manager.downloadProgress[model.id] = 0.99
         manager.downloadedModels.append(model.id)
@@ -78,6 +85,7 @@ class ModelStatusTests: XCTestCase {
     }
 
     func test_state_returnsFailed_whenErrorPresent() {
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first!
         manager.downloadError[model.id] = "Network timeout"
         if case .failed(let msg) = status.state(for: model) {
@@ -88,6 +96,7 @@ class ModelStatusTests: XCTestCase {
     }
 
     func test_state_returnsDownloaded_whenIDInDownloadedList() {
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first!
         manager.downloadedModels.append(model.id)
         if case .downloaded = status.state(for: model) {
@@ -104,12 +113,14 @@ class ModelStatusTests: XCTestCase {
     }
 
     func test_hasAnyASRModel_trueAfterASRModelAdded() {
+        // swiftlint:disable:next force_unwrapping
         let asr = ModelManager.availableModels.first { $0.kind == .asr }!
         manager.downloadedModels.append(asr.id)
         XCTAssertTrue(status.hasAnyASRModel)
     }
 
     func test_hasAnyASRModel_falseWhenOnlyLLMDownloaded() {
+        // swiftlint:disable:next force_unwrapping
         let llm = ModelManager.availableModels.first { $0.kind == .llm }!
         manager.downloadedModels.append(llm.id)
         XCTAssertFalse(status.hasAnyASRModel)
@@ -122,6 +133,7 @@ class ModelStatusTests: XCTestCase {
     }
 
     func test_hasAnyLLMModel_trueAfterLLMModelAdded() {
+        // swiftlint:disable:next force_unwrapping
         let llm = ModelManager.availableModels.first { $0.kind == .llm }!
         manager.downloadedModels.append(llm.id)
         XCTAssertTrue(status.hasAnyLLMModel)
@@ -136,6 +148,7 @@ class ModelStatusTests: XCTestCase {
 
     func test_refresh_detectsModelFileAddedManually() throws {
         // Write a fake model file, then call refresh — downloadedModels should update.
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first { $0.kind == .asr }!
         let dir = manager.modelsDirectory
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -154,8 +167,11 @@ class ModelStatusTests: XCTestCase {
 @MainActor
 class ModelManagerDirectoryTests: XCTestCase {
 
+    // swiftlint:disable implicitly_unwrapped_optional
+    // XCTest lifecycle: setUp initialises before each test, tearDown nils after — IUO is idiomatic.
     private var settings: SettingsManager!
     private var manager: ModelManager!
+    // swiftlint:enable implicitly_unwrapped_optional
 
     override func setUp() async throws {
         try await super.setUp()
@@ -178,6 +194,7 @@ class ModelManagerDirectoryTests: XCTestCase {
             return
         }
 
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first { $0.kind == .asr }!
         // Kick off the download (which creates the directory) then cancel immediately.
         async let download: () = manager.downloadModel(model)
@@ -193,6 +210,7 @@ class ModelManagerDirectoryTests: XCTestCase {
     }
 
     func test_cancelDownload_removesProgressEntry() async {
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first { $0.kind == .asr }!
         manager.downloadProgress[model.id] = 0.5
         // Simulate an active task entry (nil task is fine — cancel checks the dict).
@@ -201,6 +219,7 @@ class ModelManagerDirectoryTests: XCTestCase {
     }
 
     func test_deleteModel_removesFromDownloadedList() {
+        // swiftlint:disable:next force_unwrapping
         let model = ModelManager.availableModels.first { $0.kind == .asr }!
         manager.downloadedModels.append(model.id)
         // deleteModel will try to remove a file that doesn't exist — should not crash.

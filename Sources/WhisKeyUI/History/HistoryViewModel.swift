@@ -44,10 +44,10 @@ public final class HistoryViewModel: ObservableObject {
 
     public var filteredEntries: [HistoryEntry] {
         guard !searchQuery.isEmpty else { return entries }
-        let q = searchQuery.lowercased()
+        let query = searchQuery.lowercased()
         return entries.filter {
-            $0.text.lowercased().contains(q) ||
-            ($0.rawText?.lowercased().contains(q) ?? false)
+            $0.text.lowercased().contains(query) ||
+            ($0.rawText?.lowercased().contains(query) ?? false)
         }
     }
 
@@ -117,4 +117,3 @@ public final class HistoryViewModel: ObservableObject {
         }
     }
 }
-

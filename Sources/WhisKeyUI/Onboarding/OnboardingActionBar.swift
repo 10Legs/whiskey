@@ -17,9 +17,9 @@ public struct OnboardingActionBar: View {
     public var body: some View {
         VStack(spacing: 8) {
             // Primary button — hidden in waiting state (waiting state has its own secondary)
-            if state != .waiting && primaryLabel != nil {
+            if state != .waiting, let label = primaryLabel {
                 Button(action: onPrimary) {
-                    Text(primaryLabel!)
+                    Text(label)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.white)
                         .frame(maxWidth: .infinity)

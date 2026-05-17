@@ -193,16 +193,26 @@ public struct PermissionStepView: View {
         case .microphone:
             switch state {
             case .denied:
-                return "WhisKey can't transcribe without microphone access. To enable it, open System Settings → Privacy & Security → Microphone and switch on WhisKey."
+                return "WhisKey can't transcribe without microphone access. "
+                    + "To enable it, open System Settings → Privacy & Security → "
+                    + "Microphone and switch on WhisKey."
             case .restricted:
                 return "Microphone access is restricted on this Mac. Contact your administrator."
             default:
-                return "To capture your voice for transcription, WhisKey needs access to your microphone. Your audio is processed entirely on this Mac — it never leaves your machine."
+                return "To capture your voice for transcription, WhisKey needs access to your "
+                    + "microphone. Your audio is processed entirely on this Mac — "
+                    + "it never leaves your machine."
             }
         case .accessibility:
-            return "To inject transcribed text into whatever window you're focused on — Slack, VS Code, Safari, anywhere — WhisKey needs Accessibility access. This is how the text appears at your cursor.\n\nYou'll need to enable this manually in System Settings."
+            return "To inject transcribed text into whatever window you're focused on — "
+                + "Slack, VS Code, Safari, anywhere — WhisKey needs Accessibility access. "
+                + "This is how the text appears at your cursor.\n\n"
+                + "You'll need to enable this manually in System Settings."
         case .inputMonitoring:
-            return "WhisKey uses a global hotkey to start and stop recording from anywhere on your Mac — even when WhisKey isn't the focused window. If you skip this, you can still trigger recording from the menu bar.\n\nYou'll need to enable this manually in System Settings."
+            return "WhisKey uses a global hotkey to start and stop recording from anywhere "
+                + "on your Mac — even when WhisKey isn't the focused window. "
+                + "If you skip this, you can still trigger recording from the menu bar.\n\n"
+                + "You'll need to enable this manually in System Settings."
         case .complete:
             return "Hold your hotkey, speak, and your words will appear wherever your cursor is. Everything stays on your Mac."
         }

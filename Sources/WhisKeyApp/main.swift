@@ -1,3 +1,6 @@
+// swiftlint:disable file_length
+// main.swift is the single-file entry point for the app process. AppDelegate extraction
+// into separate files is deferred to a future refactor sprint.
 import AppKit
 import Darwin
 import os.log
@@ -287,7 +290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // otherwise fall back to runModal so the alert is always shown.
         let alert = NSAlert()
         alert.messageText = "No Whisper Model Found"
-        alert.informativeText = "WhisKey needs a Whisper model to transcribe speech.\n\nOpen Settings → Models and download at least one ASR model to get started."
+        alert.informativeText = "WhisKey needs a Whisper model to transcribe speech.\n\n"
+            + "Open Settings → Models and download at least one ASR model to get started."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Later")

@@ -24,12 +24,12 @@ public enum ModelDownloadState: Equatable {
         switch (lhs, rhs) {
         case (.notDownloaded, .notDownloaded):
             return true
-        case (.downloading(let a), .downloading(let b)):
-            return a == b
-        case (.downloaded(let a), .downloaded(let b)):
-            return a == b
-        case (.failed(let a), .failed(let b)):
-            return a == b
+        case (.downloading(let lhs), .downloading(let rhs)):
+            return lhs == rhs
+        case (.downloaded(let lhs), .downloaded(let rhs)):
+            return lhs == rhs
+        case (.failed(let lhs), .failed(let rhs)):
+            return lhs == rhs
         default:
             return false
         }
