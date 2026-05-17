@@ -6,6 +6,21 @@ Local-first macOS voice transcription. Hold a hotkey, speak, release — transcr
 
 **Requirements:** macOS 14+, Xcode 16, [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 
+## Features
+
+### Core
+- **Hotkey-driven transcription** — Press a key, speak, release — text appears in the focused window
+- **Offline ASR** — Whisper.cpp inference (no cloud API calls)
+- **LLM cleanup** — Optional post-processing with phi-3.5-mini or llama-3.2-1b
+- **Three injection modes** — AccessibilityAPI, Pasteboard, or keystroke fallback
+
+### Sprint 3
+- **Network Activity Monitor** — Live egress audit log with timestamp, URL, and event type; menu bar dot badge (green/orange)
+- **Hold-vs-Tap state machine** — Right Option >300ms = Push-to-Talk; double-tap within 300ms = Hands-Free toggle (configurable 250–500ms)
+- **Voice Snippets** — Trigger-phrase text expansion with security blocks (password managers, terminals)
+- **Multi-hotkey bindings** — Four configurable hotkey actions with live key capture and conflict detection
+- **Transcription history** — SQLite database with raw transcript, cleaned text, source app, timestamp
+
 ---
 
 ## How It Works
@@ -145,24 +160,36 @@ bash Scripts/reset-permissions.sh
 ## Usage
 
 1. Launch WhisKey — appears as a menu bar icon.
-2. Hold **Right Option** and speak.
-3. Release **Right Option** — transcribed text is typed into the focused window.
+2. **Push-to-Talk:** Hold **Right Option** >300ms and speak — transcribed text types into the focused window.
+3. **Hands-Free Toggle:** Double-tap **Right Option** within 300ms to toggle hands-free transcription mode (if enabled in Settings → Hotkey).
+4. Accidental taps <80ms are silently discarded.
+
+### Hotkey Interaction
+
+The Right Option key disambiguates hold duration:
+- **Hold >300ms** — Push-to-Talk transcription
+- **Double-tap within 300ms** — Hands-Free toggle (when enabled)
+- **Disambiguation window** — Configurable 250–500ms (default 300ms) in Settings → Hotkey
 
 ### Settings (menu bar → Settings)
 
-| Setting | Options |
-|---------|---------|
-| Whisper model | tiny, base, small, medium, large |
-| Language hint | BCP-47 code, or blank for auto-detect |
-| LLM cleanup | On / Off |
-| LLM model | phi-3.5-mini, llama-3.2-1b |
-| Tone style | casual, formal, literal |
-| Remove fillers | On / Off |
-| Add punctuation | On / Off |
-| Raw mode | Bypass LLM regardless of other settings |
-| Output mode | Active window / Clipboard / Both |
-| Hotkey mode | Push-to-talk / Toggle |
-| Notifications | On / Off |
+| Setting | Tab | Options |
+|---------|-----|---------|
+| Whisper model | Transcription | tiny, base, small, medium, large |
+| Language hint | Transcription | BCP-47 code, or blank for auto-detect |
+| LLM cleanup | Transcription | On / Off |
+| LLM model | Transcription | phi-3.5-mini, llama-3.2-1b |
+| Tone style | Transcription | casual, formal, literal |
+| Remove fillers | Transcription | On / Off |
+| Add punctuation | Transcription | On / Off |
+| Raw mode | Transcription | Bypass LLM regardless of other settings |
+| Output mode | Transcription | Active window / Clipboard / Both |
+| Notifications | Transcription | On / Off |
+| Primary hotkey | Hotkeys | Key capture with conflict detection |
+| Hands-Free toggle | Hotkeys | On / Off — enables Right Option double-tap |
+| Disambiguation window | Hotkeys | 250–500ms slider (default 300ms) |
+| Voice snippets | Snippets | Trigger phrase → expansion text mapping |
+| Egress audit | Privacy | Live log of all outbound network calls |
 
 ### Transcription History
 
