@@ -186,11 +186,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Model presence check
 
+    /// Checks whether at least one ASR model is on disk.
+    ///
+    /// If none are found, presents a non-modal `NSAlert` so the user can navigate
+    /// to Settings → Models to download one.  Hotkey registration is NOT blocked —
+    /// WhisKey remains usable once a model is downloaded without restarting.
     private func checkModelPresence() {
-        if modelManager.downloadedModels.isEmpty {
-            let flog = FileLogger.shared
-            flog.log(.warn, "No Whisper models found in Models directory. Open Settings → General to download a model.")
-            logger.warning("No Whisper models found. Open Settings → General to download a model.")
+        let flog = FileLogger.shared
+        let hasASR = ModelManager.availableModels
+            .filter { $0.kind == .asr }
+            .contains { modelManager.downloadedModels.contains($0.id) }
+
+        guard !hasASR else { return }
+
+        flog.log(.warn, "No ASR model found. Prompting user to open Settings → Models.")
+        logger.warning("No ASR model found in Models directory.")
+
+        // Non-modal: we use beginSheetModal only when a window is available,
+        // otherwise fall back to runModal so the alert is always shown.
+        let alert = NSAlert()
+        alert.messageText = "No Whisper Model Found"
+        alert.informativeText = "WhisKey needs a Whisper model to transcribe speech.\n\nOpen Settings → Models and download at least one ASR model to get started."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Later")
+
+        // Use a short async hop to let the menu bar fully settle before showing the alert.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                self.openSettings()
+            }
         }
     }
 
@@ -274,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wire hotkey to pipeline + state model.
         hotkey.onStartRecording = { [weak self, weak hud] in
             flog.log(.info, "Hotkey down — recording started.")
-            self?.pipeline.startRecording()
+            Task { await self?.pipeline.startRecording() }
             self?.transitionToRecording()
             hud?.recordingDidStart()
         }
