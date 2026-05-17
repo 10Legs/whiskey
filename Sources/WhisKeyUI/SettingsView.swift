@@ -6,24 +6,24 @@ private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
 
 /// Tabbed settings window.
 ///
-/// Tabs: General | Models | Hotkey | Transcription | AI Cleanup | Snippets | Privacy
+/// Tabs: General | Models | Hotkey | Hotkeys | Transcription | AI Cleanup | Privacy
+///
+/// "Hotkey" (legacy single-binding tab) is preserved while "Hotkeys" (S3-T6
+/// multi-binding tab) is wired in after Privacy per spec §1.
 public struct SettingsView: View {
 
     @Bindable private var settings: SettingsManager
     private let modelManager: ModelManager
-    private let networkMonitor: NetworkActivityMonitor?
-    @Binding private var hasPulsedRed: Bool
+    private let bindingStore: HotkeyBindingStore
 
     public init(
         settings: SettingsManager,
         modelManager: ModelManager,
-        networkMonitor: NetworkActivityMonitor? = nil,
-        hasPulsedRed: Binding<Bool> = .constant(false)
+        bindingStore: HotkeyBindingStore
     ) {
         self.settings = settings
         self.modelManager = modelManager
-        self.networkMonitor = networkMonitor
-        self._hasPulsedRed = hasPulsedRed
+        self.bindingStore = bindingStore
     }
 
     public var body: some View {
@@ -43,21 +43,14 @@ public struct SettingsView: View {
             AICleanupTab(settings: settings)
                 .tabItem { Label("AI Cleanup", systemImage: "sparkles") }
 
-            // Voice Snippets — trigger-phrase text expansion (S3-T5).
-            SnippetsSettingsView()
-                .tabItem { Label("Snippets", systemImage: "text.badge.plus") }
+            PrivacyTab()
+                .tabItem { Label("Privacy", systemImage: "lock.shield") }
 
-            // Network egress audit log and zero-egress claim indicator (S3-T3).
-            if let monitor = networkMonitor {
-                PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)
-                    .tabItem { Label("Privacy", systemImage: "lock.shield") }
-            } else {
-                PrivacyTab()
-                    .tabItem { Label("Privacy", systemImage: "lock.shield") }
-            }
-
+            // S3-T6: Multi-hotkey bindings tab.
+            HotkeySettingsView(store: bindingStore)
+                .tabItem { Label("Hotkeys", systemImage: "keyboard.badge.ellipsis") }
         }
-        .frame(width: 520, height: 460)
+        .frame(width: 520, height: 420)
         .background(hudBackground)
         .accentColor(phosphorGreen)
         .fontDesign(.monospaced)
