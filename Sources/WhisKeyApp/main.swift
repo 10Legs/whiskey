@@ -190,7 +190,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 300)
+        // Do NOT set contentSize here. NSHostingController reports preferredContentSize
+        // matching MenuBarView's declared frame (320×480). If we override to a different
+        // size (e.g. 300 tall), AppKit resizes the popover after show(), which can
+        // trigger a reanchor that shifts the popover upward and covers the menu bar icon.
+        // Letting NSHostingController own the size prevents that post-show relayout.
         popover.behavior = .transient
         let view = MenuBarView(
             historyStore: pipeline.historyStore,
@@ -211,13 +215,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            // NSButton (and NSStatusBarButton) is NOT a flipped view — origin is bottom-left,
-            // y increases upward. A zero-height rect at y=0 anchors to the visual bottom edge
-            // of the button (the edge facing away from the menu bar). With preferredEdge .minY,
-            // AppKit places the popover below that edge, i.e., below the menu bar.
-            // Use button.bounds width so the anchor spans the full button face.
-            let anchorRect = NSRect(x: 0, y: 0, width: button.bounds.width, height: 0)
-            popover.show(relativeTo: anchorRect, of: button, preferredEdge: .minY)
+            // DEBUG — emit coordinate info to stderr/Console.app so we can diagnose
+            // flipped-coordinate issues in the NSStatusBar window hierarchy.
+            NSLog("DEBUG[WhisKey] button.bounds: %@", NSStringFromRect(button.bounds))
+            NSLog("DEBUG[WhisKey] button.frame: %@", NSStringFromRect(button.frame))
+            NSLog("DEBUG[WhisKey] button.isFlipped: %d", button.isFlipped ? 1 : 0)
+            NSLog("DEBUG[WhisKey] button.window?.frame: %@",
+                  button.window.map { NSStringFromRect($0.frame) } ?? "nil")
+            NSLog("DEBUG[WhisKey] button.window?.contentView?.isFlipped: %@",
+                  button.window?.contentView.map { "\($0.isFlipped)" } ?? "nil")
+            NSLog("DEBUG[WhisKey] NSScreen.main?.frame: %@",
+                  NSScreen.main.map { NSStringFromRect($0.frame) } ?? "nil")
+
+            // Previous attempts (all failed — popover covered the icon):
+            //   .minY + button.bounds         — attempt 1
+            //   .minY + .zero                 — attempt 2
+            //   .minY + subview.bounds        — attempt 3
+            //   .minY + zero-height anchorRect — attempt 4
+            //
+            // Hypothesis: NSStatusBar windows use a flipped coordinate system even
+            // though NSButton reports isFlipped==false. In a flipped system, maxY is
+            // the visual BOTTOM of the button (below the menu bar), which is where we
+            // want the popover arrow. Switching to .maxY is robust either way:
+            //   - flipped window:     maxY = bottom edge = correct drop direction
+            //   - non-flipped window: maxY = top edge → AppKit falls back to .minY = correct
+            //
+            // NSApp.activate ensures the .accessory app is fully active before show(),
+            // which affects popover placement on some macOS versions.
+            NSApp.activate(ignoringOtherApps: true)
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
             // Ensure the popover's window becomes key so keyboard shortcuts work.
             popover.contentViewController?.view.window?.makeKey()
         }
