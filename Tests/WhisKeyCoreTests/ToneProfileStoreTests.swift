@@ -12,13 +12,18 @@ import XCTest
 @MainActor
 final class ToneProfileStoreTests: XCTestCase {
 
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var defaults: UserDefaults!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var store: AppToneProfileStore!
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         let suiteName = "com.whiskey.test.toneprofiles.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
+        defaults = try XCTUnwrap(
+            UserDefaults(suiteName: suiteName),
+            "UserDefaults(suiteName:) must not return nil for a fresh UUID suite name."
+        )
         store = AppToneProfileStore(defaults: defaults)
     }
 

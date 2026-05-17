@@ -384,19 +384,7 @@ public actor TranscriptionPipeline {
 
         // Feature 1.2: energy-based silence trim (pre-Whisper).
         let trimEnabled = await MainActor.run { settings.silenceTrimEnabled }
-        let pcmSamples: [Float]
-        if trimEnabled {
-            let trimmed = SilenceTrimmer.trim(rawSamples)
-            if trimmed.isEmpty {
-                flog.log(.warn, "SilenceTrimmer: buffer contained < 200 ms of speech -- skipping.")
-                logger.warning("SilenceTrimmer returned empty buffer; skipping transcription.")
-                return nil
-            }
-            flog.log(.info, "SilenceTrimmer: \(rawSamples.count) \u{2192} \(trimmed.count) samples.")
-            pcmSamples = trimmed
-        } else {
-            pcmSamples = rawSamples
-        }
+        guard let pcmSamples = applySilenceTrim(rawSamples, enabled: trimEnabled) else { return nil }
 
         // Snapshot the focused AX element NOW -- before transcription latency causes focus to change.
         let capturedAXElement: AXUIElement? = await MainActor.run {
@@ -419,14 +407,7 @@ public actor TranscriptionPipeline {
 
         // Feature 1.2: filler scrubber (post-Whisper, pre-LLM).
         let scrubEnabled = await MainActor.run { settings.fillerScrubberEnabled }
-        let scrubbed: String
-        if scrubEnabled {
-            let cleaned = FillerScrubber.scrub(result.text)
-            if cleaned != result.text { flog.log(.info, "FillerScrubber applied.") }
-            scrubbed = cleaned
-        } else {
-            scrubbed = result.text
-        }
+        let scrubbed = applyFillerScrubber(result.text, enabled: scrubEnabled)
 
         let injectionContext = await MainActor.run { contextService.currentContext() }
         let llmEnabled = await MainActor.run { settings.llmEnabled }
@@ -466,6 +447,32 @@ public actor TranscriptionPipeline {
         return result
     }
 
+    /// Runs `FillerScrubber` against `text` when `enabled` is true.
+    ///
+    /// Logs when the scrubber modifies the text. Returns `text` unchanged when disabled.
+    private func applyFillerScrubber(_ text: String, enabled: Bool) -> String {
+        guard enabled else { return text }
+        let cleaned = FillerScrubber.scrub(text)
+        if cleaned != text { FileLogger.shared.log(.info, "FillerScrubber applied.") }
+        return cleaned
+    }
+
+    /// Applies silence trimming to `rawSamples` when `enabled` is true.
+    ///
+    /// Returns the trimmed buffer, the original buffer (trim disabled), or `nil`
+    /// when the trimmed result is below the minimum speech threshold.
+    private func applySilenceTrim(_ rawSamples: [Float], enabled: Bool) -> [Float]? {
+        guard enabled else { return rawSamples }
+        let trimmed = SilenceTrimmer.trim(rawSamples)
+        if trimmed.isEmpty {
+            FileLogger.shared.log(.warn, "SilenceTrimmer: buffer contained < 200 ms of speech -- skipping.")
+            logger.warning("SilenceTrimmer returned empty buffer; skipping transcription.")
+            return nil
+        }
+        FileLogger.shared.log(.info, "SilenceTrimmer: \(rawSamples.count) \u{2192} \(trimmed.count) samples.")
+        return trimmed
+    }
+
     /// Runs `SnippetExpander` against `text` if a store is wired in.
     ///
     /// Returns `(expandedText, matchedSnippet)` or `(text, nil)` when no match.
@@ -476,7 +483,10 @@ public actor TranscriptionPipeline {
         guard let result = SnippetExpander.expand(text, snippets: snippets) else {
             return (text, nil)
         }
-        logger.info("SnippetExpander: trigger \"\(result.matchedSnippet.triggerPhrase)\" matched -- \(result.originalText.count) \u{2192} \(result.expandedText.count) chars.")
+        let trigger = result.matchedSnippet.triggerPhrase
+        let inCount = result.originalText.count
+        let outCount = result.expandedText.count
+        logger.info("SnippetExpander: trigger \"\(trigger)\" matched -- \(inCount) \u{2192} \(outCount) chars.")
         FileLogger.shared.log(
             .info,
             "Pipeline: snippet trigger \"\(result.matchedSnippet.triggerPhrase)\" expanded."
