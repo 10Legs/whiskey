@@ -157,6 +157,12 @@ final class OnboardingViewModel {
     }
 
     func openInputMonitoringSettings() {
+        // Call CGRequestListenEventAccess() first so the app registers itself in
+        // System Settings > Privacy & Security > Input Monitoring. Without this call
+        // the app never appears in the list and the user cannot grant access.
+        // CGPreflightListenEventAccess() (used for status checks) does NOT register
+        // the app — only CGRequestListenEventAccess() does.
+        permissions.requestInputMonitoringAccess()
         permissions.openInputMonitoringSettings()
         if inputMonitoringState == .idle {
             startInputMonitoringPolling()

@@ -242,7 +242,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            // Use NSRect.zero as the positioning rect. When the rect is zero-sized,
+            // AppKit anchors the popover to the full bounds of `button` automatically.
+            // Using button.bounds caused the popover to overlap the icon when the
+            // NSHostingView subview changed the effective content geometry of the button.
+            popover.show(relativeTo: .zero, of: button, preferredEdge: .minY)
             // Ensure the popover's window becomes key so keyboard shortcuts work.
             popover.contentViewController?.view.window?.makeKey()
         }
