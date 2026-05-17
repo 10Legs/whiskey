@@ -57,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var transcriptionTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
     private var onboardingWindow: PermissionsOnboardingWindow?
+    /// Tracks whether the egress dot has ever pulsed red; passed into PrivacySettingsView.
+    private var hasPulsedRed: Bool = false
 
     // MARK: - Network Activity Monitor (S3-T3)
 
@@ -277,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if state != lastState {
                     lastState = state
                     self.applyEgressDot(state)
+                    if state == .unexpected { self.hasPulsedRed = true }
                     // Update accessibility label for idle/hands-free states.
                     // Recording and processing states own their own labels.
                     if let button = self.statusItem?.button {
@@ -394,7 +397,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let settingsView = SettingsView(settings: settingsManager, modelManager: modelManager, bindingStore: bindingStore)
+        let settingsView = SettingsView(
+            settings: settingsManager,
+            modelManager: modelManager,
+            networkMonitor: networkMonitor,
+            hasPulsedRed: .constant(hasPulsedRed),
+            bindingStore: bindingStore
+        )
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "WhisKey Settings"
