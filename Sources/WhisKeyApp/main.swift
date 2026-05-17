@@ -354,6 +354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startHotkey()
     }
 
+    // swiftlint:disable:next function_body_length
     private func startHotkey() {
         let flog = FileLogger.shared
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"

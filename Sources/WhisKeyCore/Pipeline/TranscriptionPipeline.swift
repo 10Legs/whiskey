@@ -99,6 +99,7 @@ public enum PipelineError: Error, LocalizedError {
     }
 }
 
+// swiftlint:disable type_body_length
 /// Async orchestrator wiring AudioCaptureService → WhisperBridge → TextInjector.
 ///
 /// `TranscriptionPipeline` is a Swift actor: all mutable state (`isRecording`) is
@@ -489,3 +490,4 @@ public actor TranscriptionPipeline {
         await MainActor.run { onTranscriptionReady?(result) }
     }
 }
+// swiftlint:enable type_body_length

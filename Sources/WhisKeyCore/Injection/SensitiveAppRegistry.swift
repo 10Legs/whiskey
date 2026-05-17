@@ -14,7 +14,7 @@ public struct SensitiveAppRegistry: Sendable {
         "com.agilebits.onepassword7",
         "com.agilebits.onepassword-osx",
         "com.bitwarden.desktop",
-        "com.apple.SecurityAgent",
+        "com.apple.SecurityAgent"
     ]
 
     /// Returns `true` when the given bundle ID is on the sensitivity blocklist.
