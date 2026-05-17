@@ -6,28 +6,24 @@ private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
 
 /// Tabbed settings window.
 ///
-/// Tabs: General | Models | Hotkey | Transcription | AI Cleanup | Snippets | Privacy | Hotkeys
+/// Tabs: General | Models | Hotkey | Transcription | AI Cleanup | Snippets | Privacy
 public struct SettingsView: View {
 
     @Bindable private var settings: SettingsManager
     private let modelManager: ModelManager
     private let networkMonitor: NetworkActivityMonitor?
     @Binding private var hasPulsedRed: Bool
-    // S3-T6: Multi-hotkey binding store powering the Hotkeys tab.
-    private let bindingStore: HotkeyBindingStore
 
     public init(
         settings: SettingsManager,
         modelManager: ModelManager,
         networkMonitor: NetworkActivityMonitor? = nil,
-        hasPulsedRed: Binding<Bool> = .constant(false),
-        bindingStore: HotkeyBindingStore
+        hasPulsedRed: Binding<Bool> = .constant(false)
     ) {
         self.settings = settings
         self.modelManager = modelManager
         self.networkMonitor = networkMonitor
         self._hasPulsedRed = hasPulsedRed
-        self.bindingStore = bindingStore
     }
 
     public var body: some View {
@@ -60,9 +56,6 @@ public struct SettingsView: View {
                     .tabItem { Label("Privacy", systemImage: "lock.shield") }
             }
 
-            // S3-T6: Multi-hotkey bindings tab.
-            HotkeySettingsView(store: bindingStore)
-                .tabItem { Label("Hotkeys", systemImage: "keyboard.badge.ellipsis") }
         }
         .frame(width: 520, height: 460)
         .background(hudBackground)

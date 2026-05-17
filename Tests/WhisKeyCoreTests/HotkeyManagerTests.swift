@@ -269,6 +269,78 @@ class HotkeyManagerTests: XCTestCase {
 
         manager.stop()
     }
+
+    // MARK: - handsFreeEnabled enforcement
+
+    func testHandsFreeDisabledPreventsDoubleTapActivation() async throws {
+        let manager = HotkeyManager()
+        manager.disambiguationWindowMs = 300
+        manager.handsFreeEnabled = false
+
+        var handsFreeStartFired = false
+        manager.onHandsFreeStart = { handsFreeStartFired = true }
+
+        // Double-tap within window — should NOT trigger hands-free.
+        manager.simulateKeyDown()
+        try await Task.sleep(for: .milliseconds(90))
+        manager.simulateKeyUp()
+        try await Task.sleep(for: .milliseconds(80))
+        manager.simulateKeyDown()
+        try await Task.sleep(for: .milliseconds(90))
+        manager.simulateKeyUp()
+
+        try await Task.sleep(for: .milliseconds(350))
+
+        XCTAssertFalse(handsFreeStartFired, "Double-tap must not enter hands-free when handsFreeEnabled is false")
+        manager.stop()
+    }
+
+    func testHandsFreeDisabledSecondTapStartsPTT() async throws {
+        let manager = HotkeyManager()
+        manager.disambiguationWindowMs = 300
+        manager.handsFreeEnabled = false
+
+        var recordingStarted = false
+        manager.onStartRecording = { recordingStarted = true }
+
+        // First tap (valid, > 80ms) enters tapPending; second tap should start PTT hold.
+        manager.simulateKeyDown()
+        try await Task.sleep(for: .milliseconds(90))
+        manager.simulateKeyUp()
+        try await Task.sleep(for: .milliseconds(80))
+        manager.simulateKeyDown()
+        // Hold > disambiguationWindowMs to trigger PTT hold.
+        try await Task.sleep(for: .milliseconds(320))
+
+        XCTAssertTrue(recordingStarted, "Second tap with handsFreeEnabled=false must fall through to PTT hold")
+        manager.stop()
+    }
+
+    func testDisambiguationWindowCanBeChangedLive() async throws {
+        let manager = HotkeyManager()
+        manager.disambiguationWindowMs = 300
+        manager.handsFreeEnabled = true
+
+        var handsFreeStartFired = false
+        manager.onHandsFreeStart = { handsFreeStartFired = true }
+
+        // Change window to 100ms after starting — the next timer schedule uses the new value.
+        manager.disambiguationWindowMs = 100
+
+        // Double-tap 80ms apart — would miss the old 300ms window but fits in 100ms.
+        manager.simulateKeyDown()
+        try await Task.sleep(for: .milliseconds(90))
+        manager.simulateKeyUp()
+        try await Task.sleep(for: .milliseconds(60))  // within 100ms window
+        manager.simulateKeyDown()
+        try await Task.sleep(for: .milliseconds(90))
+        manager.simulateKeyUp()
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertTrue(handsFreeStartFired, "disambiguationWindowMs change must take effect on next timer schedule")
+        manager.stop()
+    }
 }
 
 // MARK: - Test-only simulation shims

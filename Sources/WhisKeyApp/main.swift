@@ -49,9 +49,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkey = HotkeyManager()
     private let permissions = PermissionsManager()
     private let settingsManager = SettingsManager()
-    // S3-T6: Binding store lives here so it can be injected into SettingsView and also
-    // read by startHotkey() to initialise HotkeyManager.watchedKeyCode at launch.
-    private let bindingStore = HotkeyBindingStore()
     private lazy var modelManager = ModelManager(settings: settingsManager)
     private lazy var pipeline = TranscriptionPipeline(settings: settingsManager)
     private lazy var appContextService = AppContextService(settingsManager: settingsManager)
@@ -398,8 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let settingsView = SettingsView(
             settings: settingsManager,
-            modelManager: modelManager,
-            bindingStore: bindingStore
+            modelManager: modelManager
         )
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
@@ -572,26 +568,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // Sync disambiguation window from persisted settings; reads default 300ms on first launch.
         hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
-
-        // S3-T6: Apply the persisted defaultTranscription key code at launch.
-        // UserDefaults.didChangeNotification keeps this in sync after first launch.
-        let primaryBinding = bindingStore.binding(for: .defaultTranscription)
-        if let keyCode = primaryBinding.keyCode {
-            hotkey.watchedKeyCode = keyCode
-        }
-
-        // S3-T6: Live-sync the default transcription key code when bindings change.
-        NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-            let updated = self.bindingStore.binding(for: .defaultTranscription)
-            if let keyCode = updated.keyCode {
-                self.hotkey.watchedKeyCode = keyCode
-            }
-        }
 
         Task.detached(priority: .background) { [weak self] in
             guard let self else { return }
