@@ -49,12 +49,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkey = HotkeyManager()
     private let permissions = PermissionsManager()
     private let settingsManager = SettingsManager()
+    // S3-T6: Multi-hotkey binding store. Created once; shared with SettingsView.
+    private let bindingStore = HotkeyBindingStore()
     private lazy var modelManager = ModelManager(settings: settingsManager)
     private lazy var pipeline = TranscriptionPipeline(settings: settingsManager)
     private lazy var appContextService = AppContextService(settingsManager: settingsManager)
     private var transcriptionTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
     private var onboardingWindow: PermissionsOnboardingWindow?
+    /// Tracks whether the egress dot has ever pulsed red; passed into PrivacySettingsView.
+    private var hasPulsedRed: Bool = false
 
     // MARK: - Network Activity Monitor (S3-T3)
 
@@ -143,8 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum IconState { case idle, recording, handsFree, processing, error }
 
     /// Updates the status button directly via NSImage + CABasicAnimation.
-    /// No NSHostingView or SwiftUI embedding in NSStatusBarButton — preserves the
-    /// popover coordinate fix from PR #28.
+    /// No NSHostingView or SwiftUI embedding — preserves the popover coordinate fix from PR #28.
     private func applyStatusIcon(_ state: IconState) {
         guard let button = statusItem?.button else { return }
 
@@ -276,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if state != lastState {
                     lastState = state
                     self.applyEgressDot(state)
+                    if state == .unexpected { self.hasPulsedRed = true }
                     // Update accessibility label for idle/hands-free states.
                     // Recording and processing states own their own labels.
                     if let button = self.statusItem?.button {
@@ -395,7 +399,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let settingsView = SettingsView(
             settings: settingsManager,
-            modelManager: modelManager
+            modelManager: modelManager,
+            networkMonitor: networkMonitor,
+            hasPulsedRed: .constant(hasPulsedRed),
+            bindingStore: bindingStore
         )
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
@@ -566,10 +573,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.pipeline.stopAndTranscribe()
             }
         }
-        // Sync settings at launch; live-sync via observer below.
+        // Sync hotkey settings from persisted values at launch.
         hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
         hotkey.handsFreeEnabled = settingsManager.handsFreeEnabled
 
+        // Live-sync hotkey settings whenever UserDefaults change (slider/toggle in Settings).
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
             object: nil,
@@ -578,6 +586,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.hotkey.disambiguationWindowMs = self.settingsManager.disambiguationWindowMs
             self.hotkey.handsFreeEnabled = self.settingsManager.handsFreeEnabled
+            // S3-T6: Sync the primary hotkey key code from the binding store.
+            // Other actions (openPopover, injectLastTranscription) are dispatched
+            // from HotkeyManager callbacks; only defaultTranscription drives watchedKeyCode.
+            let primaryBinding = self.bindingStore.binding(for: .defaultTranscription)
+            if let keyCode = primaryBinding.keyCode {
+                self.hotkey.watchedKeyCode = keyCode
+            }
+        }
+
+        // S3-T6: Apply the persisted defaultTranscription binding at launch.
+        let primaryBinding = bindingStore.binding(for: .defaultTranscription)
+        if let keyCode = primaryBinding.keyCode {
+            hotkey.watchedKeyCode = keyCode
         }
 
         Task.detached(priority: .background) { [weak self] in
