@@ -154,6 +154,9 @@ public actor TranscriptionPipeline {
     /// Actor-isolated; use `setAppContextService(_:)` to update from outside the actor.
     public var appContextService: AppContextService?
 
+    /// Voice command processor (S4-T6). Runs after FillerScrubber, before LLM cleanup.
+    private let voiceCommandProcessor = VoiceCommandProcessor()
+
     /// Voice-snippet store used for post-transcription trigger expansion (S3-T5).
     /// When `nil` the expansion step is skipped and text is injected verbatim.
     /// Actor-isolated; use `setSnippetStore(_:)` to update from outside the actor.
@@ -409,11 +412,20 @@ public actor TranscriptionPipeline {
         let scrubEnabled = await MainActor.run { settings.fillerScrubberEnabled }
         let scrubbed = applyFillerScrubber(result.text, enabled: scrubEnabled)
 
+        // S4-T6: Voice command processing (post-FillerScrubber, pre-LLM).
+        let vcResult = voiceCommandProcessor.process(scrubbed)
+        let afterVoiceCommands = vcResult.cleanedText
+        if !vcResult.commands.isEmpty {
+            flog.log(.info, "VoiceCommandProcessor: \(vcResult.commands.count) command(s) detected.")
+            logger.info("VoiceCommandProcessor: \(vcResult.commands.count) command(s) detected.")
+            await executeVoiceCommands(vcResult.commands, capturedElement: capturedAXElement)
+        }
+
         let injectionContext = await MainActor.run { contextService.currentContext() }
         let llmEnabled = await MainActor.run { settings.llmEnabled }
         let afterLLM = llmEnabled
-            ? await applyLLMCleanup(rawText: scrubbed, context: injectionContext, profile: effectiveCleanup)
-            : scrubbed
+            ? await applyLLMCleanup(rawText: afterVoiceCommands, context: injectionContext, profile: effectiveCleanup)
+            : afterVoiceCommands
 
         // S3-T5: Voice Snippets -- post-LLM, pre-injection trigger expansion.
         let (textToInject, expandedSnippet) = await applySnippetExpansion(afterLLM)
@@ -594,6 +606,50 @@ public actor TranscriptionPipeline {
             )
         }
         await MainActor.run { onTranscriptionReady?(result) }
+    }
+
+    // MARK: - Voice Command Execution (S4-T6)
+
+    /// Execute each recognized voice command in order.
+    ///
+    /// - `insertNewParagraph` appends `\n\n` via the AX/injection path.
+    /// - `insertNewLine` appends `\n` via the AX/injection path.
+    /// - All other commands are logged as "not yet implemented via AX" but the
+    ///   phrase has already been stripped from the injected text.
+    private func executeVoiceCommands(_ commands: [VoiceCommand], capturedElement: AXUIElement?) async {
+        for command in commands {
+            switch command {
+            case .insertNewParagraph:
+                logger.info("VoiceCommand: insertNewParagraph → injecting \\n\\n")
+                FileLogger.shared.log(.info, "VoiceCommand: insertNewParagraph executed.")
+                await injector.inject("\n\n", capturedElement: capturedElement)
+
+            case .insertNewLine:
+                logger.info("VoiceCommand: insertNewLine → injecting \\n")
+                FileLogger.shared.log(.info, "VoiceCommand: insertNewLine executed.")
+                await injector.inject("\n", capturedElement: capturedElement)
+
+            case .deleteLastUtterance:
+                logger.info("VoiceCommand: deleteLastUtterance — not yet implemented via AX (phrase stripped).")
+                FileLogger.shared.log(.info, "VoiceCommand: deleteLastUtterance not yet implemented via AX.")
+
+            case .uppercaseLastWord:
+                logger.info("VoiceCommand: uppercaseLastWord — not yet implemented via AX (phrase stripped).")
+                FileLogger.shared.log(.info, "VoiceCommand: uppercaseLastWord not yet implemented via AX.")
+
+            case .insertPeriod:
+                logger.info("VoiceCommand: insertPeriod — not yet implemented via AX (phrase stripped).")
+                FileLogger.shared.log(.info, "VoiceCommand: insertPeriod not yet implemented via AX.")
+
+            case .insertComma:
+                logger.info("VoiceCommand: insertComma — not yet implemented via AX (phrase stripped).")
+                FileLogger.shared.log(.info, "VoiceCommand: insertComma not yet implemented via AX.")
+
+            case .insertQuestionMark:
+                logger.info("VoiceCommand: insertQuestionMark — not yet implemented via AX (phrase stripped).")
+                FileLogger.shared.log(.info, "VoiceCommand: insertQuestionMark not yet implemented via AX.")
+            }
+        }
     }
 
     // MARK: - Re-injection (S4-T4)
