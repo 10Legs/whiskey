@@ -277,6 +277,7 @@ struct HistoryRowView: View {
 
 /// Minimal NSObject target for `UndoManager.registerUndo(withTarget:handler:)`.
 /// UndoManager requires an NSObject target.
+@MainActor
 private final class UndoProxy: NSObject {
     static let shared = UndoProxy()
     private override init() {}

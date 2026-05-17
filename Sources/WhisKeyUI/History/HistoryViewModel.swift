@@ -106,9 +106,15 @@ public final class HistoryViewModel: ObservableObject {
         // TextInjector.inject never throws -- failures are silent strategy fallbacks.
         await injector.inject(entry.text, capturedElement: nil)
 
-        reinjectionStates[entry.id] = .success
-        try? await Task.sleep(for: .seconds(1.2))
-        reinjectionStates[entry.id] = .idle
+        switch reinjectionStates[entry.id] {
+        case .failure:
+            try? await Task.sleep(for: .seconds(2.0))
+            reinjectionStates[entry.id] = .idle
+        default:
+            reinjectionStates[entry.id] = .success
+            try? await Task.sleep(for: .seconds(1.2))
+            reinjectionStates[entry.id] = .idle
+        }
     }
 }
 
