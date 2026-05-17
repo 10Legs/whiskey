@@ -65,6 +65,11 @@ public final class HotkeyManager: @unchecked Sendable {
     /// Default: 300ms per S3-C2 spec. Valid range: 200-500ms. Configurable in Settings.
     public var disambiguationWindowMs: Double = 300.0
 
+    /// When false the state machine operates PTT-only: the inter-tap window is skipped,
+    /// double-tap never enters `.tapPending`, and `.handsFreeRecording` is unreachable.
+    /// Synced from Settings on change via AppDelegate observer.
+    public var handsFreeEnabled: Bool = true
+
     /// Minimum press duration (ms) for a keypress to be treated as intentional.
     /// Presses shorter than this are silently discarded as accidental contact.
     /// This constant operates above the OS debounce layer (`minEdgeIntervalMillis`).
@@ -189,11 +194,17 @@ public final class HotkeyManager: @unchecked Sendable {
             scheduleHoldTimer()
 
         case .tapPending:
-            // Second key_down within the inter-tap window → hands-free.
             guard acceptStartEdge() else { return }
             cancelPendingTimer()
-            hotkeyState = .handsFreeRecording
-            onHandsFreeStart?()
+            if handsFreeEnabled {
+                // Second tap within window and hands-free enabled → toggle on.
+                hotkeyState = .handsFreeRecording
+                onHandsFreeStart?()
+            } else {
+                // Hands-free disabled — treat as a new PTT press.
+                hotkeyState = .keyDown(pressStartMs: nowMillis())
+                scheduleHoldTimer()
+            }
 
         case .handsFreeRecording:
             // A tap during hands-free → begin evaluating press for stop gesture.
@@ -219,10 +230,13 @@ public final class HotkeyManager: @unchecked Sendable {
             if duration < minIntentionalTapMs {
                 // Accidental tap — drop silently, back to idle.
                 hotkeyState = .idle
-            } else {
-                // Valid first tap. Enter tapPending and start inter-tap timer.
+            } else if handsFreeEnabled {
+                // Valid first tap and hands-free enabled. Enter tapPending and start inter-tap timer.
                 hotkeyState = .tapPending
                 scheduleInterTapTimer()
+            } else {
+                // Hands-free disabled — single tap is a no-op; back to idle.
+                hotkeyState = .idle
             }
 
         case .holding:

@@ -38,48 +38,6 @@ do {
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "AppDelegate")
 
-// MARK: - Menu Bar Icon Animation
-
-/// Observable state driving the animated status-item icon.
-/// Lives on @MainActor; mutated only from AppDelegate state transitions.
-@MainActor
-final class MenuBarIconState: ObservableObject {
-    @Published var isRecording: Bool = false
-    /// When true, the icon uses systemOrange tint (hands-free mode). Not animated.
-    @Published var isHandsFree: Bool = false
-    @Published var symbolName: String = "waveform.and.mic"
-    @Published var accessibilityLabel: String = "WhisKey"
-}
-
-/// SwiftUI view embedded in the NSStatusBarButton via NSHostingView.
-///
-/// Uses `.symbolEffect(.pulse.wholeSymbol, isActive: isRecording)` on macOS 14+
-/// so the mic pulses while recording.  When Reduce Motion is enabled the pulse
-/// is suppressed and the icon turns red instead — no scale or motion change.
-private struct MenuBarIconView: View {
-    @ObservedObject var state: MenuBarIconState
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Image(systemName: state.symbolName)
-            .font(.system(size: 14, weight: .regular))
-            .foregroundStyle(iconColor)
-            .symbolEffect(
-                .pulse.wholeSymbol,
-                options: .repeating,
-                isActive: state.isRecording && !reduceMotion
-            )
-            .frame(width: 18, height: 18)
-            .accessibilityLabel(state.accessibilityLabel)
-    }
-
-    private var iconColor: Color {
-        if state.isRecording { return Color(nsColor: .systemRed) }
-        if state.isHandsFree { return Color(nsColor: .systemOrange) }
-        return .primary
-    }
-}
-
 // MARK: - App Delegate
 
 // swiftlint:disable type_body_length
@@ -98,25 +56,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var onboardingWindow: PermissionsOnboardingWindow?
 
+    // MARK: - Network Activity Monitor (S3-T3)
+
+    /// Live egress monitor. Started before the status item is created so the
+    /// dot badge reflects state from the first frame.
+    let networkMonitor = NetworkActivityMonitor()
+    private var egressObservationTask: Task<Void, Never>?
+
     // MARK: - Whisper Glass state
 
     private let pipelineState = PipelineStateModel()
     /// Held alive for audio level forwarding.
     private var hudController: FloatingHUDWindowController?
 
-    // MARK: - Animated menu bar icon
+    // MARK: - Icon tracking (no SwiftUI embedding in button)
 
-    /// Observable model for the SwiftUI icon view hosted inside NSStatusBarButton.
-    private let iconState = MenuBarIconState()
-    /// Retains the NSHostingView so it is not deallocated while the status item lives.
-    private var iconHostingView: NSView?
-    /// Thin 1pt strip pinned to the bottom edge of the status button.
-    /// Used as the `relativeTo` anchor for `popover.show` to avoid coordinate-system
-    /// interference caused by the embedded NSHostingView.
-    private var popoverPositioningView: NSView?
+    /// The SF Symbol name currently displayed in the status button.
+    /// Updated by applyStatusIcon(_:) so applyEgressDot(_:) always composites
+    /// over the correct base symbol.
+    private var currentIconSymbolName: String = "waveform.and.mic"
+
+    /// The tint color currently applied to the status button, or nil for template
+    /// rendering. Restored by applyEgressDot when the dot is removed.
+    private var currentTintColor: NSColor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // hide from Dock
+
+        // Start network monitoring immediately. EgressAuditor is wired after monitor starts.
+        networkMonitor.startMonitoring()
+        EgressAuditor.shared.configure(monitor: networkMonitor)
+        startEgressObservation()
 
         // Guard: show onboarding window when any required permission is missing.
         // Menu bar item is suppressed until onboarding completes.
@@ -131,6 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             checkPermissionsAndStart()
             checkModelPresence()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        networkMonitor.stopMonitoring()
+        egressObservationTask?.cancel()
     }
 
     // MARK: - Onboarding
@@ -148,40 +123,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.show()
     }
 
-    // MARK: - Status Item (Task 3)
+    // MARK: - Status Item
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem?.button else { return }
 
-        // Clear any NSButton image — the animated SwiftUI view takes over rendering.
-        button.image = nil
-
-        // Embed an NSHostingView<MenuBarIconView> as a subview of the status button.
-        // This lets SwiftUI drive .symbolEffect animation declaratively.
-        let hosting = NSHostingView(rootView: MenuBarIconView(state: iconState))
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-        button.addSubview(hosting)
-        NSLayoutConstraint.activate([
-            hosting.centerXAnchor.constraint(equalTo: button.centerXAnchor),
-            hosting.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-            hosting.widthAnchor.constraint(equalToConstant: 22),
-            hosting.heightAnchor.constraint(equalToConstant: 22)
-        ])
-        iconHostingView = hosting
-
-        // Thin anchor strip at the bottom edge — used to position the popover below the menu bar.
-        // Anchoring relative to the button itself is unreliable when NSHostingView is embedded.
-        let strip = NSView()
-        strip.translatesAutoresizingMaskIntoConstraints = false
-        button.addSubview(strip)
-        NSLayoutConstraint.activate([
-            strip.leadingAnchor.constraint(equalTo: button.leadingAnchor),
-            strip.trailingAnchor.constraint(equalTo: button.trailingAnchor),
-            strip.bottomAnchor.constraint(equalTo: button.bottomAnchor),
-            strip.heightAnchor.constraint(equalToConstant: 1)
-        ])
-        popoverPositioningView = strip
+        button.image = NSImage(systemSymbolName: "waveform.and.mic",
+                               accessibilityDescription: "WhisKey")
+        button.image?.isTemplate = true
 
         button.action = #selector(statusItemClicked)
         button.target = self
@@ -189,43 +139,163 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // S3-T4: .handsFree added for hands-free recording state (steady orange mic.badge.xmark).
+    // No animation for this state — it is a stable indefinite mode.
     private enum IconState { case idle, recording, handsFree, processing, error }
 
-    /// Updates the observable `iconState` which drives the SwiftUI icon view.
-    /// All recording-state animation and colour changes are handled declaratively
-    /// inside `MenuBarIconView`; this method only updates the data model.
+    /// Updates the status button directly via NSImage + CABasicAnimation.
+    /// No NSHostingView or SwiftUI embedding — preserves the popover coordinate fix from PR #28.
     private func applyStatusIcon(_ state: IconState) {
+        guard let button = statusItem?.button else { return }
+
+        // Clear any previous pulse animation first.
+        button.layer?.removeAnimation(forKey: "whiskey.pulse")
+
         switch state {
         case .idle:
-            iconState.symbolName = "waveform.and.mic"
-            iconState.accessibilityLabel = "WhisKey"
-            iconState.isRecording = false
-            iconState.isHandsFree = false
+            currentIconSymbolName = "waveform.and.mic"
+            currentTintColor = nil
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "WhisKey")
+            button.image?.isTemplate = true
+            button.contentTintColor = nil
+            button.setAccessibilityLabel("WhisKey")
+
         case .recording:
             // PTT: pulsing red mic.fill per S3-C2 spec table 4.1.
-            iconState.symbolName = "mic.fill"
-            iconState.accessibilityLabel = "WhisKey — Push-to-Talk Recording"
-            iconState.isRecording = true
-            iconState.isHandsFree = false
+            currentIconSymbolName = "mic.fill"
+            currentTintColor = .systemRed
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "Recording")
+            button.image?.isTemplate = false
+            button.contentTintColor = .systemRed
+            button.setAccessibilityLabel("WhisKey \u{2013} Push-to-Talk Recording")
+            button.wantsLayer = true
+            // Respect reduce-motion preference.
+            if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                let pulse = CABasicAnimation(keyPath: "opacity")
+                pulse.fromValue = 1.0
+                pulse.toValue = 0.35
+                pulse.duration = 0.75
+                pulse.autoreverses = true
+                pulse.repeatCount = .infinity
+                pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                button.layer?.add(pulse, forKey: "whiskey.pulse")
+            }
+
         case .handsFree:
             // Hands-free: steady orange mic.badge.xmark. No pulse (stable indefinite state).
-            // mic.badge.xmark available macOS 14+. systemOrange = semantic color.
-            iconState.symbolName = "mic.badge.xmark"
-            iconState.accessibilityLabel = "WhisKey \u{2013} Hands-Free Recording"
-            iconState.isRecording = false
-            iconState.isHandsFree = true
+            // mic.badge.xmark available macOS 14+. systemOrange is a semantic color.
+            currentIconSymbolName = "mic.badge.xmark"
+            currentTintColor = .systemOrange
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "Hands-Free Recording")
+            button.image?.isTemplate = false
+            button.contentTintColor = .systemOrange
+            button.setAccessibilityLabel("WhisKey \u{2013} Hands-Free Recording")
+
         case .processing:
-            iconState.symbolName = "waveform"
-            iconState.accessibilityLabel = "WhisKey — Transcribing"
-            iconState.isRecording = false
-            iconState.isHandsFree = false
+            currentIconSymbolName = "waveform"
+            currentTintColor = nil
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "Transcribing")
+            button.image?.isTemplate = true
+            button.contentTintColor = nil
+            button.setAccessibilityLabel("WhisKey \u{2013} Transcribing")
+
         case .error:
-            iconState.symbolName = "exclamationmark.triangle"
-            iconState.accessibilityLabel = "WhisKey — Error"
-            iconState.isRecording = false
-            iconState.isHandsFree = false
+            currentIconSymbolName = "exclamationmark.triangle"
+            currentTintColor = .systemOrange
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "WhisKey Error")
+            button.image?.isTemplate = true
+            button.contentTintColor = .systemOrange
+            button.setAccessibilityLabel("WhisKey \u{2013} Error")
+        }
+
+        // Re-apply the egress dot over the freshly set icon so the badge is never lost
+        // when a state transition happens while egress monitoring is active.
+        applyEgressDot(networkMonitor.egressState)
+    }
+
+    // MARK: - Egress Dot Badge (S3-T3)
+
+    /// Composites a small colored dot onto the current base SF Symbol and sets the
+    /// result as button.image. No SwiftUI — pure NSImage drawing.
+    ///
+    /// Called from startEgressObservation() whenever egressState changes, and also
+    /// at the end of applyStatusIcon(_:) to keep the dot in sync after state transitions.
+    private func applyEgressDot(_ state: EgressState) {
+        guard let button = statusItem?.button else { return }
+
+        let dotColor: NSColor? = switch state {
+        case .local:       .systemGreen
+        case .audited:     .secondaryLabelColor
+        case .unexpected:  .systemRed
+        case .unavailable: nil
+        }
+
+        if let dotColor {
+            // Composite: SF Symbol + dot in bottom-right quadrant.
+            // isTemplate = false so AppKit does not re-tint the composite; the dot
+            // must render in its semantic color, not the system accent.
+            let size = NSSize(width: 18, height: 18)
+            let composite = NSImage(size: size, flipped: false) { bounds in
+                NSImage(systemSymbolName: self.currentIconSymbolName,
+                        accessibilityDescription: nil)?
+                    .draw(in: bounds)
+                let dotRect = NSRect(x: bounds.maxX - 6, y: 0, width: 6, height: 6)
+                dotColor.setFill()
+                NSBezierPath(ovalIn: dotRect).fill()
+                return true
+            }
+            composite.isTemplate = false
+            button.image = composite
+            // Clear tint so the composited dot colour is not overridden by AppKit tinting.
+            button.contentTintColor = nil
+        } else {
+            // No dot — restore the plain template image with its current tint.
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "WhisKey")
+            button.image?.isTemplate = (currentTintColor == nil)
+            button.contentTintColor = currentTintColor
         }
     }
+
+    /// Polls `networkMonitor.egressState` at 500 ms intervals and updates the
+    /// menu bar dot badge and accessibility label accordingly.
+    ///
+    /// @Observable does not bridge to async streams natively on macOS 14, so a
+    /// polling loop is used — identical to the S3-T3 approach on the feature branch.
+    private func startEgressObservation() {
+        egressObservationTask = Task { [weak self] in
+            var lastState: EgressState?
+            while !Task.isCancelled {
+                guard let self else { return }
+                let state = self.networkMonitor.egressState
+                if state != lastState {
+                    lastState = state
+                    self.applyEgressDot(state)
+                    // Update accessibility label for idle/hands-free states.
+                    // Recording and processing states own their own labels.
+                    if let button = self.statusItem?.button {
+                        switch state {
+                        case .local:
+                            button.setAccessibilityLabel("WhisKey \u{2013} Local mode, no egress")
+                        case .audited:
+                            button.setAccessibilityLabel("WhisKey \u{2013} Cloud provider active")
+                        case .unexpected:
+                            button.setAccessibilityLabel("WhisKey \u{2013} Warning: unexpected egress detected")
+                        case .unavailable:
+                            break // Leave whatever the icon state set.
+                        }
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
+
+    // MARK: - State Transitions
 
     private func transitionToRecording() {
         applyStatusIcon(.recording)
@@ -271,7 +341,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupPopover() {
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 300)
+        // Match MenuBarView's declared frame exactly so NSHostingController reports
+        // the same preferredContentSize and no post-show resize/reanchor occurs.
+        popover.contentSize = NSSize(width: 320, height: 480)
         popover.behavior = .transient
         let view = MenuBarView(
             historyStore: pipeline.historyStore,
@@ -292,16 +364,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            // Anchor to the 1pt strip pinned to the button's bottom edge.
-            // This bypasses coordinate-system interference from the embedded NSHostingView
-            // and gives AppKit an unambiguous anchor below the menu bar.
-            guard let anchor = popoverPositioningView else {
+            // NSStatusBarButton is flipped (y=0 at visual top) and has a -4.5pt y offset
+            // in its parent window. Passing `button` as the anchor view for popover.show
+            // causes AppKit to mis-convert the flipped coordinate system through that offset,
+            // landing the popover on top of the icon regardless of preferredEdge.
+            //
+            // Fix: convert button.bounds into the window's NON-FLIPPED contentView space
+            // (confirmed isFlipped=false via debug). That gives AppKit an unambiguous rect
+            // in a known coordinate system. .minY on a non-flipped view = visual bottom =
+            // below the menu bar = correct drop direction.
+            if let contentView = button.window?.contentView {
+                let rectInContentView = button.convert(button.bounds, to: contentView)
+                popover.show(relativeTo: rectInContentView, of: contentView, preferredEdge: .minY)
+            } else {
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                popover.contentViewController?.view.window?.makeKey()
-                return
             }
-            popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
-            // Ensure the popover's window becomes key so keyboard shortcuts work.
             popover.contentViewController?.view.window?.makeKey()
         }
     }
@@ -485,8 +562,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.pipeline.stopAndTranscribe()
             }
         }
-        // Sync disambiguation window from persisted settings; reads default 300ms on first launch.
+        // Sync hotkey settings from persisted values at launch.
         hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
+        hotkey.handsFreeEnabled = settingsManager.handsFreeEnabled
+
+        // Live-sync hotkey settings whenever UserDefaults change (slider/toggle in Settings).
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.hotkey.disambiguationWindowMs = self.settingsManager.disambiguationWindowMs
+            self.hotkey.handsFreeEnabled = self.settingsManager.handsFreeEnabled
+        }
 
         Task.detached(priority: .background) { [weak self] in
             guard let self else { return }
