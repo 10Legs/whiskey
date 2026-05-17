@@ -51,14 +51,15 @@ jobs:
       - name: Install SQLCipher
         run: /opt/homebrew/bin/brew install sqlcipher 2>&1 || /opt/homebrew/bin/brew upgrade sqlcipher 2>&1 || true
 
-      - name: Build (debug)
-        # --jobs 4 on an 8-core machine leaves 4 cores free for the runner's
-        # HTTP threads so renewjob POSTs succeed during the cold first build.
-        # Heartbeat keeps log-streaming alive across the 10-minute renewal window.
+      - name: Build (debug + tests)
+        # --build-tests compiles test targets here (under --jobs 4 throttle) so
+        # "Run tests" below has nothing to compile and runs in < 1 second.
+        # Without this, swift test compiled the test target with no --jobs limit,
+        # saturating all 8 cores and starving the runner's renewjob HTTP threads.
         run: |
           while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
           HPID=$!
-          swift build -c debug --jobs 4 2>&1
+          swift build -c debug --build-tests --jobs 4 2>&1
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
@@ -72,7 +73,8 @@ jobs:
           rsync -a .build/ "$CACHE_DIR/"
 
       - name: Run tests
-        run: swift test --filter WhisKeyCoreTests 2>&1
+        # --jobs 4 guards against any incremental recompile using all cores.
+        run: swift test --jobs 4 --filter WhisKeyCoreTests 2>&1
 
       - name: Build (release) — catch release-only issues
         # Only on PRs to main; skip on push to keep push CI fast.
