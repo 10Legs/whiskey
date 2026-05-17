@@ -106,6 +106,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let iconState = MenuBarIconState()
     /// Retains the NSHostingView so it is not deallocated while the status item lives.
     private var iconHostingView: NSView?
+    /// Thin 1pt strip pinned to the bottom edge of the status button.
+    /// Used as the `relativeTo` anchor for `popover.show` to avoid coordinate-system
+    /// interference caused by the embedded NSHostingView.
+    private var popoverPositioningView: NSView?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // hide from Dock
@@ -161,6 +165,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hosting.heightAnchor.constraint(equalToConstant: 22)
         ])
         iconHostingView = hosting
+
+        // Thin anchor strip at the bottom edge — used to position the popover below the menu bar.
+        // Anchoring relative to the button itself is unreliable when NSHostingView is embedded.
+        let strip = NSView()
+        strip.translatesAutoresizingMaskIntoConstraints = false
+        button.addSubview(strip)
+        NSLayoutConstraint.activate([
+            strip.leadingAnchor.constraint(equalTo: button.leadingAnchor),
+            strip.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+            strip.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+            strip.heightAnchor.constraint(equalToConstant: 1)
+        ])
+        popoverPositioningView = strip
 
         button.action = #selector(statusItemClicked)
         button.target = self
@@ -242,11 +259,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            // Use NSRect.zero as the positioning rect. When the rect is zero-sized,
-            // AppKit anchors the popover to the full bounds of `button` automatically.
-            // Using button.bounds caused the popover to overlap the icon when the
-            // NSHostingView subview changed the effective content geometry of the button.
-            popover.show(relativeTo: .zero, of: button, preferredEdge: .minY)
+            // Anchor to the 1pt strip pinned to the button's bottom edge.
+            // This bypasses coordinate-system interference from the embedded NSHostingView
+            // and gives AppKit an unambiguous anchor below the menu bar.
+            guard let anchor = popoverPositioningView else {
+                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+                popover.contentViewController?.view.window?.makeKey()
+                return
+            }
+            popover.show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
             // Ensure the popover's window becomes key so keyboard shortcuts work.
             popover.contentViewController?.view.window?.makeKey()
         }
