@@ -176,6 +176,21 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.appProfiles, value: newValue) }
     }
 
+    /// When `false`, only push-to-talk mode is active; hands-free double-tap is disabled. (S3-T4)
+    public var handsFreeEnabled: Bool {
+        get { get(.handsFreeEnabled, default: true) }
+        set { set(.handsFreeEnabled, value: newValue) }
+    }
+
+    /// Double-tap disambiguation window in milliseconds. Default: 300. Valid range: 200-500. (S3-T4)
+    public var disambiguationWindowMs: Double {
+        get {
+            let raw: Double = get(.disambiguationWindowMs, default: 300.0)
+            return max(200.0, min(500.0, raw))
+        }
+        set { set(.disambiguationWindowMs, value: max(200.0, min(500.0, newValue))) }
+    }
+
     /// Builds a `CleanupProfile` from current settings.
     public var cleanupProfile: CleanupProfile {
         CleanupProfile(
