@@ -87,8 +87,12 @@ public struct MenuBarView: View {
         _viewModel = StateObject(
             wrappedValue: MenuBarViewModel(historyStore: store, modelManager: modelManager)
         )
+        // Wire re-injection errors back to the pipeline error banner.
+        // The closure is captured by value; pipelineState lifetime matches the popover.
         _historyViewModel = StateObject(
-            wrappedValue: HistoryViewModel(historyStore: store)
+            wrappedValue: HistoryViewModel(historyStore: store, onError: { [pipelineState] message in
+                pipelineState.postError(PipelineErrorMessage(text: message))
+            })
         )
     }
 

@@ -11,6 +11,7 @@ struct HistoryRowView: View {
     let reinjectionState: ReinjectionState
     let actionsDisabled: Bool
     let onReinject: () async -> Void
+    let onCancelReinject: () -> Void
     let onDelete: () async -> Void
 
     @State private var isHovered: Bool = false
@@ -139,23 +140,39 @@ struct HistoryRowView: View {
     @ViewBuilder
     private var actionButtons: some View {
         HStack(spacing: 4) {
-            // Re-inject button
-            Button {
-                Task { await onReinject() }
-            } label: {
-                reinjectionIcon
-                    .font(.system(size: 13))
-                    .foregroundStyle(
-                        reinjectionState == .failure ? AnyShapeStyle(Color.red) : AnyShapeStyle(Color.secondary)
-                    )
-                    .frame(width: 20, height: 20)
+            // Re-inject button — becomes a cancel button during countdown.
+            if case .countdown(let seconds) = reinjectionState {
+                Button {
+                    onCancelReinject()
+                } label: {
+                    Text("Cancel (\(seconds))")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(AnyShapeStyle(Color.secondary))
+                        .frame(height: 20)
+                        .frame(minWidth: 60)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle().size(CGSize(width: 80, height: 44)))
+                .accessibilityLabel("Cancel re-injection countdown")
+                .help("Cancel re-injection")
+            } else {
+                Button {
+                    Task { await onReinject() }
+                } label: {
+                    reinjectionIcon
+                        .font(.system(size: 13))
+                        .foregroundStyle(
+                            reinjectionState == .failure ? AnyShapeStyle(Color.red) : AnyShapeStyle(Color.secondary)
+                        )
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.plain)
+                .disabled(actionsDisabled)
+                .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
+                .accessibilityLabel("Re-inject transcription")
+                .help("Re-inject this transcription")
+                .opacity(buttonOpacity)
             }
-            .buttonStyle(.plain)
-            .disabled(actionsDisabled)
-            .contentShape(Rectangle().size(CGSize(width: 44, height: 44)))
-            .accessibilityLabel("Re-inject transcription")
-            .help("Re-inject this transcription")
-            .opacity(buttonOpacity)
 
             // Delete button
             Button {
@@ -184,6 +201,10 @@ struct HistoryRowView: View {
     private var reinjectionIcon: some View {
         switch reinjectionState {
         case .idle:
+            Image(systemName: "arrow.uturn.left")
+        case .countdown:
+            // Countdown state is handled by the cancel button branch above;
+            // this path is unreachable but must be exhaustive.
             Image(systemName: "arrow.uturn.left")
         case .loading:
             ProgressView()
