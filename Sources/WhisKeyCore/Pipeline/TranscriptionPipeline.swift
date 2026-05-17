@@ -320,7 +320,7 @@ public actor TranscriptionPipeline {
 
         guard !result.text.isEmpty,
               !Self.whisperNoiseTokens.contains(result.text) else {
-            logger.info("Suppressing output — blank or noise-only transcription: \"\(result.text)\"")
+            logger.info("Suppressing output — blank or noise-only transcription (\(result.text.count) chars)")
             return result
         }
 
@@ -355,8 +355,8 @@ public actor TranscriptionPipeline {
         flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
         do {
             let result = try await whisper.transcribe(pcm: pcmSamples, languageHint: langHint)
-            flog.log(.info, "Whisper returned: \"\(result.text)\"")
-            logger.info("Transcription complete: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]")
+            flog.log(.info, "Whisper returned \(result.text.count) chars [\(result.language ?? "auto")]")
+            logger.info("Transcription complete: \(result.text.count) chars [\(result.language ?? "auto"), \(result.durationMs)ms]")
             return result
         } catch {
             flog.log(.error, "Whisper error: \(error.localizedDescription)")
@@ -387,7 +387,7 @@ public actor TranscriptionPipeline {
                 profile: resolvedProfile
             )
             if cleaned != rawText {
-                logger.info("LLM cleanup applied. Original: \"\(rawText)\" → Cleaned: \"\(cleaned)\"")
+                logger.info("LLM cleanup applied. \(rawText.count) → \(cleaned.count) chars")
             }
             return cleaned
         } catch {
