@@ -182,8 +182,7 @@ public final class ModelManager: @unchecked Sendable {
 
     /// Cancel an in-progress download for `modelID`.
     public func cancelDownload(_ modelID: String) {
-        guard let task = activeTasks[modelID] else { return }
-        task.cancel()
+        activeTasks[modelID]?.cancel()
         activeTasks.removeValue(forKey: modelID)
         downloadProgress.removeValue(forKey: modelID)
         logger.info("Download cancelled for \(modelID)")
@@ -197,14 +196,14 @@ public final class ModelManager: @unchecked Sendable {
         let target = modelsDirectory.appendingPathComponent(model.filename)
         do {
             try FileManager.default.removeItem(at: target)
-            downloadedModels.removeAll { $0 == modelID }
-            if activeModelID == modelID {
-                activeModelID = downloadedModels.first
-            }
-            logger.info("Deleted model \(modelID)")
         } catch {
             logger.error("Failed to delete model \(modelID): \(error.localizedDescription)")
         }
+        downloadedModels.removeAll { $0 == modelID }
+        if activeModelID == modelID {
+            activeModelID = downloadedModels.first
+        }
+        logger.info("Deleted model \(modelID)")
     }
 
     // MARK: - Internal callbacks (called from DownloadDelegateBridge on main queue)

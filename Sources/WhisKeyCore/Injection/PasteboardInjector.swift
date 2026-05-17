@@ -31,7 +31,9 @@ final class PasteboardInjector: @unchecked Sendable {
         return true
     }
 
-    private func simulateCmdV() {
+    // nonisolated: CGEvent.post does not require the main thread and must not
+    // run there to avoid blocking the UI (R9).
+    nonisolated private func simulateCmdV() {
         let source = CGEventSource(stateID: .hidSystemState)
         let vKeyCode: CGKeyCode = 0x09  // kVK_ANSI_V
 

@@ -65,6 +65,26 @@ public final class PermissionsManager: Sendable {
         NSWorkspace.shared.open(url)
     }
 
+    /// Open System Settings to the Microphone pane.
+    /// Used when the user has denied microphone access and needs to re-enable it manually.
+    public func openMicrophoneSettings() {
+        // swiftlint:disable:next force_unwrapping
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Request Input Monitoring access, registering the app in System Settings >
+    /// Privacy & Security > Input Monitoring. Must be called before directing the
+    /// user to that pane — `CGPreflightListenEventAccess()` only reads the current
+    /// status and does NOT register the app in the list.
+    ///
+    /// - Returns: `true` if access is already granted; `false` otherwise (the TCC
+    ///   prompt or the System Settings entry will appear asynchronously).
+    @discardableResult
+    public func requestInputMonitoringAccess() -> Bool {
+        CGRequestListenEventAccess()
+    }
+
     /// Open System Settings to the Input Monitoring pane.
     public func openInputMonitoringSettings() {
         // swiftlint:disable:next force_unwrapping

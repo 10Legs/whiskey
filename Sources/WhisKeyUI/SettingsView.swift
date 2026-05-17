@@ -22,6 +22,9 @@ public struct SettingsView: View {
             GeneralTab(settings: settings, modelManager: modelManager)
                 .tabItem { Label("General", systemImage: "gear") }
 
+            ModelSettingsView(modelManager: modelManager)
+                .tabItem { Label("Models", systemImage: "square.and.arrow.down") }
+
             HotkeyTab()
                 .tabItem { Label("Hotkey", systemImage: "keyboard") }
 
@@ -34,7 +37,7 @@ public struct SettingsView: View {
             PrivacyTab()
                 .tabItem { Label("Privacy", systemImage: "lock.shield") }
         }
-        .frame(width: 480, height: 320)
+        .frame(width: 520, height: 400)
         .background(hudBackground)
         .accentColor(phosphorGreen)
         .fontDesign(.monospaced)
