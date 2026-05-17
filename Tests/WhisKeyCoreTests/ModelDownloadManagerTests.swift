@@ -39,7 +39,11 @@ class ModelStatusTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        settings = SettingsManager()
+        // Use an isolated in-memory DB so setUp never touches AppDatabase.shared
+        // or the Keychain — both are unavailable in unsigned CI environments
+        // where errSecInteractionNotAllowed (-25308) would cause a fatalError.
+        let db = try AppDatabase.makeInMemory()
+        settings = SettingsManager(db: db)
         manager  = ModelManager(settings: settings)
         status   = ModelStatus(modelManager: manager)
     }
@@ -175,7 +179,11 @@ class ModelManagerDirectoryTests: XCTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        settings = SettingsManager()
+        // Use an isolated in-memory DB so setUp never touches AppDatabase.shared
+        // or the Keychain — both are unavailable in unsigned CI environments
+        // where errSecInteractionNotAllowed (-25308) would cause a fatalError.
+        let db = try AppDatabase.makeInMemory()
+        settings = SettingsManager(db: db)
         manager  = ModelManager(settings: settings)
     }
 
