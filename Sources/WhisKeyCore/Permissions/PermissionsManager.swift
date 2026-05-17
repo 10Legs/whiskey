@@ -65,6 +65,14 @@ public final class PermissionsManager: Sendable {
         NSWorkspace.shared.open(url)
     }
 
+    /// Open System Settings to the Microphone pane.
+    /// Used when the user has denied microphone access and needs to re-enable it manually.
+    public func openMicrophoneSettings() {
+        // swiftlint:disable:next force_unwrapping
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!
+        NSWorkspace.shared.open(url)
+    }
+
     /// Open System Settings to the Input Monitoring pane.
     public func openInputMonitoringSettings() {
         // swiftlint:disable:next force_unwrapping

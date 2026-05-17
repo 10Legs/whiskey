@@ -35,6 +35,44 @@ do {
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "AppDelegate")
 
+// MARK: - Menu Bar Icon Animation
+
+/// Observable state driving the animated status-item icon.
+/// Lives on @MainActor; mutated only from AppDelegate state transitions.
+@MainActor
+final class MenuBarIconState: ObservableObject {
+    @Published var isRecording: Bool = false
+    @Published var symbolName: String = "waveform.and.mic"
+    @Published var accessibilityLabel: String = "WhisKey"
+}
+
+/// SwiftUI view embedded in the NSStatusBarButton via NSHostingView.
+///
+/// Uses `.symbolEffect(.pulse.wholeSymbol, isActive: isRecording)` on macOS 14+
+/// so the mic pulses while recording.  When Reduce Motion is enabled the pulse
+/// is suppressed and the icon turns red instead — no scale or motion change.
+private struct MenuBarIconView: View {
+    @ObservedObject var state: MenuBarIconState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image(systemName: state.symbolName)
+            .font(.system(size: 14, weight: .regular))
+            .foregroundStyle(iconColor)
+            .symbolEffect(
+                .pulse.wholeSymbol,
+                options: .repeating,
+                isActive: state.isRecording && !reduceMotion
+            )
+            .frame(width: 18, height: 18)
+            .accessibilityLabel(state.accessibilityLabel)
+    }
+
+    private var iconColor: Color {
+        state.isRecording ? Color(nsColor: .systemRed) : .primary
+    }
+}
+
 // MARK: - App Delegate
 
 // swiftlint:disable type_body_length
@@ -51,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var appContextService = AppContextService(settingsManager: settingsManager)
     private var transcriptionTask: Task<Void, Never>?
     private var settingsWindow: NSWindow?
+    private var onboardingWindow: PermissionsOnboardingWindow?
 
     // MARK: - Whisper Glass state
 
@@ -58,55 +97,96 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Held alive for audio level forwarding.
     private var hudController: FloatingHUDWindowController?
 
+    // MARK: - Animated menu bar icon
+
+    /// Observable model for the SwiftUI icon view hosted inside NSStatusBarButton.
+    private let iconState = MenuBarIconState()
+    /// Retains the NSHostingView so it is not deallocated while the status item lives.
+    private var iconHostingView: NSView?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // hide from Dock
 
-        setupStatusItem()
-        setupPopover()
-        checkPermissionsAndStart()
-        checkModelPresence()
+        // Guard: show onboarding window when any required permission is missing.
+        // Menu bar item is suppressed until onboarding completes.
+        let requiredGranted = permissions.status(for: .microphone) == .granted
+            && AXIsProcessTrusted()
+
+        if !requiredGranted {
+            showOnboarding()
+        } else {
+            setupStatusItem()
+            setupPopover()
+            checkPermissionsAndStart()
+            checkModelPresence()
+        }
+    }
+
+    // MARK: - Onboarding
+
+    private func showOnboarding() {
+        let window = PermissionsOnboardingWindow(permissions: permissions) { [weak self] in
+            guard let self else { return }
+            self.onboardingWindow = nil
+            self.setupStatusItem()
+            self.setupPopover()
+            self.checkPermissionsAndStart()
+            self.checkModelPresence()
+        }
+        onboardingWindow = window
+        window.show()
     }
 
     // MARK: - Status Item (Task 3)
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        if let button = statusItem?.button {
-            applyStatusIcon(.idle)
-            button.action = #selector(statusItemClicked)
-            button.target = self
-        }
+        guard let button = statusItem?.button else { return }
+
+        // Clear any NSButton image — the animated SwiftUI view takes over rendering.
+        button.image = nil
+
+        // Embed an NSHostingView<MenuBarIconView> as a subview of the status button.
+        // This lets SwiftUI drive .symbolEffect animation declaratively.
+        let hosting = NSHostingView(rootView: MenuBarIconView(state: iconState))
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        button.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+            hosting.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+            hosting.widthAnchor.constraint(equalToConstant: 22),
+            hosting.heightAnchor.constraint(equalToConstant: 22)
+        ])
+        iconHostingView = hosting
+
+        button.action = #selector(statusItemClicked)
+        button.target = self
+        applyStatusIcon(.idle)
     }
 
     private enum IconState { case idle, recording, processing, error }
 
+    /// Updates the observable `iconState` which drives the SwiftUI icon view.
+    /// All recording-state animation and colour changes are handled declaratively
+    /// inside `MenuBarIconView`; this method only updates the data model.
     private func applyStatusIcon(_ state: IconState) {
-        guard let button = statusItem?.button else { return }
-        button.image = nil
-
         switch state {
         case .idle:
-            button.image = NSImage(
-                systemSymbolName: "waveform.and.mic",
-                accessibilityDescription: "WhisKey"
-            )
+            iconState.symbolName = "waveform.and.mic"
+            iconState.accessibilityLabel = "WhisKey"
+            iconState.isRecording = false
         case .recording:
-            // pulse applied via symbolEffect in SwiftUI; NSStatusItem uses NSImage directly.
-            // Use a distinct filled icon so the recording state is visually obvious.
-            button.image = NSImage(
-                systemSymbolName: "mic.fill",
-                accessibilityDescription: "Recording"
-            )
+            iconState.symbolName = "mic.fill"
+            iconState.accessibilityLabel = "Recording"
+            iconState.isRecording = true
         case .processing:
-            button.image = NSImage(
-                systemSymbolName: "waveform",
-                accessibilityDescription: "Transcribing"
-            )
+            iconState.symbolName = "waveform"
+            iconState.accessibilityLabel = "Transcribing"
+            iconState.isRecording = false
         case .error:
-            button.image = NSImage(
-                systemSymbolName: "exclamationmark.triangle",
-                accessibilityDescription: "WhisKey Error"
-            )
+            iconState.symbolName = "exclamationmark.triangle"
+            iconState.accessibilityLabel = "WhisKey Error"
+            iconState.isRecording = false
         }
     }
 
