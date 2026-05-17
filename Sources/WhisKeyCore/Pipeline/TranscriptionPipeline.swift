@@ -101,13 +101,17 @@ public enum PipelineError: Error, LocalizedError {
 
 /// Async orchestrator wiring AudioCaptureService → WhisperBridge → TextInjector.
 ///
+/// `TranscriptionPipeline` is a Swift actor: all mutable state (`isRecording`) is
+/// automatically protected by actor isolation. Callers must `await` actor-isolated
+/// methods (`startRecording`, `stopAndTranscribe`, `warmUpLLM`) from outside the actor.
+///
 /// Typical usage:
 /// ```swift
 /// let pipeline = TranscriptionPipeline()
-/// pipeline.startRecording()           // called from hotkey down
-/// let result = try await pipeline.stopAndTranscribe()  // called from hotkey up
+/// await pipeline.startRecording()           // called from hotkey down
+/// let result = await pipeline.stopAndTranscribe()  // called from hotkey up
 /// ```
-public final class TranscriptionPipeline: @unchecked Sendable {
+public actor TranscriptionPipeline {
 
     // MARK: - Constants
 
@@ -129,27 +133,35 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     // MARK: - Configuration
 
     /// BCP-47 language hint passed to Whisper. nil = auto-detect.
-    public var languageHint: String?
+    /// `nonisolated(unsafe)` — written once from `@MainActor` at startup before any
+    /// concurrent access begins; read inside the actor only during transcription.
+    public nonisolated(unsafe) var languageHint: String?
 
     /// LLM post-processing backend. Defaults to LlamaCppProvider; falls back to
     /// PassthroughProvider at runtime when the GGUF model file is absent.
-    public var llmProvider: any LLMProvider = LlamaCppProvider()
+    /// `nonisolated(unsafe)` — written once from `@MainActor` at startup.
+    public nonisolated(unsafe) var llmProvider: any LLMProvider = LlamaCppProvider()
 
     /// Cleanup profile applied to every transcription.
-    public var cleanupProfile: CleanupProfile = CleanupProfile()
+    /// `nonisolated(unsafe)` — written once from `@MainActor` at startup.
+    public nonisolated(unsafe) var cleanupProfile: CleanupProfile = CleanupProfile()
 
     /// Context service used to read the frontmost application before injection.
     private let contextService = ContextService()
 
     /// Active-app profile service (Feature 1.3). Injected from `AppDelegate`.
     /// `nil` preserves pre-Sprint-1 behaviour for any caller that does not supply it.
-    public var appContextService: AppContextService?
+    /// `nonisolated(unsafe)` — written once from `@MainActor` after init.
+    public nonisolated(unsafe) var appContextService: AppContextService?
 
     // MARK: - Audio Level
 
     /// Normalized RMS audio level (0.0–1.0) forwarded from AudioCaptureService.
     /// Subscribe from UI layers for real-time waveform visualization.
-    public var audioLevelPublisher: AnyPublisher<Float, Never> {
+    /// `nonisolated` because `audioCapture` is a `let` stored property — actors
+    /// expose `let` properties nonisolated by default, so this computed property
+    /// is safe to call without `await`.
+    public nonisolated var audioLevelPublisher: AnyPublisher<Float, Never> {
         audioCapture.audioLevelPublisher.eraseToAnyPublisher()
     }
 
@@ -160,10 +172,14 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     // MARK: - Callbacks
 
     /// Called on the main thread when a transcription result is ready.
-    public var onTranscriptionReady: ((TranscriptionResult) -> Void)?
+    /// `nonisolated(unsafe)` — assigned from `@MainActor` before any concurrent
+    /// access and always invoked via `await MainActor.run { ... }` inside the actor.
+    public nonisolated(unsafe) var onTranscriptionReady: ((TranscriptionResult) -> Void)?
 
     /// Called on the main thread when any pipeline error occurs.
-    public var onError: ((Error) -> Void)?
+    /// `nonisolated(unsafe)` — assigned from `@MainActor` before any concurrent
+    /// access and always invoked via `await MainActor.run { ... }` inside the actor.
+    public nonisolated(unsafe) var onError: ((Error) -> Void)?
 
     // MARK: - Init
 
@@ -200,7 +216,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     /// permission, the error is surfaced as `.microphonePermissionDenied`
     /// rather than the generic `.captureError` so the UI can prompt the user
     /// to open System Settings. All error paths are mirrored to `FileLogger`.
-    public func startRecording() {
+    public func startRecording() async {
         let flog = FileLogger.shared
         guard !isRecording else {
             logger.warning("startRecording called while already recording — ignored.")
@@ -228,9 +244,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             } else {
                 mapped = .captureError(error)
             }
-            DispatchQueue.main.async { [weak self] in
-                self?.onError?(mapped)
-            }
+            await MainActor.run { onError?(mapped) }
         }
     }
 
@@ -382,9 +396,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
                 .warn,
                 "Pipeline: LLM cleanup failed (\(error.localizedDescription)); falling back to raw transcript."
             )
-            await MainActor.run { [weak self] in
-                self?.onError?(PipelineError.llmCleanupFailed(error))
-            }
+            await MainActor.run { onError?(PipelineError.llmCleanupFailed(error)) }
             return rawText
         }
     }
