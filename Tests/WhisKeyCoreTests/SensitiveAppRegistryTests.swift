@@ -92,4 +92,40 @@ final class SensitiveAppRegistryTests: XCTestCase {
         XCTAssertFalse(SensitiveAppRegistry.isSensitive("com.apple.terminal"))
         XCTAssertFalse(SensitiveAppRegistry.isSensitive("COM.APPLE.TERMINAL"))
     }
+
+    // MARK: - Snippet expansion security invariant
+
+    func testAllPasswordManagersBlockedFromSnippetExpansion() {
+        // Snippet expansion is automated and must be blocked in credential-handling apps.
+        // TranscriptionPipeline checks isSensitive() before dispatching expanded text.
+        // This test pins the invariant so the blocklist cannot silently shrink.
+        let passwordManagers: [String] = [
+            "com.agilebits.onepassword7",
+            "com.agilebits.onepassword-osx",
+            "com.1password.1password",
+            "com.bitwarden.desktop",
+            "org.keepassxc.keepassxc",
+            "com.apple.keychainaccess"
+        ]
+        for bundleID in passwordManagers {
+            XCTAssertTrue(
+                SensitiveAppRegistry.isSensitive(bundleID),
+                "\(bundleID) must block snippet expansion"
+            )
+        }
+    }
+
+    func testAllTerminalsBlockedFromSnippetExpansion() {
+        // Shell injection via snippet expansion is a distinct threat vector.
+        let terminals: [String] = [
+            "com.apple.Terminal",
+            "com.googlecode.iterm2"
+        ]
+        for bundleID in terminals {
+            XCTAssertTrue(
+                SensitiveAppRegistry.isSensitive(bundleID),
+                "\(bundleID) must block snippet expansion"
+            )
+        }
+    }
 }

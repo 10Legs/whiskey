@@ -19,4 +19,8 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     case silenceTrimEnabled
     case fillerScrubberEnabled
     case appProfiles
+    /// Hands-free mode enabled flag. Default: true. (S3-T4)
+    case handsFreeEnabled
+    /// Double-tap disambiguation window milliseconds. Default: 300. Range: 200-500. (S3-T4)
+    case disambiguationWindowMs
 }

@@ -6,15 +6,24 @@ private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
 
 /// Tabbed settings window.
 ///
-/// Tabs: General | Hotkey | Transcription | AI Cleanup | Privacy
+/// Tabs: General | Models | Hotkey | Transcription | AI Cleanup | Snippets | Privacy
 public struct SettingsView: View {
 
     @Bindable private var settings: SettingsManager
     private let modelManager: ModelManager
+    private let networkMonitor: NetworkActivityMonitor?
+    @Binding private var hasPulsedRed: Bool
 
-    public init(settings: SettingsManager, modelManager: ModelManager) {
+    public init(
+        settings: SettingsManager,
+        modelManager: ModelManager,
+        networkMonitor: NetworkActivityMonitor? = nil,
+        hasPulsedRed: Binding<Bool> = .constant(false)
+    ) {
         self.settings = settings
         self.modelManager = modelManager
+        self.networkMonitor = networkMonitor
+        self._hasPulsedRed = hasPulsedRed
     }
 
     public var body: some View {
@@ -25,7 +34,7 @@ public struct SettingsView: View {
             ModelSettingsView(modelManager: modelManager)
                 .tabItem { Label("Models", systemImage: "square.and.arrow.down") }
 
-            HotkeyTab()
+            HotkeyTab(settings: settings)
                 .tabItem { Label("Hotkey", systemImage: "keyboard") }
 
             TranscriptionTab(settings: settings)
@@ -34,10 +43,21 @@ public struct SettingsView: View {
             AICleanupTab(settings: settings)
                 .tabItem { Label("AI Cleanup", systemImage: "sparkles") }
 
-            PrivacyTab()
-                .tabItem { Label("Privacy", systemImage: "lock.shield") }
+            // Voice Snippets — trigger-phrase text expansion (S3-T5).
+            SnippetsSettingsView()
+                .tabItem { Label("Snippets", systemImage: "text.badge.plus") }
+
+            // Network egress audit log and zero-egress claim indicator (S3-T3).
+            if let monitor = networkMonitor {
+                PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)
+                    .tabItem { Label("Privacy", systemImage: "lock.shield") }
+            } else {
+                PrivacyTab()
+                    .tabItem { Label("Privacy", systemImage: "lock.shield") }
+            }
+
         }
-        .frame(width: 520, height: 400)
+        .frame(width: 520, height: 460)
         .background(hudBackground)
         .accentColor(phosphorGreen)
         .fontDesign(.monospaced)
@@ -90,6 +110,8 @@ private struct GeneralTab: View {
 // MARK: - Hotkey Tab
 
 private struct HotkeyTab: View {
+    @Bindable var settings: SettingsManager
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -98,7 +120,7 @@ private struct HotkeyTab: View {
                         Text("CURRENT HOTKEY:")
                             .foregroundColor(phosphorGreen.opacity(0.6))
                         Spacer()
-                        Text("RIGHT OPTION (HOLD)")
+                        Text("RIGHT OPTION")
                             .fontDesign(.monospaced)
                             .foregroundColor(phosphorGreen)
                             .padding(.horizontal, 8)
@@ -108,9 +130,64 @@ private struct HotkeyTab: View {
                                     .stroke(phosphorGreen.opacity(0.4), lineWidth: 1)
                             )
                     }
-                    Text("Hold to record, release to transcribe and inject.")
+                    Text("Hold to record, release to transcribe. Double-tap to start hands-free recording.")
                         .font(.caption)
                         .foregroundColor(phosphorGreen.opacity(0.5))
+                }
+
+                PhosphorSection(title: "INTERACTION MODE") {
+                    Toggle("Enable hands-free mode (double-tap)", isOn: $settings.handsFreeEnabled)
+                        .tint(phosphorGreen)
+                        .foregroundColor(phosphorGreen)
+                        .accessibilityLabel("Enable hands-free mode")
+                        .accessibilityHint(
+                            "Double-tap the hotkey to start recording hands-free. Tap again to stop."
+                        )
+                    Text("Double-tap the hotkey to start recording hands-free. Tap again to stop.")
+                        .font(.caption)
+                        .foregroundColor(phosphorGreen.opacity(0.5))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("DOUBLE-TAP WINDOW")
+                                .font(.caption)
+                                .fontDesign(.monospaced)
+                                .foregroundColor(phosphorGreen.opacity(0.6))
+                            Spacer()
+                            Text("\(Int(settings.disambiguationWindowMs)) ms")
+                                .font(.caption)
+                                .fontDesign(.monospaced)
+                                .foregroundColor(phosphorGreen)
+                        }
+                        HStack(spacing: 8) {
+                            Text("FASTER")
+                                .font(.caption2)
+                                .fontDesign(.monospaced)
+                                .foregroundColor(phosphorGreen.opacity(0.45))
+                            Slider(
+                                value: $settings.disambiguationWindowMs,
+                                in: 250...500,
+                                step: 25
+                            )
+                            .tint(phosphorGreen)
+                            .accessibilityLabel("Double-tap speed")
+                            .accessibilityHint(
+                                "Controls how quickly you must double-tap. Increase if double-taps aren't registering."
+                            )
+                            Text("SLOWER")
+                                .font(.caption2)
+                                .fontDesign(.monospaced)
+                                .foregroundColor(phosphorGreen.opacity(0.45))
+                        }
+                        Text(
+                            "Controls how quickly you must double-tap. " +
+                            "Increase if your double-taps aren't registering."
+                        )
+                        .font(.caption)
+                        .foregroundColor(phosphorGreen.opacity(0.5))
+                    }
+                    .opacity(settings.handsFreeEnabled ? 1 : 0.35)
+                    .disabled(!settings.handsFreeEnabled)
                 }
             }
             .padding()

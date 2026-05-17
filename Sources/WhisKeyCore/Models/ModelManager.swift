@@ -212,7 +212,7 @@ public final class ModelManager: @unchecked Sendable {
         downloadProgress[modelID] = progress
     }
 
-    func handleCompletion(modelID: String, tempURL: URL) {
+    func handleCompletion(modelID: String, tempURL: URL, bytesSent: Int64, bytesReceived: Int64) {
         activeTasks.removeValue(forKey: modelID)
 
         guard let model = ModelManager.availableModels.first(where: { $0.id == modelID }) else {
@@ -235,6 +235,17 @@ public final class ModelManager: @unchecked Sendable {
                 activeModelID = modelID
             }
             logger.info("Model \(modelID) download complete and moved to \(destination.path)")
+
+            // Report audited egress to EgressAuditor so NetworkActivityMonitor reflects the download.
+            let domain = EgressAuditor.domainOnly(from: model.url)
+            Task {
+                await EgressAuditor.shared.recordCompleted(
+                    destination: domain,
+                    bytesSent: bytesSent,
+                    bytesReceived: bytesReceived,
+                    eventType: .modelDownload
+                )
+            }
         } catch {
             downloadError[modelID] = "Failed to save model: \(error.localizedDescription)"
             downloadProgress.removeValue(forKey: modelID)
@@ -281,6 +292,8 @@ private final class DownloadDelegateBridge: NSObject, URLSessionDownloadDelegate
 
     private weak var manager: ModelManager?
     private let modelID: String
+    /// Running total of bytes received. Updated on progress callbacks; passed to handleCompletion.
+    private var totalBytesWritten: Int64 = 0
 
     init(manager: ModelManager, modelID: String) {
         self.manager = manager
@@ -294,6 +307,7 @@ private final class DownloadDelegateBridge: NSObject, URLSessionDownloadDelegate
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
+        self.totalBytesWritten = totalBytesWritten
         guard totalBytesExpectedToWrite > 0 else { return }
         let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
         let id = modelID
@@ -323,8 +337,15 @@ private final class DownloadDelegateBridge: NSObject, URLSessionDownloadDelegate
         }
 
         let id = modelID
+        let bytesSent = downloadTask.countOfBytesSent
+        let bytesReceived = totalBytesWritten
         DispatchQueue.main.async { [weak manager] in
-            manager?.handleCompletion(modelID: id, tempURL: tempCopy)
+            manager?.handleCompletion(
+                modelID: id,
+                tempURL: tempCopy,
+                bytesSent: bytesSent,
+                bytesReceived: bytesReceived
+            )
         }
     }
 

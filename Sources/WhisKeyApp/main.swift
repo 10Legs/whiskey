@@ -56,14 +56,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var onboardingWindow: PermissionsOnboardingWindow?
 
+    // MARK: - Network Activity Monitor (S3-T3)
+
+    /// Live egress monitor. Started before the status item is created so the
+    /// dot badge reflects state from the first frame.
+    let networkMonitor = NetworkActivityMonitor()
+    private var egressObservationTask: Task<Void, Never>?
+
     // MARK: - Whisper Glass state
 
     private let pipelineState = PipelineStateModel()
     /// Held alive for audio level forwarding.
     private var hudController: FloatingHUDWindowController?
 
+    // MARK: - Icon tracking (no SwiftUI embedding in button)
+
+    /// The SF Symbol name currently displayed in the status button.
+    /// Updated by applyStatusIcon(_:) so applyEgressDot(_:) always composites
+    /// over the correct base symbol.
+    private var currentIconSymbolName: String = "waveform.and.mic"
+
+    /// The tint color currently applied to the status button, or nil for template
+    /// rendering. Restored by applyEgressDot when the dot is removed.
+    private var currentTintColor: NSColor?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // hide from Dock
+
+        // Start network monitoring immediately. EgressAuditor is wired after monitor starts.
+        networkMonitor.startMonitoring()
+        EgressAuditor.shared.configure(monitor: networkMonitor)
+        startEgressObservation()
 
         // Guard: show onboarding window when any required permission is missing.
         // Menu bar item is suppressed until onboarding completes.
@@ -78,6 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             checkPermissionsAndStart()
             checkModelPresence()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        networkMonitor.stopMonitoring()
+        egressObservationTask?.cancel()
     }
 
     // MARK: - Onboarding
@@ -95,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.show()
     }
 
-    // MARK: - Status Item (Task 3)
+    // MARK: - Status Item
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -110,30 +138,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyStatusIcon(.idle)
     }
 
-    private enum IconState { case idle, recording, processing, error }
+    // S3-T4: .handsFree added for hands-free recording state (steady orange mic.badge.xmark).
+    // No animation for this state — it is a stable indefinite mode.
+    private enum IconState { case idle, recording, handsFree, processing, error }
 
+    /// Updates the status button directly via NSImage + CABasicAnimation.
+    /// No NSHostingView or SwiftUI embedding in NSStatusBarButton — preserves the
+    /// popover coordinate fix from PR #28.
     private func applyStatusIcon(_ state: IconState) {
         guard let button = statusItem?.button else { return }
 
-        // Clear any previous pulse animation
+        // Clear any previous pulse animation first.
         button.layer?.removeAnimation(forKey: "whiskey.pulse")
 
         switch state {
         case .idle:
-            button.image = NSImage(systemSymbolName: "waveform.and.mic",
+            currentIconSymbolName = "waveform.and.mic"
+            currentTintColor = nil
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
                                    accessibilityDescription: "WhisKey")
             button.image?.isTemplate = true
             button.contentTintColor = nil
             button.setAccessibilityLabel("WhisKey")
 
         case .recording:
-            button.image = NSImage(systemSymbolName: "mic.fill",
+            // PTT: pulsing red mic.fill per S3-C2 spec table 4.1.
+            currentIconSymbolName = "mic.fill"
+            currentTintColor = .systemRed
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
                                    accessibilityDescription: "Recording")
             button.image?.isTemplate = false
             button.contentTintColor = .systemRed
-            button.setAccessibilityLabel("WhisKey \u{2013} Recording")
+            button.setAccessibilityLabel("WhisKey \u{2013} Push-to-Talk Recording")
             button.wantsLayer = true
-            // Respect reduce-motion preference
+            // Respect reduce-motion preference.
             if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
                 let pulse = CABasicAnimation(keyPath: "opacity")
                 pulse.fromValue = 1.0
@@ -145,25 +183,140 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 button.layer?.add(pulse, forKey: "whiskey.pulse")
             }
 
+        case .handsFree:
+            // Hands-free: steady orange mic.badge.xmark. No pulse (stable indefinite state).
+            // mic.badge.xmark available macOS 14+. systemOrange is a semantic color.
+            currentIconSymbolName = "mic.badge.xmark"
+            currentTintColor = .systemOrange
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "Hands-Free Recording")
+            button.image?.isTemplate = false
+            button.contentTintColor = .systemOrange
+            button.setAccessibilityLabel("WhisKey \u{2013} Hands-Free Recording")
+
         case .processing:
-            button.image = NSImage(systemSymbolName: "waveform",
+            currentIconSymbolName = "waveform"
+            currentTintColor = nil
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
                                    accessibilityDescription: "Transcribing")
             button.image?.isTemplate = true
             button.contentTintColor = nil
             button.setAccessibilityLabel("WhisKey \u{2013} Transcribing")
 
         case .error:
-            button.image = NSImage(systemSymbolName: "exclamationmark.triangle",
+            currentIconSymbolName = "exclamationmark.triangle"
+            currentTintColor = .systemOrange
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
                                    accessibilityDescription: "WhisKey Error")
             button.image?.isTemplate = true
             button.contentTintColor = .systemOrange
             button.setAccessibilityLabel("WhisKey \u{2013} Error")
         }
+
+        // Re-apply the egress dot over the freshly set icon so the badge is never lost
+        // when a state transition happens while egress monitoring is active.
+        applyEgressDot(networkMonitor.egressState)
     }
+
+    // MARK: - Egress Dot Badge (S3-T3)
+
+    /// Composites a small colored dot onto the current base SF Symbol and sets the
+    /// result as button.image. No SwiftUI — pure NSImage drawing.
+    ///
+    /// Called from startEgressObservation() whenever egressState changes, and also
+    /// at the end of applyStatusIcon(_:) to keep the dot in sync after state transitions.
+    private func applyEgressDot(_ state: EgressState) {
+        guard let button = statusItem?.button else { return }
+
+        let dotColor: NSColor? = switch state {
+        case .local:       .systemGreen
+        case .audited:     .secondaryLabelColor
+        case .unexpected:  .systemRed
+        case .unavailable: nil
+        }
+
+        if let dotColor {
+            // Composite: SF Symbol + dot in bottom-right quadrant.
+            // isTemplate = false so AppKit does not re-tint the composite; the dot
+            // must render in its semantic color, not the system accent.
+            let size = NSSize(width: 18, height: 18)
+            let composite = NSImage(size: size, flipped: false) { bounds in
+                NSImage(systemSymbolName: self.currentIconSymbolName,
+                        accessibilityDescription: nil)?
+                    .draw(in: bounds)
+                let dotRect = NSRect(x: bounds.maxX - 6, y: 0, width: 6, height: 6)
+                dotColor.setFill()
+                NSBezierPath(ovalIn: dotRect).fill()
+                return true
+            }
+            composite.isTemplate = false
+            button.image = composite
+            // Clear tint so the composited dot colour is not overridden by AppKit tinting.
+            button.contentTintColor = nil
+        } else {
+            // No dot — restore the plain template image with its current tint.
+            button.image = NSImage(systemSymbolName: currentIconSymbolName,
+                                   accessibilityDescription: "WhisKey")
+            button.image?.isTemplate = (currentTintColor == nil)
+            button.contentTintColor = currentTintColor
+        }
+    }
+
+    /// Polls `networkMonitor.egressState` at 500 ms intervals and updates the
+    /// menu bar dot badge and accessibility label accordingly.
+    ///
+    /// @Observable does not bridge to async streams natively on macOS 14, so a
+    /// polling loop is used — identical to the S3-T3 approach on the feature branch.
+    private func startEgressObservation() {
+        egressObservationTask = Task { [weak self] in
+            var lastState: EgressState?
+            while !Task.isCancelled {
+                guard let self else { return }
+                let state = self.networkMonitor.egressState
+                if state != lastState {
+                    lastState = state
+                    self.applyEgressDot(state)
+                    // Update accessibility label for idle/hands-free states.
+                    // Recording and processing states own their own labels.
+                    if let button = self.statusItem?.button {
+                        switch state {
+                        case .local:
+                            button.setAccessibilityLabel("WhisKey \u{2013} Local mode, no egress")
+                        case .audited:
+                            button.setAccessibilityLabel("WhisKey \u{2013} Cloud provider active")
+                        case .unexpected:
+                            button.setAccessibilityLabel("WhisKey \u{2013} Warning: unexpected egress detected")
+                        case .unavailable:
+                            break // Leave whatever the icon state set.
+                        }
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
+
+    // MARK: - State Transitions
 
     private func transitionToRecording() {
         applyStatusIcon(.recording)
         pipelineState.recordingState = .recording
+    }
+
+    /// Transitions to hands-free recording state.
+    /// Per S3-C2 spec section 6.3: post a VoiceOver announcement on entry.
+    private func transitionToHandsFree() {
+        applyStatusIcon(.handsFree)
+        pipelineState.recordingState = .handsFreeRecording
+        NSAccessibility.post(
+            element: statusItem?.button as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                NSAccessibility.NotificationUserInfoKey.announcement:
+                    "Hands-free recording started. Tap the hotkey to stop.",
+                NSAccessibility.NotificationUserInfoKey.priority: NSAccessibilityPriorityLevel.high.rawValue
+            ]
+        )
     }
 
     private func transitionToProcessing() {
@@ -240,7 +393,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let settingsView = SettingsView(settings: settingsManager, modelManager: modelManager)
+        let settingsView = SettingsView(
+            settings: settingsManager,
+            modelManager: modelManager
+        )
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "WhisKey Settings"
@@ -393,7 +549,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.pipeline.stopAndTranscribe()
             }
         }
-        hotkey.mode = .pushToTalk
+        // S3-T4: Hands-free callbacks — wired after onStartRecording/onStopRecording.
+        hotkey.onHandsFreeStart = { [weak self, weak hud] in
+            flog.log(.info, "Double-tap — hands-free recording started.")
+            Task { await self?.pipeline.startRecording() }
+            self?.transitionToHandsFree()
+            hud?.recordingDidStart()
+        }
+        hotkey.onHandsFreeStop = { [weak self, weak hud] in
+            guard let self else { return }
+            flog.log(.info, "Hands-free stop tap — running transcription.")
+            self.transitionToProcessing()
+            hud?.recordingDidStop()
+            self.transcriptionTask?.cancel()
+            self.transcriptionTask = Task {
+                await self.pipeline.stopAndTranscribe()
+            }
+        }
+        // Sync settings at launch; live-sync via observer below.
+        hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
+        hotkey.handsFreeEnabled = settingsManager.handsFreeEnabled
+
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.hotkey.disambiguationWindowMs = self.settingsManager.disambiguationWindowMs
+            self.hotkey.handsFreeEnabled = self.settingsManager.handsFreeEnabled
+        }
 
         Task.detached(priority: .background) { [weak self] in
             guard let self else { return }
