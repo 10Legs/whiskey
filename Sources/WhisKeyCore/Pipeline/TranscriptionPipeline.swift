@@ -405,8 +405,21 @@ public actor TranscriptionPipeline {
             : scrubbed
 
         // S3-T5: Voice Snippets — post-LLM, pre-injection trigger expansion.
-        // Injection still routes through SensitiveAppRegistry inside dispatchOutput.
         let (textToInject, expandedSnippet) = await applySnippetExpansion(afterLLM)
+
+        // Block expanded text from reaching sensitive apps (password managers, terminals, etc.).
+        // Raw transcription is always user-initiated; expansion is automated and must meet the
+        // same security bar as history re-injection.
+        if expandedSnippet != nil,
+           SensitiveAppRegistry.isSensitive(injectionContext.activeAppBundleID) {
+            logger.warning("Snippet expansion blocked — sensitive app: \(injectionContext.activeAppBundleID)")
+            FileLogger.shared.log(.warn, "Pipeline: snippet expansion blocked in sensitive app.")
+            await MainActor.run {
+                onError?(PipelineError.injectionSkipped("Snippet expansion blocked in sensitive app."))
+            }
+            await persistAndNotify(result: result, textToInject: afterLLM, bundleID: injectionContext.activeAppBundleID)
+            return result
+        }
 
         await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
 
@@ -426,7 +439,7 @@ public actor TranscriptionPipeline {
     /// Runs `SnippetExpander` against `text` if a store is wired in.
     ///
     /// Returns `(expandedText, matchedSnippet)` or `(text, nil)` when no match.
-    /// The caller is responsible for routing the returned text through `SensitiveAppRegistry`.
+    /// Caller must guard against sensitive apps before dispatching expanded text.
     private func applySnippetExpansion(_ text: String) async -> (String, Snippet?) {
         guard let store = snippetStore else { return (text, nil) }
         let snippets = await store.allSnippets()
