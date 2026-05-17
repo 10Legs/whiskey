@@ -400,6 +400,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsView = SettingsView(
             settings: settingsManager,
             modelManager: modelManager,
+            networkMonitor: networkMonitor,
+            hasPulsedRed: .constant(hasPulsedRed),
             bindingStore: bindingStore
         )
         let hostingController = NSHostingController(rootView: settingsView)
