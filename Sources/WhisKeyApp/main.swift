@@ -578,20 +578,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.handsFreeEnabled = settingsManager.handsFreeEnabled
 
         // Live-sync hotkey settings whenever UserDefaults change (slider/toggle in Settings).
+        // The closure NotificationCenter invokes is `@Sendable`, so all reads of
+        // `@MainActor`-isolated properties (settingsManager, bindingStore,
+        // hotkey.handsFreeEnabled, etc.) must hop through a MainActor Task to
+        // satisfy strict-concurrency. Sprint 4 / S4-T3.
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
-            self.hotkey.disambiguationWindowMs = self.settingsManager.disambiguationWindowMs
-            self.hotkey.handsFreeEnabled = self.settingsManager.handsFreeEnabled
-            // S3-T6: Sync the primary hotkey key code from the binding store.
-            // Other actions (openPopover, injectLastTranscription) are dispatched
-            // from HotkeyManager callbacks; only defaultTranscription drives watchedKeyCode.
-            let primaryBinding = self.bindingStore.binding(for: .defaultTranscription)
-            if let keyCode = primaryBinding.keyCode {
-                self.hotkey.watchedKeyCode = keyCode
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.hotkey.disambiguationWindowMs = self.settingsManager.disambiguationWindowMs
+                self.hotkey.handsFreeEnabled = self.settingsManager.handsFreeEnabled
+                // S3-T6: Sync the primary hotkey key code from the binding store.
+                // Other actions (openPopover, injectLastTranscription) are dispatched
+                // from HotkeyManager callbacks; only defaultTranscription drives watchedKeyCode.
+                let primaryBinding = self.bindingStore.binding(for: .defaultTranscription)
+                if let keyCode = primaryBinding.keyCode {
+                    self.hotkey.watchedKeyCode = keyCode
+                }
             }
         }
 
