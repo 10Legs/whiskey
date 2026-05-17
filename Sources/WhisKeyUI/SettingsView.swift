@@ -15,6 +15,7 @@ public struct SettingsView: View {
     @Binding private var hasPulsedRed: Bool
     private let bindingStore: HotkeyBindingStore
     private let vocabularyStore: PersonalVocabularyStore
+    private let toneProfileStore: AppToneProfileStore
 
     public init(
         settings: SettingsManager,
@@ -22,7 +23,8 @@ public struct SettingsView: View {
         networkMonitor: NetworkActivityMonitor? = nil,
         hasPulsedRed: Binding<Bool> = .constant(false),
         bindingStore: HotkeyBindingStore,
-        vocabularyStore: PersonalVocabularyStore = .shared
+        vocabularyStore: PersonalVocabularyStore = .shared,
+        toneProfileStore: AppToneProfileStore = .shared
     ) {
         self.settings = settings
         self.modelManager = modelManager
@@ -30,6 +32,7 @@ public struct SettingsView: View {
         self._hasPulsedRed = hasPulsedRed
         self.bindingStore = bindingStore
         self.vocabularyStore = vocabularyStore
+        self.toneProfileStore = toneProfileStore
     }
 
     public var body: some View {
@@ -54,6 +57,9 @@ public struct SettingsView: View {
 
             VocabularyTab(store: vocabularyStore)
                 .tabItem { Label("Vocabulary", systemImage: "text.and.list.bullet") }
+
+            ToneProfilesSettingsView(store: toneProfileStore)
+                .tabItem { Label("Tone", systemImage: "slider.horizontal.3") }
 
             if let monitor = networkMonitor {
                 PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)

@@ -45,7 +45,7 @@ public struct OllamaProvider: LLMProvider {
         let prompt = buildUserPrompt(rawTranscript: rawTranscript, profile: profile)
         let body: [String: Any] = [
             "model": modelName,
-            "system": profile.toneStyle.systemPrompt,
+            "system": profile.effectiveSystemPrompt,
             "prompt": prompt,
             "stream": false
         ]

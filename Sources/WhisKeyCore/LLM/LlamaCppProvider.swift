@@ -73,7 +73,7 @@ public actor LlamaCppProvider: LLMProvider {
             return rawTranscript
         }
 
-        let systemPrompt = profile.toneStyle.systemPrompt
+        let systemPrompt = profile.effectiveSystemPrompt
         let userPrompt = buildUserPrompt(rawTranscript: rawTranscript, profile: profile)
 
         // llama_bridge_complete is a blocking C call — run it off the actor executor.

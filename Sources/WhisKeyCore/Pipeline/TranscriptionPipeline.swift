@@ -164,6 +164,11 @@ public actor TranscriptionPipeline {
     /// Actor-isolated; use `setVocabularyStore(_:)` to update from outside the actor.
     private var vocabularyStore: PersonalVocabularyStore?
 
+    /// Per-app tone profile store (S4-T7).
+    /// When `nil` the global `CleanupProfile` is used unchanged.
+    /// Actor-isolated; use `setToneProfileStore(_:)` to update from outside the actor.
+    private var toneProfileStore: AppToneProfileStore?
+
     // MARK: - Audio Level
 
     /// Normalized RMS audio level (0.0-1.0) forwarded from AudioCaptureService.
@@ -261,6 +266,17 @@ public actor TranscriptionPipeline {
     /// Pass `nil` to disable vocabulary biasing.
     public func setVocabularyStore(_ store: PersonalVocabularyStore?) {
         self.vocabularyStore = store
+    }
+
+    /// Wires the per-app tone profile store into the pipeline (S4-T7).
+    ///
+    /// When set, the store is consulted before each LLM cleanup call. If the
+    /// active app maps to `.raw`, the LLM is skipped and the raw transcript is
+    /// returned verbatim. Otherwise the profile's `systemPromptSuffix` is appended
+    /// to the base system prompt.
+    /// Pass `nil` to disable per-app tone overrides.
+    public func setToneProfileStore(_ store: AppToneProfileStore?) {
+        self.toneProfileStore = store
     }
 
     /// Convenience setter for both pipeline callbacks in a single actor hop.
