@@ -23,7 +23,7 @@ struct OnboardingProgressDots: View {
             ZStack {
                 Circle()
                     .fill(Color.accentColor)
-                    .frame(width: 8, height: 8)
+                    .frame(width: 6, height: 6)
                 Image(systemName: "checkmark")
                     .font(.system(size: 5, weight: .semibold))
                     .foregroundStyle(Color.white)
@@ -38,7 +38,7 @@ struct OnboardingProgressDots: View {
         } else {
             // Inactive
             Circle()
-                .fill(Color.primary.opacity(0.2))
+                .fill(.tertiary)
                 .frame(width: 6, height: 6)
                 .accessibilityLabel("Step \(index + 1) pending")
         }
