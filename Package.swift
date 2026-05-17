@@ -11,9 +11,55 @@ let package = Package(
         .library(name: "WhisKeyCore", targets: ["WhisKeyCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/groue/GRDB.swift.git", from: "6.29.0"),
+        // GRDB.swift remote dependency removed in Sprint 1.1.
+        // GRDB source is now vendored in Vendor/GRDB/ and built against SQLCipher
+        // via the SQLCipherLib system library target. This gives us full-file
+        // at-rest encryption with a Keychain-derived 32-byte key.
+        //
+        // Developer prerequisite: brew install sqlcipher
     ],
     targets: [
+
+        // MARK: - SQLCipher system library (Homebrew)
+        // Module name `SQLCipher` matches the import in GRDB's Export.swift
+        // when compiled with `-D GRDBCIPHER`.
+        // Requires: brew install sqlcipher  (installs to /opt/homebrew/opt/sqlcipher)
+        //
+        // pkgConfig is set to "sqlcipher" so SPM auto-discovers the lib path
+        // from /opt/homebrew/opt/sqlcipher/lib/pkgconfig/sqlcipher.pc.
+        .systemLibrary(
+            name: "SQLCipher",
+            path: "SQLCipherLib",
+            pkgConfig: "sqlcipher",
+            providers: [
+                .brew(["sqlcipher"])
+            ]
+        ),
+
+        // MARK: - GRDBEncrypted — GRDB 6.29.3 vendored + compiled against SQLCipher
+        // Source extracted from https://github.com/groue/GRDB.swift tag v6.29.3.
+        // GRDBCIPHER  → Export.swift imports SQLCipher instead of CSQLite
+        // SQLITE_HAS_CODEC → enables Database.usePassphrase(_:) API
+        // SWIFT_PACKAGE → satisfies GRDB's own package-build guard
+        .target(
+            name: "GRDBEncrypted",
+            dependencies: ["SQLCipher"],
+            path: "Vendor/GRDB",
+            exclude: [
+                "Documentation.docc",
+                "PrivacyInfo.xcprivacy",
+            ],
+            swiftSettings: [
+                .define("GRDBCIPHER"),
+                .define("SQLITE_HAS_CODEC"),
+                .define("SWIFT_PACKAGE"),
+                .define("SQLITE_ENABLE_FTS5"),
+            ],
+            linkerSettings: [
+                .linkedLibrary("sqlcipher"),
+                .unsafeFlags(["-L/opt/homebrew/opt/sqlcipher/lib"]),
+            ]
+        ),
 
         // MARK: - CGGML — shared ggml runtime (llama.cpp 0.9.11)
         // Both CWhisper and CLlama depend on this. Avoids duplicate symbol errors
@@ -106,7 +152,6 @@ let package = Package(
                 .define("LLAMA_VERSION", to: "\"0.0.0\""),
                 .headerSearchPath("."),
                 .headerSearchPath("include"),
-                .headerSearchPath("models"),
             ],
             cxxSettings: [
                 .define("NDEBUG"),
@@ -128,11 +173,13 @@ let package = Package(
             dependencies: [
                 "CWhisper",
                 "CLlama",
-                .product(name: "GRDB", package: "GRDB.swift"),
+                "GRDBEncrypted",
             ],
             path: "Sources/WhisKeyCore",
             swiftSettings: [
-                .unsafeFlags(["-strict-concurrency=complete"])
+                .define("GRDBCIPHER"),
+                .define("SQLITE_HAS_CODEC"),
+                .unsafeFlags(["-strict-concurrency=complete"]),
             ]
         ),
 
@@ -169,6 +216,8 @@ let package = Package(
             // Testing.framework lives under the Developer frameworks directory.
             // Xcode runners expose it automatically; CLT requires an explicit search path.
             swiftSettings: [
+                .define("GRDBCIPHER"),
+                .define("SQLITE_HAS_CODEC"),
                 .unsafeFlags([
                     "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
                 ], .when(platforms: [.macOS])),

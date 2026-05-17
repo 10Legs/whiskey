@@ -34,24 +34,61 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Cache SPM dependencies
-        uses: actions/cache@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-spm-
+      - name: Restore local SPM cache
+        # ~/whiskey-spm-cache lives outside the workspace so it survives
+        # git clean from concurrent SwiftLint/Code Quality jobs. On the first
+        # run the directory won't exist and the build is cold; subsequent runs
+        # are incremental (~30s instead of 14+ min).
+        run: |
+          CACHE_DIR="${HOME}/.whiskey-spm-cache"
+          if [ -d "$CACHE_DIR" ]; then
+            echo "Restoring local SPM cache from $CACHE_DIR"
+            rsync -a "$CACHE_DIR/" .build/
+          else
+            echo "No local SPM cache — cold build"
+          fi
 
-      - name: Build (debug)
-        run: swift build -c debug 2>&1
+      - name: Install SQLCipher
+        run: /opt/homebrew/bin/brew install sqlcipher 2>&1 || /opt/homebrew/bin/brew upgrade sqlcipher 2>&1 || true
+
+      - name: Build (debug + tests)
+        # --build-tests compiles test targets here (under --jobs 4 throttle) so
+        # "Run tests" below has nothing to compile and runs in < 1 second.
+        # Without this, swift test compiled the test target with no --jobs limit,
+        # saturating all 8 cores and starving the runner's renewjob HTTP threads.
+        run: |
+          while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
+          HPID=$!
+          swift build -c debug --build-tests --jobs 4 2>&1
+          STATUS=$?
+          kill $HPID 2>/dev/null || true
+          exit $STATUS
+
+      - name: Save local SPM cache
+        # Save even on failure so partial builds warm the cache for the next run.
+        if: success() || failure()
+        run: |
+          CACHE_DIR="${HOME}/.whiskey-spm-cache"
+          echo "Saving SPM cache to $CACHE_DIR"
+          rsync -a .build/ "$CACHE_DIR/"
 
       - name: Run tests
-        run: swift test --filter WhisKeyCoreTests 2>&1
+        # --jobs 4 guards against any incremental recompile using all cores.
+        run: swift test --jobs 4 --filter WhisKeyCoreTests 2>&1
 
       - name: Build (release) — catch release-only issues
         # Only on PRs to main; skip on push to keep push CI fast.
+        # --jobs 2 prevents swift from saturating all CPU cores, which starves
+        # the runner's I/O threads and causes the renewjob connection to drop.
+        # The heartbeat loop emits a line every 30 s to keep log-streaming alive.
         if: github.event_name == 'pull_request'
-        run: swift build -c release 2>&1
+        run: |
+          while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
+          HPID=$!
+          swift build -c release --jobs 2 2>&1
+          STATUS=$?
+          kill $HPID 2>/dev/null || true
+          exit $STATUS
 
 # ---------------------------------------------------------------------------
 # Job: swiftlint

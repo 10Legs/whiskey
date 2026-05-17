@@ -1,5 +1,5 @@
 import Foundation
-import GRDB
+import GRDBEncrypted
 import os.log
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "SettingsManager")
@@ -141,6 +141,39 @@ public final class SettingsManager: @unchecked Sendable {
     public var activeModelID: String? {
         get { get(.activeModelID, default: nil as String?) }
         set { set(.activeModelID, value: newValue) }
+    }
+
+    /// Maximum number of history entries to retain.
+    /// After every insert, `HistoryStore` trims entries beyond this count (oldest first).
+    /// Clamped to the range 50–10000. Default: 500.
+    public var historyRetentionMax: Int {
+        get {
+            let raw: Int = get(.historyRetentionMax, default: 500)
+            return max(50, min(10_000, raw))
+        }
+        set { set(.historyRetentionMax, value: max(50, min(10_000, newValue))) }
+    }
+
+    /// When `false`, the energy-based silence trimmer is not applied to captured PCM. Defaults to `true`.
+    public var silenceTrimEnabled: Bool {
+        get { get(.silenceTrimEnabled, default: true) }
+        set { set(.silenceTrimEnabled, value: newValue) }
+    }
+
+    /// When `false`, the post-Whisper filler-word regex scrubber is not applied. Defaults to `true`.
+    public var fillerScrubberEnabled: Bool {
+        get { get(.fillerScrubberEnabled, default: true) }
+        set { set(.fillerScrubberEnabled, value: newValue) }
+    }
+
+    /// Per-application transcription profiles stored as a JSON array.
+    /// Defaults to a single wildcard profile when empty.
+    public var appProfiles: [AppProfile] {
+        get {
+            let profiles: [AppProfile] = get(.appProfiles, default: [])
+            return profiles.isEmpty ? [AppProfile.makeDefault()] : profiles
+        }
+        set { set(.appProfiles, value: newValue) }
     }
 
     /// Builds a `CleanupProfile` from current settings.

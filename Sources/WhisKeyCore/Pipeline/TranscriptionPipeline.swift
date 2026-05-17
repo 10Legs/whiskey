@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 @preconcurrency import ApplicationServices
 import Combine
@@ -140,6 +141,10 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     /// Context service used to read the frontmost application before injection.
     private let contextService = ContextService()
 
+    /// Active-app profile service (Feature 1.3). Injected from `AppDelegate`.
+    /// `nil` preserves pre-Sprint-1 behaviour for any caller that does not supply it.
+    public var appContextService: AppContextService?
+
     // MARK: - Audio Level
 
     /// Normalized RMS audio level (0.0–1.0) forwarded from AudioCaptureService.
@@ -244,6 +249,7 @@ public final class TranscriptionPipeline: @unchecked Sendable {
     /// Stop recording, run transcription, and inject the result into the focused window.
     /// Call when the hotkey is released.
     @discardableResult
+    // swiftlint:disable:next function_body_length
     public func stopAndTranscribe() async -> TranscriptionResult? {
         guard isRecording else {
             logger.warning("stopAndTranscribe called while not recording — ignored.")
@@ -251,17 +257,38 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         }
 
         isRecording = false
-        let pcmSamples = audioCapture.stopCapture()
+        let rawSamples = audioCapture.stopCapture()
         let flog = FileLogger.shared
-        flog.log(.info, "Recording stopped. Captured \(pcmSamples.count) samples.")
-        logger.info("Recording stopped. Captured \(pcmSamples.count) samples.")
+        flog.log(.info, "Recording stopped. Captured \(rawSamples.count) samples.")
+        logger.info("Recording stopped. Captured \(rawSamples.count) samples.")
 
-        guard !pcmSamples.isEmpty else {
+        guard !rawSamples.isEmpty else {
             flog.log(.warn, "No audio samples captured — check Microphone permission.")
             logger.warning("No audio samples captured; skipping transcription.")
             // Fix 4: Ensure capture flags are fully cleared on this error path.
             audioCapture.reset()
             return nil
+        }
+
+        // Feature 1.3: resolve active-app profile once at call start for a stable view.
+        let profile = await MainActor.run { appContextService?.activeProfile }
+        let effectiveLangHint = profile?.languageHint ?? languageHint
+        let effectiveCleanup = profile?.cleanupProfile ?? cleanupProfile
+
+        // Feature 1.2: energy-based silence trim (pre-Whisper).
+        let trimEnabled = await MainActor.run { settings.silenceTrimEnabled }
+        let pcmSamples: [Float]
+        if trimEnabled {
+            let trimmed = SilenceTrimmer.trim(rawSamples)
+            if trimmed.isEmpty {
+                flog.log(.warn, "SilenceTrimmer: buffer contained < 200 ms of speech — skipping.")
+                logger.warning("SilenceTrimmer returned empty buffer; skipping transcription.")
+                return nil
+            }
+            flog.log(.info, "SilenceTrimmer: \(rawSamples.count) → \(trimmed.count) samples.")
+            pcmSamples = trimmed
+        } else {
+            pcmSamples = rawSamples
         }
 
         // Snapshot the focused AX element NOW — before transcription latency causes focus to change.
@@ -273,7 +300,9 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             return ref.map { $0 as! AXUIElement }  // swiftlint:disable:this force_cast
         }
 
-        guard let result = await runTranscription(pcmSamples: pcmSamples) else { return nil }
+        guard let result = await runTranscription(pcmSamples: pcmSamples, langHint: effectiveLangHint) else {
+            return nil
+        }
 
         guard !result.text.isEmpty,
               !Self.whisperNoiseTokens.contains(result.text) else {
@@ -281,22 +310,37 @@ public final class TranscriptionPipeline: @unchecked Sendable {
             return result
         }
 
+        // Feature 1.2: filler scrubber (post-Whisper, pre-LLM).
+        let scrubEnabled = await MainActor.run { settings.fillerScrubberEnabled }
+        let scrubbed: String
+        if scrubEnabled {
+            let cleaned = FillerScrubber.scrub(result.text)
+            if cleaned != result.text { flog.log(.info, "FillerScrubber applied.") }
+            scrubbed = cleaned
+        } else {
+            scrubbed = result.text
+        }
+
         let injectionContext = await MainActor.run { contextService.currentContext() }
         let llmEnabled = await MainActor.run { settings.llmEnabled }
         let textToInject = llmEnabled
-            ? await applyLLMCleanup(rawText: result.text, context: injectionContext)
-            : result.text
+            ? await applyLLMCleanup(rawText: scrubbed, context: injectionContext, profile: effectiveCleanup)
+            : scrubbed
 
         await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
-        await persistAndNotify(result: result, textToInject: textToInject, bundleID: injectionContext.activeAppBundleID)
+        await persistAndNotify(
+            result: result,
+            textToInject: textToInject,
+            bundleID: injectionContext.activeAppBundleID
+        )
         return result
     }
 
-    private func runTranscription(pcmSamples: [Float]) async -> TranscriptionResult? {
+    private func runTranscription(pcmSamples: [Float], langHint: String?) async -> TranscriptionResult? {
         let flog = FileLogger.shared
         flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
         do {
-            let result = try await whisper.transcribe(pcm: pcmSamples, languageHint: languageHint)
+            let result = try await whisper.transcribe(pcm: pcmSamples, languageHint: langHint)
             flog.log(.info, "Whisper returned: \"\(result.text)\"")
             logger.info("Transcription complete: \"\(result.text)\" [\(result.language), \(result.durationMs)ms]")
             return result
@@ -308,18 +352,26 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         }
     }
 
-    private func applyLLMCleanup(rawText: String, context: InjectionContext) async -> String {
-        var profile = cleanupProfile
-        if profile.toneStyle == .casual && !profile.rawMode {
-            profile = CleanupProfile(
-                removeFillers: profile.removeFillers,
-                addPunctuation: profile.addPunctuation,
+    private func applyLLMCleanup(
+        rawText: String,
+        context: InjectionContext,
+        profile: CleanupProfile
+    ) async -> String {
+        var resolvedProfile = profile
+        if resolvedProfile.toneStyle == .casual && !resolvedProfile.rawMode {
+            resolvedProfile = CleanupProfile(
+                removeFillers: resolvedProfile.removeFillers,
+                addPunctuation: resolvedProfile.addPunctuation,
                 toneStyle: contextService.suggestedToneStyle(for: context.activeAppBundleID),
-                rawMode: profile.rawMode
+                rawMode: resolvedProfile.rawMode
             )
         }
         do {
-            let cleaned = try await llmProvider.cleanup(rawTranscript: rawText, context: context, profile: profile)
+            let cleaned = try await llmProvider.cleanup(
+                rawTranscript: rawText,
+                context: context,
+                profile: resolvedProfile
+            )
             if cleaned != rawText {
                 logger.info("LLM cleanup applied. Original: \"\(rawText)\" → Cleaned: \"\(cleaned)\"")
             }
@@ -359,7 +411,11 @@ public final class TranscriptionPipeline: @unchecked Sendable {
         pb.setString(text, forType: .string)
     }
 
-    private func persistAndNotify(result: TranscriptionResult, textToInject: String, bundleID: String) async {
+    private func persistAndNotify(
+        result: TranscriptionResult,
+        textToInject: String,
+        bundleID: String
+    ) async {
         let entry = HistoryEntry.from(result: result, cleanedText: textToInject, appBundleID: bundleID)
         do {
             try await historyStore.insert(entry)
