@@ -6,15 +6,24 @@ private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
 
 /// Tabbed settings window.
 ///
-/// Tabs: General | Hotkey | Transcription | AI Cleanup | Privacy
+/// Tabs: General | Models | Hotkey | Transcription | AI Cleanup | Snippets | Privacy
 public struct SettingsView: View {
 
     @Bindable private var settings: SettingsManager
     private let modelManager: ModelManager
+    private let networkMonitor: NetworkActivityMonitor?
+    @Binding private var hasPulsedRed: Bool
 
-    public init(settings: SettingsManager, modelManager: ModelManager) {
+    public init(
+        settings: SettingsManager,
+        modelManager: ModelManager,
+        networkMonitor: NetworkActivityMonitor? = nil,
+        hasPulsedRed: Binding<Bool> = .constant(false)
+    ) {
         self.settings = settings
         self.modelManager = modelManager
+        self.networkMonitor = networkMonitor
+        self._hasPulsedRed = hasPulsedRed
     }
 
     public var body: some View {
@@ -38,8 +47,14 @@ public struct SettingsView: View {
             SnippetsSettingsView()
                 .tabItem { Label("Snippets", systemImage: "text.badge.plus") }
 
-            PrivacyTab()
-                .tabItem { Label("Privacy", systemImage: "lock.shield") }
+            // Network egress audit log and zero-egress claim indicator (S3-T3).
+            if let monitor = networkMonitor {
+                PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)
+                    .tabItem { Label("Privacy", systemImage: "lock.shield") }
+            } else {
+                PrivacyTab()
+                    .tabItem { Label("Privacy", systemImage: "lock.shield") }
+            }
         }
         .frame(width: 520, height: 460)
         .background(hudBackground)

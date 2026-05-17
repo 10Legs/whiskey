@@ -72,6 +72,8 @@ public struct MenuBarView: View {
     @StateObject private var viewModel: MenuBarViewModel
     @StateObject private var historyViewModel: HistoryViewModel
 
+    private let networkMonitor: NetworkActivityMonitor?
+    @Binding private var hasPulsedRed: Bool
     private let onOpenSettings: () -> Void
     private let onClear: () -> Void
 
@@ -79,10 +81,14 @@ public struct MenuBarView: View {
         historyStore: HistoryStore,
         modelManager: ModelManager,
         pipelineState: PipelineStateModel,
+        networkMonitor: NetworkActivityMonitor? = nil,
+        hasPulsedRed: Binding<Bool> = .constant(false),
         onOpenSettings: @escaping () -> Void,
         onClear: @escaping () -> Void = {}
     ) {
         self.pipelineState = pipelineState
+        self.networkMonitor = networkMonitor
+        self._hasPulsedRed = hasPulsedRed
         self.onOpenSettings = onOpenSettings
         self.onClear = onClear
         let store = historyStore
@@ -122,6 +128,21 @@ public struct MenuBarView: View {
                     .padding(.horizontal, 16)
 
                 Spacer(minLength: 0)
+
+                // Network Activity section — always visible above footer (S3-T3).
+                if let monitor = networkMonitor {
+                    Divider()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
+
+                    NetworkActivitySectionView(
+                        monitor: monitor,
+                        hasPulsedRed: $hasPulsedRed,
+                        onOpenPrivacySettings: onOpenSettings
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
+                }
 
                 footerView
                     .padding(.horizontal, 16)

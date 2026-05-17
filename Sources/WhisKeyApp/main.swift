@@ -49,6 +49,20 @@ final class MenuBarIconState: ObservableObject {
     @Published var isHandsFree: Bool = false
     @Published var symbolName: String = "waveform.and.mic"
     @Published var accessibilityLabel: String = "WhisKey"
+    /// Current network egress state — drives dot badge color (S3-T3).
+    @Published var egressState: EgressState = .unavailable
+    /// Guards the one-shot red pulse animation across the session.
+    @Published var hasPulsedRed: Bool = false
+
+    /// Maps EgressState to the badge dot color overlay on the menu bar icon.
+    var eggressDotColor: Color? {
+        switch egressState {
+        case .local:       return Color.green
+        case .audited:     return Color.secondary
+        case .unexpected:  return Color.red
+        case .unavailable: return nil
+        }
+    }
 }
 
 /// SwiftUI view embedded in the NSStatusBarButton via NSHostingView.
@@ -61,16 +75,27 @@ private struct MenuBarIconView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Image(systemName: state.symbolName)
-            .font(.system(size: 14, weight: .regular))
-            .foregroundStyle(iconColor)
-            .symbolEffect(
-                .pulse.wholeSymbol,
-                options: .repeating,
-                isActive: state.isRecording && !reduceMotion
-            )
-            .frame(width: 18, height: 18)
-            .accessibilityLabel(state.accessibilityLabel)
+        ZStack(alignment: .bottomTrailing) {
+            Image(systemName: state.symbolName)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(iconColor)
+                .symbolEffect(
+                    .pulse.wholeSymbol,
+                    options: .repeating,
+                    isActive: state.isRecording && !reduceMotion
+                )
+                .frame(width: 18, height: 18)
+
+            // Egress state dot badge (S3-T3). Color: green=local, gray=audited, red=unexpected.
+            if let dotColor = state.eggressDotColor {
+                Circle()
+                    .fill(dotColor)
+                    .frame(width: 6, height: 6)
+                    .offset(x: 2, y: 2)
+                    .transition(reduceMotion ? .identity : .opacity.animation(.easeInOut(duration: 0.2)))
+            }
+        }
+        .accessibilityLabel(state.accessibilityLabel)
     }
 
     private var iconColor: Color {
@@ -98,6 +123,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var onboardingWindow: PermissionsOnboardingWindow?
 
+    // MARK: - Network Activity Monitor (S3-T3)
+
+    let networkMonitor = NetworkActivityMonitor()
+    private var egressObservationTask: Task<Void, Never>?
+
     // MARK: - Whisper Glass state
 
     private let pipelineState = PipelineStateModel()
@@ -118,6 +148,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // hide from Dock
 
+        // Start network monitoring immediately. EgressAuditor is wired after monitor starts.
+        networkMonitor.startMonitoring()
+        EgressAuditor.shared.configure(monitor: networkMonitor)
+        startEgressObservation()
+
         // Guard: show onboarding window when any required permission is missing.
         // Menu bar item is suppressed until onboarding completes.
         let requiredGranted = permissions.status(for: .microphone) == .granted
@@ -130,6 +165,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             setupPopover()
             checkPermissionsAndStart()
             checkModelPresence()
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        networkMonitor.stopMonitoring()
+        egressObservationTask?.cancel()
+    }
+
+    /// Observes NetworkActivityMonitor.egressState changes and syncs them to the
+    /// menu bar icon dot badge and accessibility label at sub-second intervals.
+    private func startEgressObservation() {
+        egressObservationTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                let state = self.networkMonitor.egressState
+                self.iconState.egressState = state
+                if !self.iconState.isRecording && !self.iconState.isHandsFree {
+                    switch state {
+                    case .local:       self.iconState.accessibilityLabel = "WhisKey — Local mode, no egress"
+                    case .audited:     self.iconState.accessibilityLabel = "WhisKey — Cloud provider active"
+                    case .unexpected:  self.iconState.accessibilityLabel = "WhisKey — Warning: unexpected egress detected"
+                    case .unavailable: self.iconState.accessibilityLabel = "WhisKey"
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
         }
     }
 
@@ -319,7 +380,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "WhisKey Settings"
-        window.styleMask = [.titled, .closable]
+        window.styleMask = NSWindow.StyleMask([.titled, .closable])
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
