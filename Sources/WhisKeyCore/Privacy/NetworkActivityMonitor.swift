@@ -85,7 +85,11 @@ public final class NetworkActivityMonitor: @unchecked Sendable {
     /// Domain-level only, ordered most-recent first, capped at 10.
     public var recentDestinations: [String] = []
     /// Last 100 events, newest first.
-    public var egressLog: [EgressEvent] = []
+    ///
+    /// Mutation is restricted to `NetworkActivityMonitor` itself — external
+    /// callers MUST go through `recordEgress(...)` so audit invariants are
+    /// preserved (Issue #34).
+    public private(set) var egressLog: [EgressEvent] = []
     /// Timestamp of monitor initialization (session start).
     public var monitoringSince: Date = Date()
 

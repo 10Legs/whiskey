@@ -63,6 +63,16 @@ public struct OllamaProvider: LLMProvider {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
 
+            // Record the completed egress before any return path so the audit
+            // surface reflects every byte that left the process, regardless of
+            // whether downstream parsing succeeds.
+            await EgressAuditor.shared.recordCompleted(
+                destination: baseURL.host ?? "ollama",
+                bytesSent: Int64(bodyData.count),
+                bytesReceived: Int64(data.count),
+                eventType: .cloudLLM
+            )
+
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                 logger.warning("OllamaProvider: non-200 response (\(code)) — returning raw transcript.")

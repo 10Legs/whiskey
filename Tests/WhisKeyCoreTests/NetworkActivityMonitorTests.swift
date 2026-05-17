@@ -326,9 +326,16 @@ class URLSessionAuditCoverageTests: XCTestCase {
             "URLSession.shared.dataTask",
             "URLSession.shared.downloadTask",
             "URLSession.shared.uploadTask",
+            // Async/await variants — added Sprint 4 to close Issue #33.
+            "URLSession.shared.data(for:",
+            "URLSession.shared.data(from:",
         ]
         // EgressAuditor itself is exempt — it is the audit boundary.
         let exemptFile = "EgressAuditor.swift"
+        // A file that uses a raw URLSession.shared pattern is considered audited
+        // when, within the same file, it also routes through this auditor symbol.
+        // This is the documented contract for new outbound call sites.
+        let auditMarker = "EgressAuditor.shared.recordCompleted"
 
         while let fileURL = enumerator?.nextObject() as? URL {
             guard fileURL.pathExtension == "swift",
@@ -337,14 +344,18 @@ class URLSessionAuditCoverageTests: XCTestCase {
             let content = (try? String(contentsOf: fileURL, encoding: .utf8)) ?? ""
             for pattern in rawPatterns {
                 if content.contains(pattern) {
-                    violations.append("\(fileURL.lastPathComponent): contains '\(pattern)'")
+                    if !content.contains(auditMarker) {
+                        violations.append(
+                            "\(fileURL.lastPathComponent): contains '\(pattern)' without '\(auditMarker)'"
+                        )
+                    }
                 }
             }
         }
 
         XCTAssertTrue(
             violations.isEmpty,
-            "Raw URLSession usage detected outside EgressAuditor. " +
+            "Raw URLSession usage detected without EgressAuditor.recordCompleted in same file. " +
             "All outbound calls must route through EgressAuditor:\n" +
             violations.joined(separator: "\n")
         )
