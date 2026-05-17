@@ -55,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var pipeline = TranscriptionPipeline(settings: settingsManager)
     private lazy var appContextService = AppContextService(settingsManager: settingsManager)
     private var transcriptionTask: Task<Void, Never>?
+    // S4-T4: Multi-hotkey dispatcher — owns all 4 action → callback mappings.
+    private var hotkeyDispatcher: HotkeyDispatcher?
     private var settingsWindow: NSWindow?
     private var onboardingWindow: PermissionsOnboardingWindow?
     /// Tracks whether the egress dot has ever pulsed red; passed into PrivacySettingsView.
@@ -556,13 +558,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.pipeline.stopAndTranscribe()
             }
         }
-        // S3-T4: Hands-free callbacks — wired after onStartRecording/onStopRecording.
-        hotkey.onHandsFreeStart = { [weak self, weak hud] in
-            flog.log(.info, "Double-tap — hands-free recording started.")
+        // S3-T4 / S4-T4: Hands-free callbacks — routed through HotkeyDispatcher.
+        // dispatcher.onHandsFreeTranscription is set below after the dispatcher is created.
+
+        // Sync hotkey settings from persisted values at launch.
+        hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
+        hotkey.handsFreeEnabled = settingsManager.handsFreeEnabled
+
+        // S4-T4: Create the dispatcher and wire all four action callbacks.
+        let dispatcher = HotkeyDispatcher(bindingStore: bindingStore, hotkeyManager: hotkey)
+        hotkeyDispatcher = dispatcher
+
+        dispatcher.onDefaultTranscription = nil // PTT driven by hotkey.onStartRecording above.
+
+        dispatcher.onHandsFreeTranscription = { [weak self, weak hud] in
+            flog.log(.info, "Hands-free hotkey — hands-free recording started.")
             Task { await self?.pipeline.startRecording() }
             self?.transitionToHandsFree()
             hud?.recordingDidStart()
         }
+
+        dispatcher.onOpenPopover = { [weak self] in
+            flog.log(.info, "openPopover hotkey fired.")
+            self?.statusItemClicked()
+        }
+
+        dispatcher.onInjectLastTranscription = { [weak self] in
+            guard let self else { return }
+            flog.log(.info, "injectLastTranscription hotkey fired.")
+            Task {
+                guard let entry = try? await self.pipeline.historyStore.fetchRecent(limit: 1).first else {
+                    flog.log(.warn, "injectLastTranscription: history is empty.")
+                    return
+                }
+                await self.pipeline.reinjectText(entry.text)
+            }
+        }
+
+        // Wire the hands-free stop path directly on HotkeyManager (unchanged from S3-T4).
         hotkey.onHandsFreeStop = { [weak self, weak hud] in
             guard let self else { return }
             flog.log(.info, "Hands-free stop tap — running transcription.")
@@ -573,9 +606,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.pipeline.stopAndTranscribe()
             }
         }
-        // Sync hotkey settings from persisted values at launch.
-        hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
-        hotkey.handsFreeEnabled = settingsManager.handsFreeEnabled
+
+        // Apply all four bindings at launch.
+        dispatcher.syncBindings()
 
         // Live-sync hotkey settings whenever UserDefaults change (slider/toggle in Settings).
         // The closure NotificationCenter invokes is `@Sendable`, so all reads of
@@ -591,20 +624,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.hotkey.disambiguationWindowMs = self.settingsManager.disambiguationWindowMs
                 self.hotkey.handsFreeEnabled = self.settingsManager.handsFreeEnabled
-                // S3-T6: Sync the primary hotkey key code from the binding store.
-                // Other actions (openPopover, injectLastTranscription) are dispatched
-                // from HotkeyManager callbacks; only defaultTranscription drives watchedKeyCode.
-                let primaryBinding = self.bindingStore.binding(for: .defaultTranscription)
-                if let keyCode = primaryBinding.keyCode {
-                    self.hotkey.watchedKeyCode = keyCode
-                }
+                // S4-T4: All four bindings are now re-synced via the dispatcher.
+                self.hotkeyDispatcher?.syncBindings()
             }
-        }
-
-        // S3-T6: Apply the persisted defaultTranscription binding at launch.
-        let primaryBinding = bindingStore.binding(for: .defaultTranscription)
-        if let keyCode = primaryBinding.keyCode {
-            hotkey.watchedKeyCode = keyCode
         }
 
         Task.detached(priority: .background) { [weak self] in
