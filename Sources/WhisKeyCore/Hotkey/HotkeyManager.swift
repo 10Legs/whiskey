@@ -48,6 +48,20 @@ public final class HotkeyManager: @unchecked Sendable {
     public var onStartRecording: (() -> Void)?
     public var onStopRecording: (() -> Void)?
 
+    // MARK: - S3-T4 Hands-free callbacks (stubs; full state machine in S3-T4 branch)
+
+    /// Called when a double-tap begins hands-free recording.
+    /// Full implementation is in S3-T4 (`feat/s3-t4-hold-vs-tap`).
+    public var onHandsFreeStart: (() -> Void)?
+
+    /// Called when a second tap stops hands-free recording.
+    /// Full implementation is in S3-T4 (`feat/s3-t4-hold-vs-tap`).
+    public var onHandsFreeStop: (() -> Void)?
+
+    /// Disambiguation window (ms) for double-tap detection. Default 300.
+    /// Exposed here as a stub property so the build passes on this branch.
+    public var disambiguationWindowMs: Double = 300.0
+
     // MARK: - State
 
     private var eventTap: CFMachPort?

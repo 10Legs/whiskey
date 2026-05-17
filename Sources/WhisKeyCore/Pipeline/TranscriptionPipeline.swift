@@ -154,6 +154,11 @@ public actor TranscriptionPipeline {
     /// Actor-isolated; use `setAppContextService(_:)` to update from outside the actor.
     public var appContextService: AppContextService?
 
+    /// Voice-snippet store used for post-transcription trigger expansion (S3-T5).
+    /// When `nil` the expansion step is skipped and text is injected verbatim.
+    /// Actor-isolated; use `setSnippetStore(_:)` to update from outside the actor.
+    private var snippetStore: SnippetStore?
+
     // MARK: - Audio Level
 
     /// Normalized RMS audio level (0.0–1.0) forwarded from AudioCaptureService.
@@ -233,6 +238,15 @@ public actor TranscriptionPipeline {
     /// Sets the active-app profile service used to resolve per-app settings.
     public func setAppContextService(_ value: AppContextService?) {
         self.appContextService = value
+    }
+
+    /// Wires the voice-snippet store into the pipeline (S3-T5).
+    ///
+    /// After this is called, every completed transcription is run through
+    /// `SnippetExpander` before injection. The injection itself still routes
+    /// through the existing `SensitiveAppRegistry` guard — no bypass.
+    public func setSnippetStore(_ store: SnippetStore) {
+        self.snippetStore = store
     }
 
     /// Convenience setter for both pipeline callbacks in a single actor hop.
@@ -386,17 +400,45 @@ public actor TranscriptionPipeline {
 
         let injectionContext = await MainActor.run { contextService.currentContext() }
         let llmEnabled = await MainActor.run { settings.llmEnabled }
-        let textToInject = llmEnabled
+        let afterLLM = llmEnabled
             ? await applyLLMCleanup(rawText: scrubbed, context: injectionContext, profile: effectiveCleanup)
             : scrubbed
 
+        // S3-T5: Voice Snippets — post-LLM, pre-injection trigger expansion.
+        // Injection still routes through SensitiveAppRegistry inside dispatchOutput.
+        let (textToInject, expandedSnippet) = await applySnippetExpansion(afterLLM)
+
         await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
+
+        // Increment use-count after confirmed dispatch. Fire-and-forget; non-critical.
+        if let snippet = expandedSnippet {
+            Task { await self.snippetStore?.incrementUseCount(id: snippet.id) }
+        }
+
         await persistAndNotify(
             result: result,
             textToInject: textToInject,
             bundleID: injectionContext.activeAppBundleID
         )
         return result
+    }
+
+    /// Runs `SnippetExpander` against `text` if a store is wired in.
+    ///
+    /// Returns `(expandedText, matchedSnippet)` or `(text, nil)` when no match.
+    /// The caller is responsible for routing the returned text through `SensitiveAppRegistry`.
+    private func applySnippetExpansion(_ text: String) async -> (String, Snippet?) {
+        guard let store = snippetStore else { return (text, nil) }
+        let snippets = await store.allSnippets()
+        guard let result = SnippetExpander.expand(text, snippets: snippets) else {
+            return (text, nil)
+        }
+        logger.info("SnippetExpander: trigger \"\(result.matchedSnippet.triggerPhrase)\" matched — \(result.originalText.count) → \(result.expandedText.count) chars.")
+        FileLogger.shared.log(
+            .info,
+            "Pipeline: snippet trigger \"\(result.matchedSnippet.triggerPhrase)\" expanded."
+        )
+        return (result.expandedText, result.matchedSnippet)
     }
 
     private func runTranscription(pcmSamples: [Float], langHint: String?) async -> TranscriptionResult? {

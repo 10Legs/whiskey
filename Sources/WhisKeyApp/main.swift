@@ -45,6 +45,8 @@ private let logger = Logger(subsystem: "com.whiskey.app", category: "AppDelegate
 @MainActor
 final class MenuBarIconState: ObservableObject {
     @Published var isRecording: Bool = false
+    /// When true, the icon uses systemOrange tint (hands-free mode). Not animated.
+    @Published var isHandsFree: Bool = false
     @Published var symbolName: String = "waveform.and.mic"
     @Published var accessibilityLabel: String = "WhisKey"
 }
@@ -72,7 +74,9 @@ private struct MenuBarIconView: View {
     }
 
     private var iconColor: Color {
-        state.isRecording ? Color(nsColor: .systemRed) : .primary
+        if state.isRecording { return Color(nsColor: .systemRed) }
+        if state.isHandsFree { return Color(nsColor: .systemOrange) }
+        return .primary
     }
 }
 
@@ -184,7 +188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyStatusIcon(.idle)
     }
 
-    private enum IconState { case idle, recording, processing, error }
+    // S3-T4: .handsFree added for hands-free recording state (steady orange mic.badge.xmark).
+    private enum IconState { case idle, recording, handsFree, processing, error }
 
     /// Updates the observable `iconState` which drives the SwiftUI icon view.
     /// All recording-state animation and colour changes are handled declaratively
@@ -195,24 +200,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             iconState.symbolName = "waveform.and.mic"
             iconState.accessibilityLabel = "WhisKey"
             iconState.isRecording = false
+            iconState.isHandsFree = false
         case .recording:
+            // PTT: pulsing red mic.fill per S3-C2 spec table 4.1.
             iconState.symbolName = "mic.fill"
-            iconState.accessibilityLabel = "Recording"
+            iconState.accessibilityLabel = "WhisKey — Push-to-Talk Recording"
             iconState.isRecording = true
+            iconState.isHandsFree = false
+        case .handsFree:
+            // Hands-free: steady orange mic.badge.xmark. No pulse (stable indefinite state).
+            // mic.badge.xmark available macOS 14+. systemOrange = semantic color.
+            iconState.symbolName = "mic.badge.xmark"
+            iconState.accessibilityLabel = "WhisKey \u{2013} Hands-Free Recording"
+            iconState.isRecording = false
+            iconState.isHandsFree = true
         case .processing:
             iconState.symbolName = "waveform"
-            iconState.accessibilityLabel = "Transcribing"
+            iconState.accessibilityLabel = "WhisKey — Transcribing"
             iconState.isRecording = false
+            iconState.isHandsFree = false
         case .error:
             iconState.symbolName = "exclamationmark.triangle"
-            iconState.accessibilityLabel = "WhisKey Error"
+            iconState.accessibilityLabel = "WhisKey — Error"
             iconState.isRecording = false
+            iconState.isHandsFree = false
         }
     }
 
     private func transitionToRecording() {
         applyStatusIcon(.recording)
         pipelineState.recordingState = .recording
+    }
+
+    /// Transitions to hands-free recording state.
+    /// Per S3-C2 spec section 6.3: post a VoiceOver announcement on entry.
+    private func transitionToHandsFree() {
+        applyStatusIcon(.handsFree)
+        pipelineState.recordingState = .handsFreeRecording
+        NSAccessibility.post(
+            element: statusItem?.button as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                NSAccessibility.NotificationUserInfoKey.announcement:
+                    "Hands-free recording started. Tap the hotkey to stop.",
+                NSAccessibility.NotificationUserInfoKey.priority: NSAccessibilityPriorityLevel.high.rawValue
+            ]
+        )
     }
 
     private func transitionToProcessing() {
@@ -411,6 +444,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await pipeline.setLanguageHint(langHint)
             await pipeline.setCleanupProfile(cleanupProfile)
             await pipeline.setAppContextService(svc)
+            // S3-T5: wire voice-snippet store into pipeline.
+            await pipeline.setSnippetStore(SnippetStore.shared)
         }
 
         // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
@@ -435,7 +470,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.pipeline.stopAndTranscribe()
             }
         }
-        hotkey.mode = .pushToTalk
+        // S3-T4: Hands-free callbacks — wired after onStartRecording/onStopRecording.
+        hotkey.onHandsFreeStart = { [weak self, weak hud] in
+            flog.log(.info, "Double-tap — hands-free recording started.")
+            Task { await self?.pipeline.startRecording() }
+            self?.transitionToHandsFree()
+            hud?.recordingDidStart()
+        }
+        hotkey.onHandsFreeStop = { [weak self, weak hud] in
+            guard let self else { return }
+            flog.log(.info, "Hands-free stop tap — running transcription.")
+            self.transitionToProcessing()
+            hud?.recordingDidStop()
+            self.transcriptionTask?.cancel()
+            self.transcriptionTask = Task {
+                await self.pipeline.stopAndTranscribe()
+            }
+        }
+        // Sync disambiguation window from persisted settings; reads default 300ms on first launch.
+        hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
 
         Task.detached(priority: .background) { [weak self] in
             guard let self else { return }

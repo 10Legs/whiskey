@@ -36,6 +36,8 @@ public final class PipelineStateModel: ObservableObject {
 public enum RecordingState: Equatable {
     case idle
     case recording
+    /// Hands-free recording is active; the user must tap the hotkey to stop.
+    case handsFreeRecording
     case processing
     case error(String)
 }
@@ -154,6 +156,9 @@ public struct MenuBarView: View {
         case .recording, .processing:
             recordingOverlay
                 .transition(.opacity)
+        case .handsFreeRecording:
+            handsFreeOverlay
+                .transition(.opacity)
         case .idle, .error:
             if viewModel.needsOnboarding {
                 onboardingCard
@@ -170,6 +175,29 @@ public struct MenuBarView: View {
                 .transition(.opacity)
             }
         }
+    }
+
+    // MARK: - Hands-Free Overlay (S3-T4)
+
+    /// Shown in the popover content area while hands-free recording is active.
+    /// Per S3-C2 spec section 4.2: persistent banner indicating hands-free mode.
+    private var handsFreeOverlay: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "mic.badge.xmark")
+                .font(.system(size: 28))
+                .foregroundStyle(Color(nsColor: .systemOrange))
+                .accessibilityHidden(true)
+            Text("Hands-Free Recording")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+            Text("Tap the hotkey to stop")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel("WhisKey \u{2013} Hands-Free Recording \u{2013} tap hotkey to stop")
     }
 
     // MARK: - Recording Overlay (Task 2)
