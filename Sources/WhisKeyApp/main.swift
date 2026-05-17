@@ -38,7 +38,6 @@ do {
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "AppDelegate")
 
-
 // MARK: - App Delegate
 
 // swiftlint:disable type_body_length
