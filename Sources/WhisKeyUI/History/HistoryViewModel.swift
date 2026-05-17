@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import WhisKeyCore
 
@@ -5,6 +6,8 @@ import WhisKeyCore
 
 enum ReinjectionState: Equatable {
     case idle
+    /// Countdown in progress; `seconds` is the remaining count (3 → 2 → 1).
+    case countdown(seconds: Int)
     case loading
     case success
     case failure
@@ -31,13 +34,18 @@ public final class HistoryViewModel: ObservableObject {
 
     private let historyStore: HistoryStore
     private let injector: any TextInjecting
+    /// Called when a re-injection is blocked due to a sensitive target.
+    /// The caller (MenuBarView) wires this to `PipelineStateModel.postError`.
+    var onError: ((String) -> Void)?
 
     public init(
         historyStore: HistoryStore = HistoryStore(),
-        injector: any TextInjecting = TextInjector()
+        injector: any TextInjecting = TextInjector(),
+        onError: ((String) -> Void)? = nil
     ) {
         self.historyStore = historyStore
         self.injector = injector
+        self.onError = onError
     }
 
     // MARK: - Computed
@@ -98,7 +106,39 @@ public final class HistoryViewModel: ObservableObject {
     // MARK: - Re-inject
 
     public func reinject(_ entry: HistoryEntry) async {
-        guard reinjectionStates[entry.id] != .loading else { return }
+        // Ignore taps while already active for this entry.
+        switch reinjectionStates[entry.id] {
+        case .countdown, .loading:
+            return
+        default:
+            break
+        }
+
+        // --- Countdown phase (3 → 2 → 1) ---
+        // The row UI shows "Cancel (N)" during this window.
+        // Tapping cancel sets the state to .idle, which breaks the loop.
+        for remaining in stride(from: 3, through: 1, by: -1) {
+            reinjectionStates[entry.id] = .countdown(seconds: remaining)
+            try? await Task.sleep(for: .seconds(1))
+
+            // Cancelled by user or superseded externally.
+            guard case .countdown = reinjectionStates[entry.id] else { return }
+        }
+
+        // --- Sensitivity guard ---
+        // Read the currently focused application at the moment of injection,
+        // not at button-tap time.  Clicking history steals focus so we query
+        // NSWorkspace for the frontmost app at fire time.
+        let frontBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if SensitiveAppRegistry.isSensitive(frontBundleID) {
+            reinjectionStates[entry.id] = .failure
+            onError?("Re-injection blocked: sensitive target detected.")
+            try? await Task.sleep(for: .seconds(2.0))
+            reinjectionStates[entry.id] = .idle
+            return
+        }
+
+        // --- Injection phase ---
         reinjectionStates[entry.id] = .loading
         isInjecting = true
         defer { isInjecting = false }
@@ -115,5 +155,14 @@ public final class HistoryViewModel: ObservableObject {
             try? await Task.sleep(for: .seconds(1.2))
             reinjectionStates[entry.id] = .idle
         }
+    }
+
+    // MARK: - Countdown Cancel
+
+    /// Cancels an in-progress countdown for the given entry, aborting the
+    /// pending re-injection.
+    public func cancelReinject(_ entry: HistoryEntry) {
+        guard case .countdown = reinjectionStates[entry.id] else { return }
+        reinjectionStates[entry.id] = .idle
     }
 }

@@ -31,6 +31,7 @@ public struct HistoryView: View {
                                 reinjectionState: viewModel.reinjectionStates[entry.id] ?? .idle,
                                 actionsDisabled: viewModel.isInjecting,
                                 onReinject: { await viewModel.reinject(entry) },
+                                onCancelReinject: { viewModel.cancelReinject(entry) },
                                 onDelete: {
                                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                                         viewModel.entries.removeAll { $0.id == entry.id }
