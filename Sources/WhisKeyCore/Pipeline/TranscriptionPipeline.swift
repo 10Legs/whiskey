@@ -544,5 +544,16 @@ public actor TranscriptionPipeline {
         }
         await MainActor.run { onTranscriptionReady?(result) }
     }
+
+    // MARK: - Re-injection (S4-T4)
+
+    /// Injects `text` into the currently focused field using the same output-mode
+    /// logic as a normal transcription result.  Called by `HotkeyDispatcher` when
+    /// the `injectLastTranscription` hotkey fires.
+    public func reinjectText(_ text: String) async {
+        await dispatchOutput(text: text, capturedElement: nil)
+        logger.info("Pipeline: re-injected \"\(text)\"")
+        FileLogger.shared.log(.info, "Pipeline: re-injected last transcription.")
+    }
 }
 // swiftlint:enable type_body_length
