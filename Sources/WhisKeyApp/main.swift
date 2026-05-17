@@ -566,8 +566,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.pipeline.stopAndTranscribe()
             }
         }
-        // Sync disambiguation window from persisted settings; reads default 300ms on first launch.
+        // Sync settings at launch; live-sync via observer below.
         hotkey.disambiguationWindowMs = settingsManager.disambiguationWindowMs
+        hotkey.handsFreeEnabled = settingsManager.handsFreeEnabled
+
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.hotkey.disambiguationWindowMs = self.settingsManager.disambiguationWindowMs
+            self.hotkey.handsFreeEnabled = self.settingsManager.handsFreeEnabled
+        }
 
         Task.detached(priority: .background) { [weak self] in
             guard let self else { return }
