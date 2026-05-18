@@ -42,9 +42,17 @@ class ModelStatusTests: XCTestCase {
         // Use an isolated in-memory DB so setUp never touches AppDatabase.shared
         // or the Keychain — both are unavailable in unsigned CI environments
         // where errSecInteractionNotAllowed (-25308) would cause a fatalError.
+        //
+        // Pass a non-existent temp URL as modelsDirectoryOverride so ModelManager
+        // never reads from ~/Library/Application Support/WhisKey/Models/ during
+        // rescanModelsDirectory(). Without this, tests running on a dev machine
+        // that already has models downloaded would see pre-populated downloadedModels,
+        // making "false when none downloaded" assertions spuriously fail.
         let db = try AppDatabase.makeInMemory()
         settings = SettingsManager(db: db)
-        manager  = ModelManager(settings: settings)
+        let isolatedModelsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WhisKeyTests_models_\(UUID().uuidString)")
+        manager  = ModelManager(settings: settings, modelsDirectoryOverride: isolatedModelsDir)
         status   = ModelStatus(modelManager: manager)
     }
 
@@ -182,9 +190,16 @@ class ModelManagerDirectoryTests: XCTestCase {
         // Use an isolated in-memory DB so setUp never touches AppDatabase.shared
         // or the Keychain — both are unavailable in unsigned CI environments
         // where errSecInteractionNotAllowed (-25308) would cause a fatalError.
+        //
+        // Pass a non-existent temp URL as modelsDirectoryOverride so ModelManager
+        // never reads from ~/Library/Application Support/WhisKey/Models/ during
+        // rescanModelsDirectory(). Without this, tests running on a dev machine
+        // that already has models downloaded would see pre-populated downloadedModels.
         let db = try AppDatabase.makeInMemory()
         settings = SettingsManager(db: db)
-        manager  = ModelManager(settings: settings)
+        let isolatedModelsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WhisKeyTests_models_\(UUID().uuidString)")
+        manager  = ModelManager(settings: settings, modelsDirectoryOverride: isolatedModelsDir)
     }
 
     override func tearDown() async throws {
