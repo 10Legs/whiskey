@@ -115,18 +115,29 @@ public final class ModelManager: @unchecked Sendable {
     private var activeTasks: [String: URLSessionDownloadTask] = [:]
     /// Delegate bridge (must stay alive for the duration of any download).
     private var delegateBridge: DownloadDelegateBridge?
+    /// Override for the models directory. `nil` means use the default app-support path.
+    /// Inject a temp URL in tests to avoid touching the user's real models directory.
+    private let modelsDirectoryOverride: URL?
 
     // MARK: - Init
 
-    public init(settings: SettingsManager = SettingsManager()) {
+    public init(settings: SettingsManager = SettingsManager(), modelsDirectoryOverride: URL? = nil) {
         self.settings = settings
+        self.modelsDirectoryOverride = modelsDirectoryOverride
         rescanModelsDirectory()
     }
 
     // MARK: - Public API — Directory
 
-    /// `~/Library/Application Support/WhisKey/Models/`
+    /// `~/Library/Application Support/WhisKey/Models/`, or the injected override when set.
+    ///
+    /// Pass `modelsDirectoryOverride` in the `init` to redirect all file I/O to a
+    /// temporary directory — useful in unit tests to avoid touching the user's real
+    /// models directory (which would make tests environment-sensitive).
     public var modelsDirectory: URL {
+        if let override = modelsDirectoryOverride {
+            return override
+        }
         let appSupport = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first! // swiftlint:disable:this force_unwrapping
