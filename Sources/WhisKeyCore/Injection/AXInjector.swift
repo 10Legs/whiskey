@@ -22,7 +22,8 @@ private let axBlocklist: Set<String> = [
     "org.mozilla.firefox",
     "com.microsoft.edgemac",
     "com.brave.Browser",
-    "com.todesktop.230313mzl4w4u92" // Cursor
+    "com.todesktop.230313mzl4w4u92", // Cursor
+    "com.apple.MobileSMS"            // Messages — compose field accepts AX role but silently drops writes
 ]
 
 /// Injects text via the Accessibility API (AXUIElement).
