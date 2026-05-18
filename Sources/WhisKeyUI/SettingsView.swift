@@ -72,6 +72,9 @@ public struct SettingsView: View {
 
             HotkeySettingsView(store: bindingStore)
                 .tabItem { Label("Hotkeys", systemImage: "keyboard.badge.ellipsis") }
+
+            VoiceCommandsSettingsView()
+                .tabItem { Label("Commands", systemImage: "list.bullet.clipboard") }
         }
         .frame(width: 520, height: 460)
         .background(hudBackground)
