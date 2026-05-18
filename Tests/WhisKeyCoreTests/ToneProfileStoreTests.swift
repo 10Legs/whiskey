@@ -164,6 +164,43 @@ final class ToneProfileStoreTests: XCTestCase {
             XCTAssertEqual(error as? AppToneProfileError, .invalidBundleID)
         }
     }
+
+    // MARK: - lastUsed tracking (S5-UX-2)
+
+    func testLastUsedRecordedOnSetProfile() throws {
+        let before = Date()
+        try store.setProfile(.formal, for: "com.example.word")
+        let after = Date()
+
+        let recorded = try XCTUnwrap(store.lastUsed["com.example.word"],
+                                     "lastUsed must be set after setProfile.")
+        XCTAssertGreaterThanOrEqual(recorded, before)
+        XCTAssertLessThanOrEqual(recorded, after)
+    }
+
+    func testLastUsedUpdatedOnOverwrite() throws {
+        try store.setProfile(.formal, for: "com.example.word")
+        let first = try XCTUnwrap(store.lastUsed["com.example.word"])
+
+        try store.setProfile(.code, for: "com.example.word")
+        let second = try XCTUnwrap(store.lastUsed["com.example.word"])
+
+        XCTAssertGreaterThanOrEqual(second, first,
+            "lastUsed must be updated to a time >= the previous value on overwrite.")
+    }
+
+    func testLastUsedPersistedAcrossReload() throws {
+        try store.setProfile(.raw, for: "com.example.terminal")
+        let recorded = try XCTUnwrap(store.lastUsed["com.example.terminal"])
+
+        let reloaded = AppToneProfileStore(defaults: defaults)
+        let reloadedDate = try XCTUnwrap(reloaded.lastUsed["com.example.terminal"],
+                                         "lastUsed must survive a store reload.")
+        XCTAssertEqual(reloadedDate.timeIntervalSinceReferenceDate,
+                       recorded.timeIntervalSinceReferenceDate,
+                       accuracy: 0.001,
+                       "lastUsed timestamp must round-trip through UserDefaults without loss.")
+    }
 }
 
 // MARK: - Equatable conformance for test assertions
