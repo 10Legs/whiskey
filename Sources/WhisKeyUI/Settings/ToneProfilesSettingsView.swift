@@ -29,7 +29,7 @@ public struct ToneProfilesSettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
 
                 // ── Active App Hint ─────────────────────────────────────────
-                PhosphorToneSection(title: "ACTIVE APP") {
+                HalideSection(title: "ACTIVE APP") {
                     if frontmostBundleID.isEmpty {
                         Text("No frontmost app detected.")
                             .font(.caption)
@@ -57,13 +57,11 @@ public struct ToneProfilesSettingsView: View {
                 }
 
                 // ── Add New Mapping ─────────────────────────────────────────
-                PhosphorToneSection(title: "ADD MAPPING") {
+                HalideSection(title: "ADD MAPPING") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             TextField("com.example.app", text: $newBundleID)
-                                .textFieldStyle(.plain)
-                                .foregroundColor(HalideTokens.accentAmber)
-                                .fontDesign(.monospaced)
+                                .halideTextField()
                                 .font(.caption)
                                 .onSubmit { commitAdd() }
 
@@ -74,15 +72,12 @@ public struct ToneProfilesSettingsView: View {
                             }
                             .pickerStyle(.menu)
                             .accentColor(HalideTokens.accentAmber)
-                            .foregroundColor(HalideTokens.accentAmber)
                             .frame(width: 140)
 
                             Button("ADD") { commitAdd() }
-                                .buttonStyle(PhosphorToneButtonStyle())
+                                .buttonStyle(HalidePrimaryButtonStyle())
                                 .disabled(newBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                        .padding(6)
-                        .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.25), lineWidth: 1))
 
                         if let addError {
                             Text(addError)
@@ -105,7 +100,7 @@ public struct ToneProfilesSettingsView: View {
 
                 // ── Configured Mappings ─────────────────────────────────────
                 let mappings = store.allMappings
-                PhosphorToneSection(title: "CONFIGURED MAPPINGS  (\(mappings.count))") {
+                HalideSection(title: "CONFIGURED MAPPINGS  (\(mappings.count))") {
                     if mappings.isEmpty {
                         Text("No app-specific tone profiles configured.")
                             .font(.caption)
@@ -187,44 +182,6 @@ public struct ToneProfilesSettingsView: View {
 
     private func refreshFrontmostApp() {
         frontmostBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? ""
-    }
-}
-
-// MARK: - Private shared components (file-private to avoid colliding with SettingsView's copies)
-
-private struct PhosphorToneSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.caption)
-                .fontDesign(.monospaced)
-                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
-
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(HalideTokens.accentAmber.opacity(0.2))
-
-            content()
-        }
-    }
-}
-
-private struct PhosphorToneButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.caption)
-            .fontDesign(.monospaced)
-            .foregroundColor(HalideTokens.accentAmber.opacity(configuration.isPressed ? 0.6 : 1.0))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .overlay(
-                Rectangle()
-                    .stroke(HalideTokens.accentAmber.opacity(0.4), lineWidth: 1)
-            )
-            .background(HalideTokens.backgroundPrimary)
     }
 }
 
