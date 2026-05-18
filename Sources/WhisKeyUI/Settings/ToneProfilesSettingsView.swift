@@ -235,9 +235,9 @@ private struct PhosphorToneButtonStyle: ButtonStyle {
 
 private extension RelativeDateTimeFormatter {
     @MainActor static let whiskey: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .abbreviated
-        f.dateTimeStyle = .named
-        return f
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.dateTimeStyle = .named
+        return formatter
     }()
 }
