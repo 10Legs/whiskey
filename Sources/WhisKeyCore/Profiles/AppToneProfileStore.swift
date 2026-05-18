@@ -50,9 +50,14 @@ public final class AppToneProfileStore {
     // MARK: - Storage
 
     private static let defaultsKey = "com.whiskey.appToneProfiles"
+    private static let lastUsedKey = "com.whiskey.appToneProfilesLastUsed"
 
     /// In-memory representation of the persisted mapping.
     private var mappings: [String: ToneProfile] = [:]
+
+    /// Timestamps recording the most recent `setProfile` call for each bundle ID.
+    /// Persisted in UserDefaults alongside `mappings`.
+    public private(set) var lastUsed: [String: Date] = [:]
 
     /// The UserDefaults suite used for persistence.
     /// Injected at init so tests can use an isolated suite.
@@ -81,6 +86,7 @@ public final class AppToneProfileStore {
     }
 
     /// Persists `profile` for the given `bundleID`, replacing any prior value.
+    /// Records the current timestamp in `lastUsed` for display in Settings.
     ///
     /// - Throws: `AppToneProfileError.bundleIDTooLong` when `bundleID` exceeds 255 characters.
     /// - Throws: `AppToneProfileError.invalidBundleID` when `bundleID` does not match
@@ -94,6 +100,7 @@ public final class AppToneProfileStore {
             throw AppToneProfileError.invalidBundleID
         }
         mappings[bundleID] = profile
+        lastUsed[bundleID] = Date()
         save()
     }
 
@@ -113,25 +120,27 @@ public final class AppToneProfileStore {
     // MARK: - Persistence
 
     private func load() {
-        guard let raw = defaults.dictionary(forKey: Self.defaultsKey)
-                as? [String: String] else {
-            return
-        }
-        var decoded: [String: ToneProfile] = [:]
-        for (bundleID, rawValue) in raw {
-            if let profile = ToneProfile(rawValue: rawValue) {
-                decoded[bundleID] = profile
-            } else {
-                logger.warning("AppToneProfileStore: unknown ToneProfile '\(rawValue)' for '\(bundleID)' — skipped.")
+        if let raw = defaults.dictionary(forKey: Self.defaultsKey) as? [String: String] {
+            var decoded: [String: ToneProfile] = [:]
+            for (bundleID, rawValue) in raw {
+                if let profile = ToneProfile(rawValue: rawValue) {
+                    decoded[bundleID] = profile
+                } else {
+                    logger.warning("AppToneProfileStore: unknown ToneProfile '\(rawValue)' for '\(bundleID)' — skipped.")
+                }
             }
+            mappings = decoded
+            logger.info("AppToneProfileStore: loaded \(decoded.count) mapping(s).")
         }
-        mappings = decoded
-        logger.info("AppToneProfileStore: loaded \(decoded.count) mapping(s).")
+
+        if let rawDates = defaults.dictionary(forKey: Self.lastUsedKey) as? [String: Double] {
+            lastUsed = rawDates.mapValues { Date(timeIntervalSinceReferenceDate: $0) }
+        }
     }
 
     private func save() {
-        let raw = mappings.mapValues(\.rawValue)
-        defaults.set(raw, forKey: Self.defaultsKey)
+        defaults.set(mappings.mapValues(\.rawValue), forKey: Self.defaultsKey)
+        defaults.set(lastUsed.mapValues(\.timeIntervalSinceReferenceDate), forKey: Self.lastUsedKey)
         logger.info("AppToneProfileStore: saved \(self.mappings.count) mapping(s).")
     }
 }

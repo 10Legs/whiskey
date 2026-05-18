@@ -76,6 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let pipelineState = PipelineStateModel()
     /// Held alive for audio level forwarding.
     private var hudController: FloatingHUDWindowController?
+    /// Held alive for voice command HUD feedback (S5-UX-1).
+    private var voiceCommandHUD: VoiceCommandHUDController?
 
     // MARK: - Icon tracking (no SwiftUI embedding in button)
 
@@ -544,6 +546,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
         let hud = FloatingHUDWindowController(pipeline: pipeline)
         hudController = hud
+        voiceCommandHUD = VoiceCommandHUDController()
         pipelineState.subscribe(toAudioLevel: pipeline.audioLevelPublisher)
 
         // Wire hotkey to pipeline + state model.

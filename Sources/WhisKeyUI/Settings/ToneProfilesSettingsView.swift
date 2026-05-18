@@ -124,10 +124,25 @@ public struct ToneProfilesSettingsView: View {
                                             .font(.caption)
                                             .fontDesign(.monospaced)
                                             .foregroundColor(phosphorGreen)
-                                        Text(mapping.profile.displayName.uppercased())
-                                            .font(.caption2)
-                                            .fontDesign(.monospaced)
-                                            .foregroundColor(phosphorGreen.opacity(0.55))
+                                        HStack(spacing: 6) {
+                                            Text(mapping.profile.displayName.uppercased())
+                                                .font(.caption2)
+                                                .fontDesign(.monospaced)
+                                                .foregroundColor(phosphorGreen.opacity(0.55))
+                                            if let used = store.lastUsed[mapping.bundleID] {
+                                                if Date().timeIntervalSince(used) < 60 {
+                                                    Text("● Active")
+                                                        .font(.caption2)
+                                                        .fontDesign(.monospaced)
+                                                        .foregroundColor(phosphorGreen)
+                                                } else {
+                                                    Text(RelativeDateTimeFormatter.whiskey.localizedString(for: used, relativeTo: Date()))
+                                                        .font(.caption2)
+                                                        .fontDesign(.monospaced)
+                                                        .foregroundColor(phosphorGreen.opacity(0.4))
+                                                }
+                                            }
+                                        }
                                     }
                                     Spacer()
                                     Button {
@@ -214,4 +229,15 @@ private struct PhosphorToneButtonStyle: ButtonStyle {
             )
             .background(hudBackground)
     }
+}
+
+// MARK: - RelativeDateTimeFormatter convenience (S5-UX-2)
+
+private extension RelativeDateTimeFormatter {
+    @MainActor static let whiskey: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        f.dateTimeStyle = .named
+        return f
+    }()
 }

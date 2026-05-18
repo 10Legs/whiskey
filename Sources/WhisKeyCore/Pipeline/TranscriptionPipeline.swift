@@ -668,8 +668,22 @@ public actor TranscriptionPipeline {
                 logger.info("VoiceCommand: insertQuestionMark — not yet implemented via AX (phrase stripped).")
                 FileLogger.shared.log(.info, "VoiceCommand: insertQuestionMark not yet implemented via AX.")
             }
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: TranscriptionPipeline.voiceCommandDidExecute,
+                    object: nil,
+                    userInfo: [TranscriptionPipeline.voiceCommandKey: command]
+                )
+            }
         }
     }
+
+    /// Posted on the main thread after each voice command executes successfully
+    /// (after the sensitive-app guard). Carries the `VoiceCommand` in `userInfo`
+    /// under the key `voiceCommandKey`. Consumed by `VoiceCommandHUDController`
+    /// in WhisKeyUI to show a transient overlay.
+    public static let voiceCommandDidExecute = Notification.Name("com.whiskey.voiceCommandDidExecute")
+    public static let voiceCommandKey = "voiceCommand"
 
     // MARK: - Re-injection (S4-T4)
 
