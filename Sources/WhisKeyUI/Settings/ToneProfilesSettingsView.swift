@@ -83,7 +83,7 @@ public struct ToneProfilesSettingsView: View {
                             Text(addError)
                                 .font(.caption2)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(.red.opacity(0.85))
+                                .foregroundColor(HalideTokens.accentDestructive)
                         } else if !newProfile.systemPromptSuffix.isEmpty {
                             Text("Prompt suffix: \"\(newProfile.systemPromptSuffix.trimmingCharacters(in: .whitespaces))\"")
                                 .font(.caption2)

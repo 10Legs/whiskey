@@ -61,6 +61,10 @@ public final class VoiceCommandHUDController {
 
         position()
         panel.orderFront(nil)
+        NSAccessibility.post(element: NSApp, notification: .announcementRequested, userInfo: [
+            NSAccessibility.NotificationUserInfoKey.announcement: label,
+            NSAccessibility.NotificationUserInfoKey.priority: NSAccessibilityPriorityLevel.high.rawValue
+        ])
 
         dismissTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(1500))
@@ -85,10 +89,10 @@ public final class VoiceCommandHUDController {
         let width = Self.panelWidth
         let height = Self.panelHeight
         let margin: CGFloat = 20
-        // Sit directly above the waveform HUD idle footprint (22 pt) + margin.
+        // Sit directly above the waveform HUD idle footprint (14 pt) + margin.
         let origin = CGPoint(
             x: visibleFrame.maxX - width - margin,
-            y: visibleFrame.minY + margin + 22 + 6
+            y: visibleFrame.minY + margin + 14 + 6
         )
         panel.setFrameOrigin(origin)
         panel.setContentSize(CGSize(width: width, height: height))
@@ -179,8 +183,8 @@ public final class FloatingHUDWindow: NSPanel {
     private static let originYKey = "com.whiskey.hudOrigin.y"
 
     // Idle panel footprint used for default positioning.
-    private static let idlePanelWidth: CGFloat  = 120
-    private static let idlePanelHeight: CGFloat  = 22
+    private static let idlePanelWidth: CGFloat  = 80
+    private static let idlePanelHeight: CGFloat  = 14
     // Recording size — SwiftUI expands in-place; the panel frame uses the larger value
     // only for content sizing. The origin stays fixed.
     private static let recordingPanelWidth: CGFloat  = 200
