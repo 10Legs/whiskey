@@ -128,4 +128,78 @@ final class SensitiveAppRegistryTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - S5-SEC-1: reinjectText security invariant
+
+    func testReinjectTextBlockedInPasswordManagers() {
+        // S5-SEC-1: TranscriptionPipeline.reinjectText must not inject into
+        // password managers.  This pins the invariant so blocklist shrinkage
+        // is caught at test time.
+        let passwordManagers: [String] = [
+            "com.agilebits.onepassword7",
+            "com.agilebits.onepassword-osx",
+            "com.1password.1password",
+            "com.bitwarden.desktop",
+            "org.keepassxc.keepassxc",
+            "com.apple.keychainaccess"
+        ]
+        for bundleID in passwordManagers {
+            XCTAssertTrue(
+                SensitiveAppRegistry.isSensitive(bundleID),
+                "reinjectText must be blocked in \(bundleID)"
+            )
+        }
+    }
+
+    func testReinjectTextBlockedInTerminals() {
+        // S5-SEC-1: Hotkey-triggered re-injection into a terminal would submit
+        // arbitrary text as a shell command.  These must remain in the blocklist.
+        let terminals: [String] = [
+            "com.apple.Terminal",
+            "com.googlecode.iterm2"
+        ]
+        for bundleID in terminals {
+            XCTAssertTrue(
+                SensitiveAppRegistry.isSensitive(bundleID),
+                "reinjectText must be blocked in \(bundleID)"
+            )
+        }
+    }
+
+    // MARK: - S5-SEC-2: executeVoiceCommands security invariant
+
+    func testVoiceCommandNewLineBlockedInTerminals() {
+        // S5-SEC-2: Saying "new line" while Terminal is frontmost would submit the
+        // current command via \n injection.  Terminals must remain sensitive so
+        // executeVoiceCommands returns early without dispatching.
+        let terminals: [String] = [
+            "com.apple.Terminal",
+            "com.googlecode.iterm2"
+        ]
+        for bundleID in terminals {
+            XCTAssertTrue(
+                SensitiveAppRegistry.isSensitive(bundleID),
+                "Voice command newline injection must be blocked in \(bundleID)"
+            )
+        }
+    }
+
+    func testVoiceCommandNewLineBlockedInPasswordManagers() {
+        // S5-SEC-2: Voice command injection in password manager fields is equally
+        // dangerous; all managers must stay in the blocklist.
+        let passwordManagers: [String] = [
+            "com.agilebits.onepassword7",
+            "com.agilebits.onepassword-osx",
+            "com.1password.1password",
+            "com.bitwarden.desktop",
+            "org.keepassxc.keepassxc",
+            "com.apple.keychainaccess"
+        ]
+        for bundleID in passwordManagers {
+            XCTAssertTrue(
+                SensitiveAppRegistry.isSensitive(bundleID),
+                "Voice command injection must be blocked in \(bundleID)"
+            )
+        }
+    }
 }

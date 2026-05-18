@@ -626,6 +626,16 @@ public actor TranscriptionPipeline {
     /// - All other commands are logged as "not yet implemented via AX" but the
     ///   phrase has already been stripped from the injected text.
     private func executeVoiceCommands(_ commands: [VoiceCommand], capturedElement: AXUIElement?) async {
+        // S5-SEC-2: Voice commands that inject newlines (\n, \n\n) via AX must
+        // not fire in sensitive apps -- "new line" in Terminal would submit the
+        // current command.  Guard at the top so ALL command injection is blocked,
+        // consistent with the snippet expansion guard in stopAndTranscribe.
+        let frontBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if SensitiveAppRegistry.isSensitive(frontBundleID) {
+            logger.warning("Pipeline: voice commands blocked -- sensitive app: \(frontBundleID ?? "nil")")
+            FileLogger.shared.log(.warn, "Pipeline: voice command execution blocked in sensitive app.")
+            return
+        }
         for command in commands {
             switch command {
             case .insertNewParagraph:
@@ -667,6 +677,16 @@ public actor TranscriptionPipeline {
     /// logic as a normal transcription result.  Called by `HotkeyDispatcher` when
     /// the `injectLastTranscription` hotkey fires.
     public func reinjectText(_ text: String) async {
+        // S5-SEC-1: Block re-injection into sensitive apps (password managers,
+        // terminals, etc.).  The UI path (HistoryViewModel.attemptReinjection)
+        // already has this guard; we mirror it here so the hotkey path is
+        // equally protected.
+        let frontBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if SensitiveAppRegistry.isSensitive(frontBundleID) {
+            logger.warning("Pipeline: re-injection blocked -- sensitive app: \(frontBundleID ?? "nil")")
+            FileLogger.shared.log(.warn, "Pipeline: re-injection blocked in sensitive app.")
+            return
+        }
         await dispatchOutput(text: text, capturedElement: nil)
         logger.info("Pipeline: re-injected \"\(text)\"")
         FileLogger.shared.log(.info, "Pipeline: re-injected last transcription.")
