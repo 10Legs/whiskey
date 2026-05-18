@@ -21,6 +21,13 @@ Local-first macOS voice transcription. Hold a hotkey, speak, release — transcr
 - **Multi-hotkey bindings** — Four configurable hotkey actions with live key capture and conflict detection
 - **Transcription history** — SQLite database with raw transcript, cleaned text, source app, timestamp
 
+### Sprint 4
+- **Personal Vocabulary Biasing** — User-defined terms injected as Whisper hints to improve recognition of proper nouns and technical terminology
+- **Inline Voice Commands** — Recognize trigger phrases ("new paragraph", "delete that") in transcribed text and execute them via Accessibility APIs
+- **Per-App Tone Profiles** — Map application bundle IDs to tone styles (casual, formal, code, raw) for context-aware LLM cleanup
+- **Enhanced Hotkey Dispatcher** — Multiple registered hotkey actions with conflict detection and four distinct action types
+- **Configurable CI Pipeline** — Vendor submodule caching, SPM build cache, and parallel CPU builds for faster release cycles
+
 ---
 
 ## How It Works
