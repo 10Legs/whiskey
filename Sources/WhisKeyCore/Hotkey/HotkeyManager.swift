@@ -185,7 +185,6 @@ public final class HotkeyManager: @unchecked Sendable {
     // MARK: - State Machine: key down
     // Internal visibility so @testable import can call from test shims.
 
-    // swiftlint:disable:next function_body_length
     func handleKeyDown() {
         switch hotkeyState {
         case .idle:

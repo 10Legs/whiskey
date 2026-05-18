@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 import SwiftUI
 import WhisKeyCore
@@ -9,11 +10,11 @@ private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
 
 // MARK: - SnippetsSettingsView
 
-/// Settings tab content for Voice Snippets (S3-T5).
-///
-/// Displays the snippet list with add / edit / delete / toggle controls
-/// and Import / Export JSON buttons. All mutations are dispatched to
-/// `SnippetStore.shared` (actor-isolated) via `async` tasks.
+// Settings tab content for Voice Snippets (S3-T5).
+// Displays the snippet list with add / edit / delete / toggle controls
+// and Import / Export JSON buttons. All mutations are dispatched to
+// `SnippetStore.shared` (actor-isolated) via `async` tasks.
+// swiftlint:disable:next type_body_length
 public struct SnippetsSettingsView: View {
 
     @State private var snippets: [Snippet] = []
@@ -185,6 +186,7 @@ public struct SnippetsSettingsView: View {
         .background(hudBackground)
     }
 
+    // swiftlint:disable function_body_length
     @ViewBuilder
     private func snippetRow(_ snippet: Snippet) -> some View {
         let isConflicted = overlappingIDs.contains(snippet.id)
@@ -265,6 +267,7 @@ public struct SnippetsSettingsView: View {
             .background(hudBackground)
         }
     }
+    // swiftlint:enable function_body_length
 
     private func deleteConfirmationRow(_ snippet: Snippet) -> some View {
         HStack {
@@ -428,8 +431,8 @@ public struct SnippetsSettingsView: View {
     private func showImportPreview(_ preview: SnippetsImportPreview) async -> Bool {
         let alert = NSAlert()
         alert.messageText = "Import \(preview.snippets.count) Snippet(s)"
-        let lines = preview.snippets.prefix(5).map { s in
-            "\u{2022} \(s.triggerPhrase) → \(expansionPreview(s.expansionText))"
+        let lines = preview.snippets.prefix(5).map { entry in
+            "\u{2022} \(entry.triggerPhrase) → \(expansionPreview(entry.expansionText))"
         }.joined(separator: "\n")
         let more = preview.snippets.count > 5 ? "\n... and \(preview.snippets.count - 5) more" : ""
         alert.informativeText = lines + more + "\n\nDuplicate triggers will be skipped."
@@ -643,6 +646,7 @@ private struct SnippetsImportPreview {
             let triggerPhrase: String
             let expansionText: String
 
+            // swiftlint:disable:next nesting
             private enum CodingKeys: String, CodingKey {
                 case triggerPhrase, expansionText
             }

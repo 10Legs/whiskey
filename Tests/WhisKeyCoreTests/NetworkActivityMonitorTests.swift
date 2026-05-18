@@ -122,9 +122,9 @@ class NetworkActivityMonitorTests: XCTestCase {
         let monitor = NetworkActivityMonitor()
         monitor.egressState = .local
 
-        for i in 0..<5 {
+        for idx in 0..<5 {
             monitor.recordEgress(
-                destination: "bad-host-\(i).example.com",
+                destination: "bad-host-\(idx).example.com",
                 bytesSent: 100,
                 bytesReceived: 0,
                 eventType: .unexpected
@@ -167,9 +167,9 @@ class NetworkActivityMonitorTests: XCTestCase {
         let monitor = NetworkActivityMonitor()
         monitor.egressState = .local
 
-        for i in 0..<110 {
+        for idx in 0..<110 {
             monitor.recordEgress(
-                destination: "host-\(i).co",
+                destination: "host-\(idx).co",
                 bytesSent: 1,
                 bytesReceived: 1,
                 eventType: .modelDownload
@@ -215,9 +215,9 @@ class NetworkActivityMonitorTests: XCTestCase {
         let monitor = NetworkActivityMonitor()
         monitor.egressState = .local
 
-        for i in 0..<15 {
+        for idx in 0..<15 {
             monitor.recordEgress(
-                destination: "host-\(i).co",
+                destination: "host-\(idx).co",
                 bytesSent: 1,
                 bytesReceived: 1,
                 eventType: .modelDownload
@@ -334,7 +334,7 @@ class URLSessionAuditCoverageTests: XCTestCase {
             "URLSession.shared.upload(from:",
             "URLSession.shared.download(from:",
             "URLSession.shared.bytes(for:",
-            "URLSession.shared.bytes(from:",
+            "URLSession.shared.bytes(from:"
         ]
         // EgressAuditor itself is exempt — it is the audit boundary.
         let exemptFile = "EgressAuditor.swift"
@@ -350,22 +350,20 @@ class URLSessionAuditCoverageTests: XCTestCase {
                   fileURL.lastPathComponent != exemptFile else { continue }
 
             let content = (try? String(contentsOf: fileURL, encoding: .utf8)) ?? ""
-            for pattern in rawPatterns {
-                if content.contains(pattern) {
-                    // S2: verify the audit marker exists on a non-comment line —
-                    // a comment such as `// EgressAuditor.shared.recordCompleted`
-                    // must not satisfy the audit requirement.
-                    let markerOnCodeLine = content
-                        .components(separatedBy: .newlines)
-                        .contains { line in
-                            let trimmed = line.trimmingCharacters(in: .whitespaces)
-                            return !trimmed.hasPrefix("//") && trimmed.contains(auditMarker)
-                        }
-                    if !markerOnCodeLine {
-                        violations.append(
-                            "\(fileURL.lastPathComponent): contains '\(pattern)' without '\(auditMarker)' on a non-comment line"
-                        )
+            for pattern in rawPatterns where content.contains(pattern) {
+                // S2: verify the audit marker exists on a non-comment line —
+                // a comment such as `// EgressAuditor.shared.recordCompleted`
+                // must not satisfy the audit requirement.
+                let markerOnCodeLine = content
+                    .components(separatedBy: .newlines)
+                    .contains { line in
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        return !trimmed.hasPrefix("//") && trimmed.contains(auditMarker)
                     }
+                if !markerOnCodeLine {
+                    violations.append(
+                        "\(fileURL.lastPathComponent): contains '\(pattern)' without '\(auditMarker)' on a non-comment line"
+                    )
                 }
             }
         }

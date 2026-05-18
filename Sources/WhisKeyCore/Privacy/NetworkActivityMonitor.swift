@@ -194,8 +194,9 @@ public final class NetworkActivityMonitor: @unchecked Sendable {
             }
         }
 
+        let logType = eventType.rawValue
         logger.info(
-            "Egress recorded: \(destination, privacy: .public) type=\(eventType.rawValue, privacy: .public) sent=\(bytesSent) recv=\(bytesReceived)"
+            "Egress recorded: \(destination, privacy: .public) type=\(logType, privacy: .public) sent=\(bytesSent) recv=\(bytesReceived)"
         )
     }
 

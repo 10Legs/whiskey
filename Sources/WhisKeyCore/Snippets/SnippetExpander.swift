@@ -65,7 +65,9 @@ public struct SnippetExpander: Sendable {
                 let prev = candidates[index - 1]
                 if prev.triggerWordCount == snippet.triggerWordCount,
                    prev.triggerPhrase.count == snippet.triggerPhrase.count {
-                    logger.warning("SnippetExpander: trigger tie resolved by creation date. Winner: \(snippet.triggerPhrase). Consider making triggers distinct.")
+                    let winner = snippet.triggerPhrase
+                    logger.warning("SnippetExpander: tie resolved by date. Winner: \(winner). Make triggers distinct."
+                    )
                 }
             }
 
