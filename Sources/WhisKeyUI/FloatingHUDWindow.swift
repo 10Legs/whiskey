@@ -15,6 +15,10 @@ public final class VoiceCommandHUDController {
     private var dismissTask: Task<Void, Never>?
     private var observer: NSObjectProtocol?
 
+    /// Width/height must match the SwiftUI frame declared in VoiceCommandHUDContentView.
+    private static let panelWidth: CGFloat = 200
+    private static let panelHeight: CGFloat = 36
+
     public init() {
         panel = NSPanel(
             contentRect: .zero,
@@ -25,11 +29,13 @@ public final class VoiceCommandHUDController {
         panel.level = .popUpMenu
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        panel.hasShadow = false          // shadow rendered by SwiftUI .shadow() modifier
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.animationBehavior = .none
 
-        let hosting = NSHostingView(rootView: VoiceCommandHUDContentView(label: ""))
+        let contentView = VoiceCommandHUDContentView(label: "")
+        let hosting = NSHostingView(rootView: contentView)
         panel.contentView = hosting
 
         observer = NotificationCenter.default.addObserver(
@@ -48,69 +54,108 @@ public final class VoiceCommandHUDController {
 
     private func show(label: String) {
         dismissTask?.cancel()
-        (panel.contentView as? NSHostingView<VoiceCommandHUDContentView>)?.rootView =
-            VoiceCommandHUDContentView(label: label)
+
+        // Swap rootView to trigger entry animation on a fresh VoiceCommandHUDContentView.
+        let hosting = panel.contentView as? NSHostingView<VoiceCommandHUDContentView>
+        hosting?.rootView = VoiceCommandHUDContentView(label: label)
+
         position()
         panel.orderFront(nil)
 
         dismissTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(1500))
             guard !Task.isCancelled else { return }
-            self?.panel.orderOut(nil)
+            // Signal the content view to animate out, then order-out after delay.
+            await self?.animateOutAndDismiss()
         }
+    }
+
+    @MainActor
+    private func animateOutAndDismiss() async {
+        // Swap to a dismissing view so the exit animation plays.
+        (panel.contentView as? NSHostingView<VoiceCommandHUDContentView>)?.rootView =
+            VoiceCommandHUDContentView(label: "", dismissing: true)
+        try? await Task.sleep(for: .milliseconds(150))
+        panel.orderOut(nil)
     }
 
     private func position() {
         guard let screen = NSScreen.main else { return }
         let visibleFrame = screen.visibleFrame
-        let width: CGFloat = 180
-        let height: CGFloat = 32
+        let width = Self.panelWidth
+        let height = Self.panelHeight
         let margin: CGFloat = 20
-        // Sit directly above the waveform HUD (waveform HUD is 52 pt tall + 20 pt margin).
+        // Sit directly above the waveform HUD idle footprint (22 pt) + margin.
         let origin = CGPoint(
             x: visibleFrame.maxX - width - margin,
-            y: visibleFrame.minY + margin + 52 + 6
+            y: visibleFrame.minY + margin + 22 + 6
         )
         panel.setFrameOrigin(origin)
         panel.setContentSize(CGSize(width: width, height: height))
     }
 }
 
+// MARK: - Voice Command HUD Content View
+
 private struct VoiceCommandHUDContentView: View {
     let label: String
+    var dismissing: Bool = false
 
-    private let bgColor   = HalideTokens.backgroundPrimary
-    private let neonGreen = HalideTokens.accentAmber
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appeared = false
 
     var body: some View {
-        Text(label)
-            .font(.system(size: 11, weight: .medium, design: .monospaced))
-            .foregroundColor(neonGreen)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .background(bgColor)
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(neonGreen.opacity(0.6), lineWidth: 1)
-            )
-            .cornerRadius(2)
-    }
-}
+        HStack(spacing: HalideTokens.spacing8) {
+            Circle()
+                .fill(HalideTokens.accentAmber)
+                .frame(width: 6, height: 6)
 
-extension VoiceCommand {
-    var displayLabel: String {
-        switch self {
-        case .insertNewParagraph:  return "New Paragraph"
-        case .insertNewLine:       return "New Line"
-        case .deleteLastUtterance: return "Scratch That"
-        case .uppercaseLastWord:   return "All Caps"
-        case .insertPeriod:        return "Period"
-        case .insertComma:         return "Comma"
-        case .insertQuestionMark:  return "Question Mark"
+            Text(label)
+                .font(.callout.weight(.medium))
+                .foregroundColor(HalideTokens.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
+        .padding(.horizontal, HalideTokens.spacing12)
+        .padding(.vertical, HalideTokens.spacing8)
+        .frame(width: 200, height: 36)
+        .background {
+            RoundedRectangle(cornerRadius: HalideTokens.radiusMedium)
+                .fill(.ultraThinMaterial)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: HalideTokens.radiusMedium)
+                .stroke(HalideTokens.borderSubtle, lineWidth: 1)
+        }
+        .shadow(
+            color: HalideTokens.hudShadowColor.opacity(HalideTokens.hudShadowOpacity),
+            radius: HalideTokens.hudShadowRadius,
+            x: 0,
+            y: HalideTokens.hudShadowY
+        )
+        .opacity(entryOpacity)
+        .offset(y: entryOffsetY)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: appeared)
+        .onAppear {
+            if !dismissing {
+                appeared = true
+            }
+        }
+        .onChange(of: dismissing) { _, isDismissing in
+            if isDismissing { appeared = false }
+        }
+    }
+
+    private var entryOpacity: Double {
+        guard !reduceMotion else { return 1 }
+        if dismissing { return appeared ? 0 : 1 }
+        return appeared ? 1 : 0
+    }
+
+    private var entryOffsetY: Double {
+        guard !reduceMotion else { return 0 }
+        if dismissing { return appeared ? 8 : 0 }
+        return appeared ? 0 : 8
     }
 }
 
@@ -127,6 +172,19 @@ public final class FloatingHUDWindow: NSPanel {
 
     private let hudViewModel: FloatingHUDViewModel
     private var hostingView: NSHostingView<WaveformHUDView>?
+    private var moveObserver: NSObjectProtocol?
+
+    // UserDefaults keys for persisting HUD origin.
+    private static let originXKey = "com.whiskey.hudOrigin.x"
+    private static let originYKey = "com.whiskey.hudOrigin.y"
+
+    // Idle panel footprint used for default positioning.
+    private static let idlePanelWidth: CGFloat  = 120
+    private static let idlePanelHeight: CGFloat  = 22
+    // Recording size — SwiftUI expands in-place; the panel frame uses the larger value
+    // only for content sizing. The origin stays fixed.
+    private static let recordingPanelWidth: CGFloat  = 200
+    private static let recordingPanelHeight: CGFloat = 56
 
     // Bottom-right margin from screen edge, in points.
     private static let screenMargin: CGFloat = 20
@@ -145,7 +203,8 @@ public final class FloatingHUDWindow: NSPanel {
 
         configurePanelBehavior()
         installContentView()
-        positionBottomRight()
+        restoreOrPositionBottomRight()
+        installMoveObserver()
     }
 
     // MARK: - Configuration
@@ -154,12 +213,12 @@ public final class FloatingHUDWindow: NSPanel {
         level = .floating
         isOpaque = false
         backgroundColor = .clear
+        hasShadow = false            // shadow rendered by SwiftUI .shadow() modifier
         hidesOnDeactivate = false
         // Join all Mission Control spaces; display over full-screen apps.
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        // Allow the panel to receive mouse events for future drag support.
+        // Allow the user to drag the panel by its background.
         isMovableByWindowBackground = true
-        // Do not appear in Exposé / Mission Control window listing.
         animationBehavior = .none
     }
 
@@ -171,27 +230,73 @@ public final class FloatingHUDWindow: NSPanel {
         self.hostingView = hosting
     }
 
-    /// Position the panel 20 pts from the bottom-right corner of the main screen.
+    // MARK: - Position Persistence
+
+    /// Restore the saved HUD origin from UserDefaults, or fall back to the
+    /// default bottom-right corner. Validates the restored origin against all
+    /// connected screens to handle display configuration changes.
+    private func restoreOrPositionBottomRight() {
+        let defaults = UserDefaults.standard
+        let savedX = defaults.object(forKey: Self.originXKey) as? Double
+        let savedY = defaults.object(forKey: Self.originYKey) as? Double
+
+        if let originX = savedX, let originY = savedY {
+            let origin = CGPoint(x: originX, y: originY)
+            // Use the recording size as the bounding box for the on-screen check.
+            let panelRect = CGRect(
+                origin: origin,
+                size: CGSize(width: Self.recordingPanelWidth, height: Self.recordingPanelHeight)
+            )
+            let isOnScreen = NSScreen.screens.contains { screen in
+                screen.frame.intersects(panelRect)
+            }
+            if isOnScreen {
+                setFrameOrigin(origin)
+                setContentSize(CGSize(width: Self.recordingPanelWidth, height: Self.recordingPanelHeight))
+                return
+            }
+        }
+        positionBottomRight()
+    }
+
+    /// Place the panel in the bottom-right corner using the idle footprint.
+    /// The SwiftUI frame grows to recording size in-place without repositioning.
     private func positionBottomRight() {
         guard let screen = NSScreen.main else { return }
         let visibleFrame = screen.visibleFrame
-        // Use recording size as maximum footprint so the panel never clips.
-        let panelWidth: CGFloat = 96
-        let panelHeight: CGFloat = 52
         let margin = Self.screenMargin
 
         let origin = CGPoint(
-            x: visibleFrame.maxX - panelWidth - margin,
+            x: visibleFrame.maxX - Self.recordingPanelWidth - margin,
             y: visibleFrame.minY + margin
         )
         setFrameOrigin(origin)
-        setContentSize(CGSize(width: panelWidth, height: panelHeight))
+        setContentSize(CGSize(width: Self.recordingPanelWidth, height: Self.recordingPanelHeight))
+    }
+
+    /// Observe `NSWindow.didMoveNotification` and persist the panel origin.
+    private func installMoveObserver() {
+        moveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: self,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            let origin = self.frame.origin
+            let defaults = UserDefaults.standard
+            defaults.set(origin.x, forKey: Self.originXKey)
+            defaults.set(origin.y, forKey: Self.originYKey)
+        }
+    }
+
+    deinit {
+        if let moveObserver { NotificationCenter.default.removeObserver(moveObserver) }
     }
 
     // MARK: - Show / Hide
 
     public func showHUD() {
-        positionBottomRight()
+        restoreOrPositionBottomRight()
         orderFront(nil)
     }
 
@@ -259,5 +364,21 @@ public final class FloatingHUDWindowController {
 
     public func recordingDidStop() {
         viewModel.notifyRecordingStopped()
+    }
+}
+
+// MARK: - VoiceCommand displayLabel
+
+extension VoiceCommand {
+    var displayLabel: String {
+        switch self {
+        case .insertNewParagraph:  return "New Paragraph"
+        case .insertNewLine:       return "New Line"
+        case .deleteLastUtterance: return "Scratch That"
+        case .uppercaseLastWord:   return "All Caps"
+        case .insertPeriod:        return "Period"
+        case .insertComma:         return "Comma"
+        case .insertQuestionMark:  return "Question Mark"
+        }
     }
 }

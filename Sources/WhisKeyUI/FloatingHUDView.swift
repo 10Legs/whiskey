@@ -37,21 +37,32 @@ public final class FloatingHUDViewModel: ObservableObject {
     }
 }
 
+// MARK: - Waveform Render Context
+
+/// Bundles waveform drawing inputs to stay within the 5-parameter limit.
+private struct WaveformRenderContext {
+    let phase: Double
+    let level: Float
+    let isRecording: Bool
+    let reduceMotion: Bool
+}
+
 // MARK: - HUD View
 
-/// Floating waveform HUD with two visual states: idle (flat line) and
-/// recording (animated oscilloscope). Hosted inside FloatingHUDWindow.
+/// Floating waveform HUD with two visual states:
+/// - Idle (120×22): flat line / breathing oscillation in cool slate
+/// - Recording (200×56): animated dual-sine oscilloscope with amber recording dot
+///
+/// Hosted inside FloatingHUDWindow. `PulsingModifier` has been removed —
+/// the waveform itself signals recording state.
 public struct WaveformHUDView: View {
 
     @ObservedObject var viewModel: FloatingHUDViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // Design tokens
-    private let bgColor   = HalideTokens.backgroundPrimary
-    private let neonGreen = HalideTokens.accentAmber
-
-    // Waveform geometry
-    private let idleSize      = CGSize(width: 72, height: 12)
-    private let recordingSize = CGSize(width: 96, height: 52)
+    // Halide sizing
+    private let idleSize      = CGSize(width: 120, height: 22)
+    private let recordingSize = CGSize(width: 200, height: 56)
 
     public init(viewModel: FloatingHUDViewModel) {
         self.viewModel = viewModel
@@ -59,72 +70,82 @@ public struct WaveformHUDView: View {
 
     public var body: some View {
         let size = viewModel.isRecording ? recordingSize : idleSize
+        let sizeAnimation: Animation? = reduceMotion
+            ? nil
+            : .spring(response: 0.35, dampingFraction: 0.75)
 
-        ZStack(alignment: .topTrailing) {
-            // Waveform canvas (recording state only)
-            if viewModel.isRecording {
-                TimelineView(.animation) { timeline in
-                    Canvas { ctx, canvasSize in
-                        drawWaveform(
-                            ctx: ctx,
-                            size: canvasSize,
-                            phase: timeline.date.timeIntervalSinceReferenceDate,
-                            level: viewModel.audioLevel
-                        )
-                    }
-                }
-                .opacity(viewModel.isRecording ? 1 : 0)
-                .animation(
-                    .easeInOut(duration: 0.15).delay(viewModel.isRecording ? 0.1 : 0),
-                    value: viewModel.isRecording
-                )
-                .frame(width: recordingSize.width, height: recordingSize.height)
-            } else {
-                // Idle: single flat line
-                Rectangle()
-                    .fill(neonGreen.opacity(0.30))
-                    .frame(width: idleSize.width - 8, height: 1)
-                    .frame(width: idleSize.width, height: idleSize.height)
-            }
-
-            // Pulsing dot — recording indicator (top-right)
+        ZStack(alignment: .leading) {
+            // Recording indicator dot — static 6×6 pt, left-aligned, 10 pt inset.
             if viewModel.isRecording {
                 Circle()
-                    .fill(neonGreen)
-                    .frame(width: 3, height: 3)
-                    .padding(4)
-                    .modifier(PulsingModifier())
+                    .fill(HalideTokens.accentRecording)
+                    .frame(width: 6, height: 6)
+                    .padding(.leading, 10)
+                    .frame(maxHeight: .infinity, alignment: .center)
             }
+
+            // Waveform / idle line — always present, centered.
+            let isRecording = viewModel.isRecording
+            let level = viewModel.audioLevel
+            let noMotion = reduceMotion
+            TimelineView(.animation) { timeline in
+                Canvas { ctx, canvasSize in
+                    let renderCtx = WaveformRenderContext(
+                        phase: timeline.date.timeIntervalSinceReferenceDate,
+                        level: level,
+                        isRecording: isRecording,
+                        reduceMotion: noMotion
+                    )
+                    drawWaveform(ctx: ctx, size: canvasSize, renderCtx: renderCtx)
+                }
+            }
+            .padding(.horizontal, viewModel.isRecording ? 24 : 16)
         }
         .frame(width: size.width, height: size.height)
-        .background(bgColor)
-        .overlay(
-            RoundedRectangle(cornerRadius: 2)
-                .stroke(neonGreen, lineWidth: 1)
+        .animation(sizeAnimation, value: viewModel.isRecording)
+        .background {
+            RoundedRectangle(cornerRadius: viewModel.isRecording ? HalideTokens.radiusXL : HalideTokens.radiusLarge)
+                .fill(.ultraThinMaterial)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: viewModel.isRecording ? HalideTokens.radiusXL : HalideTokens.radiusLarge)
+                .stroke(HalideTokens.borderSubtle, lineWidth: 1)
+        }
+        .shadow(
+            color: HalideTokens.hudShadowColor.opacity(HalideTokens.hudShadowOpacity),
+            radius: HalideTokens.hudShadowRadius,
+            x: 0,
+            y: HalideTokens.hudShadowY
         )
-        .cornerRadius(2)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.isRecording)
     }
 
     // MARK: - Waveform Drawing
 
-    private func drawWaveform(
+    private func drawWaveform(ctx: GraphicsContext, size: CGSize, renderCtx: WaveformRenderContext) {
+        let midY = size.height / 2
+        let maxAmplitude = size.height / 2 - 4
+
+        if renderCtx.isRecording {
+            drawRecordingWaveform(ctx: ctx, size: size, midY: midY, maxAmplitude: maxAmplitude, renderCtx: renderCtx)
+        } else {
+            drawIdleLine(ctx: ctx, size: size, midY: midY, renderCtx: renderCtx)
+        }
+    }
+
+    private func drawRecordingWaveform(
         ctx: GraphicsContext,
         size: CGSize,
-        phase: Double,
-        level: Float
+        midY: CGFloat,
+        maxAmplitude: CGFloat,
+        renderCtx: WaveformRenderContext
     ) {
-        let canvasWidth = size.width
-        let canvasHeight = size.height
-        let midY = canvasHeight / 2
-        let amplitude = CGFloat(level) * (canvasHeight / 2 - 4)
-
+        let amplitude = CGFloat(renderCtx.level) * maxAmplitude
+        let phase = renderCtx.phase
         var path = Path()
-        let steps = Int(canvasWidth)
+        let steps = Int(size.width)
 
         for step in 0...steps {
             let fraction = Double(step) / Double(steps)
-            // Two sine waves at different frequencies + small noise term for organic feel
             let noise = sin(fraction * 47.3 + phase * 3.7) * 0.15
             let yPos = midY - amplitude * CGFloat(
                 sin(fraction * .pi * 4 + phase * 5) * 0.6 +
@@ -138,26 +159,35 @@ public struct WaveformHUDView: View {
             }
         }
 
+        // Brightness: 75% → 100% as level rises from 0 → 1
+        let opacity = 0.75 + Double(renderCtx.level) * 0.25
         ctx.stroke(
             path,
-            with: .color(HalideTokens.accentAmber),
+            with: .color(HalideTokens.textPrimary.opacity(opacity)),
             style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
         )
     }
-}
 
-// MARK: - Pulsing Dot Modifier
+    private func drawIdleLine(ctx: GraphicsContext, size: CGSize, midY: CGFloat, renderCtx: WaveformRenderContext) {
+        // Breathing: ~8-second cycle, 2 pt peak-to-trough, disabled when reduceMotion.
+        let breathingAmplitude: CGFloat = renderCtx.reduceMotion ? 0 : 2.0 * sin(renderCtx.phase * 0.8)
+        let steps = Int(size.width)
+        var path = Path()
 
-private struct PulsingModifier: ViewModifier {
-    @State private var pulsing = false
+        for step in 0...steps {
+            let fraction = Double(step) / Double(steps)
+            let yPos = midY - breathingAmplitude * CGFloat(sin(fraction * .pi * 2))
+            if step == 0 {
+                path.move(to: CGPoint(x: CGFloat(step), y: yPos))
+            } else {
+                path.addLine(to: CGPoint(x: CGFloat(step), y: yPos))
+            }
+        }
 
-    func body(content: Content) -> some View {
-        content
-            .opacity(pulsing ? 0.3 : 1.0)
-            .animation(
-                .easeInOut(duration: 0.7).repeatForever(autoreverses: true),
-                value: pulsing
-            )
-            .onAppear { pulsing = true }
+        ctx.stroke(
+            path,
+            with: .color(HalideTokens.accentIdle),
+            style: StrokeStyle(lineWidth: 1.0, lineCap: .round, lineJoin: .round)
+        )
     }
 }
