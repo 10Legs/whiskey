@@ -50,7 +50,7 @@ private struct WaveformRenderContext {
 // MARK: - HUD View
 
 /// Floating waveform HUD with two visual states:
-/// - Idle (120×22): flat line / breathing oscillation in cool slate
+/// - Idle (80×14): flat line / breathing oscillation in cool slate
 /// - Recording (200×56): animated dual-sine oscilloscope with amber recording dot
 ///
 /// Hosted inside FloatingHUDWindow. `PulsingModifier` has been removed —
@@ -61,7 +61,7 @@ public struct WaveformHUDView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Halide sizing
-    private let idleSize      = CGSize(width: 120, height: 22)
+    private let idleSize      = CGSize(width: 80, height: 14)
     private let recordingSize = CGSize(width: 200, height: 56)
 
     public init(viewModel: FloatingHUDViewModel) {
@@ -99,7 +99,7 @@ public struct WaveformHUDView: View {
                     drawWaveform(ctx: ctx, size: canvasSize, renderCtx: renderCtx)
                 }
             }
-            .padding(.horizontal, viewModel.isRecording ? 24 : 16)
+            .padding(.horizontal, viewModel.isRecording ? 24 : 10)
         }
         .frame(width: size.width, height: size.height)
         .animation(sizeAnimation, value: viewModel.isRecording)
@@ -117,6 +117,8 @@ public struct WaveformHUDView: View {
             x: 0,
             y: HalideTokens.hudShadowY
         )
+        .accessibilityLabel(viewModel.isRecording ? "Recording in progress" : "WhisKey idle")
+        .accessibilityHidden(false)
     }
 
     // MARK: - Waveform Drawing
@@ -172,7 +174,7 @@ public struct WaveformHUDView: View {
 
     private func drawIdleLine(ctx: GraphicsContext, size: CGSize, midY: CGFloat, renderCtx: WaveformRenderContext) {
         // Breathing: ~8-second cycle, 2 pt peak-to-trough, disabled when reduceMotion.
-        let breathingAmplitude: CGFloat = renderCtx.reduceMotion ? 0 : 3.5 * sin(renderCtx.phase * 0.8)
+        let breathingAmplitude: CGFloat = renderCtx.reduceMotion ? 0 : 2.0 * sin(renderCtx.phase * 0.8)
         let steps = Int(size.width)
         var path = Path()
 

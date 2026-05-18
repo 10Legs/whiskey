@@ -15,6 +15,9 @@ public struct SettingsView: View {
     private let vocabularyStore: PersonalVocabularyStore
     private let toneProfileStore: AppToneProfileStore
 
+    @State private var selectedTab: Int = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init(
         settings: SettingsManager,
         modelManager: ModelManager,
@@ -34,33 +37,42 @@ public struct SettingsView: View {
     }
 
     public var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             GeneralTab(settings: settings, modelManager: modelManager)
                 .tabItem { Label("General", systemImage: "gear") }
+                .tag(0)
 
             RecordingTab(settings: settings, bindingStore: bindingStore)
                 .tabItem { Label("Recording", systemImage: "keyboard") }
+                .tag(1)
 
             TranscriptionTab(settings: settings)
                 .tabItem { Label("Transcription", systemImage: "waveform") }
+                .tag(2)
 
             ModelSettingsView(modelManager: modelManager)
                 .tabItem { Label("Models", systemImage: "square.and.arrow.down") }
+                .tag(3)
 
             CustomizationTab(vocabularyStore: vocabularyStore, toneProfileStore: toneProfileStore)
                 .tabItem { Label("Customization", systemImage: "slider.horizontal.3") }
+                .tag(4)
 
             if let monitor = networkMonitor {
                 PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)
                     .tabItem { Label("Privacy", systemImage: "lock.shield") }
+                    .tag(5)
             } else {
                 PrivacyTab()
                     .tabItem { Label("Privacy", systemImage: "lock.shield") }
+                    .tag(5)
             }
 
             AboutTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
+                .tag(6)
         }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selectedTab)
         .frame(width: 520, height: 520)
         .background(HalideTokens.backgroundPrimary)
         .accentColor(HalideTokens.accentAmber)
@@ -389,7 +401,7 @@ private struct VocabularyContent: View {
                     Text(msg)
                         .font(.caption)
                         .fontDesign(.monospaced)
-                        .foregroundColor(.red.opacity(0.85))
+                        .foregroundColor(HalideTokens.accentDestructive)
                 }
             }
 

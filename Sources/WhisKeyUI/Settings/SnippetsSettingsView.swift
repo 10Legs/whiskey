@@ -248,7 +248,7 @@ public struct SnippetsSettingsView: View {
                                 .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
-                        .foregroundColor(.red.opacity(0.7))
+                        .foregroundColor(HalideTokens.accentDestructive)
                         .accessibilityLabel("Delete \(snippet.triggerPhrase)")
                         .help("Delete snippet")
                     }
