@@ -151,7 +151,7 @@ private struct ConfirmedLabel: View {
 
     private func scheduleDisappearance() {
         let displayDuration: Double = reduceMotion ? 3.0 : 2.0
-        let fadeDuration:    Double = reduceMotion ? 0.0 : 0.5
+        let fadeDuration: Double = reduceMotion ? 0.0 : 0.5
 
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(displayDuration))

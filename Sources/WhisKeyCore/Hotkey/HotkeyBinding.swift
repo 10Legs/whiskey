@@ -32,14 +32,14 @@ extension HotkeyBinding: Codable {
     }
 
     public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        action = try c.decode(HotkeyAction.self, forKey: .action)
-        if let raw = try c.decodeIfPresent(UInt16.self, forKey: .keyCode) {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        action = try container.decode(HotkeyAction.self, forKey: .action)
+        if let raw = try container.decodeIfPresent(UInt16.self, forKey: .keyCode) {
             keyCode = CGKeyCode(raw)
         } else {
             keyCode = nil
         }
-        if let raw = try c.decodeIfPresent(UInt64.self, forKey: .modifierFlagsRaw) {
+        if let raw = try container.decodeIfPresent(UInt64.self, forKey: .modifierFlagsRaw) {
             modifierFlags = CGEventFlags(rawValue: raw)
         } else {
             modifierFlags = nil
@@ -47,10 +47,10 @@ extension HotkeyBinding: Codable {
     }
 
     public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(action, forKey: .action)
-        try c.encodeIfPresent(keyCode.map { UInt16($0) }, forKey: .keyCode)
-        try c.encodeIfPresent(modifierFlags.map { $0.rawValue }, forKey: .modifierFlagsRaw)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(action, forKey: .action)
+        try container.encodeIfPresent(keyCode.map { UInt16($0) }, forKey: .keyCode)
+        try container.encodeIfPresent(modifierFlags.map { $0.rawValue }, forKey: .modifierFlagsRaw)
     }
 }
 
@@ -80,14 +80,14 @@ extension HotkeyBinding {
     private func modifierSymbols(for flags: CGEventFlags?) -> String {
         guard let flags else { return "" }
         var result = ""
-        if flags.contains(.maskControl)     { result += "⌃" }
-        if flags.contains(.maskAlternate)   { result += "⌥" }
-        if flags.contains(.maskShift)       { result += "⇧" }
-        if flags.contains(.maskCommand)     { result += "⌘" }
+        if flags.contains(.maskControl) { result += "⌃" }
+        if flags.contains(.maskAlternate) { result += "⌥" }
+        if flags.contains(.maskShift) { result += "⇧" }
+        if flags.contains(.maskCommand) { result += "⌘" }
         return result
     }
 
-    // swiftlint:disable:next function_body_length
+    // swiftlint:disable cyclomatic_complexity
     /// Returns a display name for the given virtual key code.
     private func keyName(for keyCode: CGKeyCode) -> String {
         switch keyCode {
@@ -127,6 +127,7 @@ extension HotkeyBinding {
             return printableCharacter(for: keyCode)
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 
     /// Attempts to derive a printable character from a key code using a minimal
     /// hard-coded table for letter and digit keys. Falls back to "Key \(keyCode)".
@@ -137,17 +138,17 @@ extension HotkeyBinding {
             0x05: "G", 0x04: "H", 0x22: "I", 0x26: "J", 0x28: "K", 0x25: "L",
             0x2E: "M", 0x2D: "N", 0x1F: "O", 0x23: "P", 0x0C: "Q", 0x0F: "R",
             0x01: "S", 0x11: "T", 0x20: "U", 0x09: "V", 0x0D: "W", 0x07: "X",
-            0x10: "Y", 0x06: "Z",
+            0x10: "Y", 0x06: "Z"
         ]
         // Digit key codes 0–9.
         let digitMap: [CGKeyCode: String] = [
             0x1D: "0", 0x12: "1", 0x13: "2", 0x14: "3", 0x15: "4",
-            0x17: "5", 0x16: "6", 0x1A: "7", 0x1C: "8", 0x19: "9",
+            0x17: "5", 0x16: "6", 0x1A: "7", 0x1C: "8", 0x19: "9"
         ]
         // Common punctuation.
         let punctuationMap: [CGKeyCode: String] = [
             0x1B: "-", 0x18: "=", 0x21: "[", 0x1E: "]", 0x2A: "\\",
-            0x29: ";", 0x27: "'", 0x2B: ",", 0x2F: ".", 0x2C: "/", 0x32: "`",
+            0x29: ";", 0x27: "'", 0x2B: ",", 0x2F: ".", 0x2C: "/", 0x32: "`"
         ]
         return letterMap[keyCode] ?? digitMap[keyCode] ?? punctuationMap[keyCode]
             ?? "Key \(keyCode)"

@@ -110,7 +110,7 @@ public final class HotkeyDispatcher {
         )
 
         let popoverKC = popoverBinding.keyCode.map { "\($0)" } ?? "nil"
-        let injectKC  = injectBinding.keyCode.map  { "\($0)" } ?? "nil"
+        let injectKC = injectBinding.keyCode.map { "\($0)" } ?? "nil"
         dispatcherLogger.debug(
             "HotkeyDispatcher: openPopover kc=\(popoverKC, privacy: .public), injectLast kc=\(injectKC, privacy: .public)"
         )

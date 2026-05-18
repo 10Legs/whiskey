@@ -51,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsManager = SettingsManager()
     // S3-T6: Multi-hotkey binding store. Created once; shared with SettingsView.
     private let bindingStore = HotkeyBindingStore()
+    // S4-T7: Per-app tone profile store. Created once; shared with SettingsView and pipeline.
+    private let toneProfileStore = AppToneProfileStore.shared
     private lazy var modelManager = ModelManager(settings: settingsManager)
     private lazy var pipeline = TranscriptionPipeline(settings: settingsManager)
     private lazy var appContextService = AppContextService(settingsManager: settingsManager)
@@ -404,7 +406,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             modelManager: modelManager,
             networkMonitor: networkMonitor,
             hasPulsedRed: .constant(hasPulsedRed),
-            bindingStore: bindingStore
+            bindingStore: bindingStore,
+            toneProfileStore: toneProfileStore
         )
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
@@ -530,10 +533,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Push actor-isolated configuration via async setters.
+        let toneStore = toneProfileStore
         Task {
             await pipeline.setLanguageHint(langHint)
             await pipeline.setCleanupProfile(cleanupProfile)
             await pipeline.setAppContextService(svc)
+            await pipeline.setToneProfileStore(toneStore)
         }
 
         // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).

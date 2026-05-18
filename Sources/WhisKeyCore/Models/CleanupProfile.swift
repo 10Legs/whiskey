@@ -54,16 +54,30 @@ public struct CleanupProfile: Sendable {
     /// When `true`, skip the LLM entirely and inject the raw transcript verbatim.
     public var rawMode: Bool
 
+    /// Optional override for the LLM system prompt (S4-T7).
+    ///
+    /// When non-nil, LLM providers must use this string as the system prompt
+    /// instead of `toneStyle.systemPrompt`. Set by `ToneProfileCleanupWrapper`
+    /// to inject the per-app tone suffix without mutating `ToneStyle`.
+    public var customSystemPrompt: String?
+
+    /// The effective system prompt: `customSystemPrompt` when set, otherwise `toneStyle.systemPrompt`.
+    public var effectiveSystemPrompt: String {
+        customSystemPrompt ?? toneStyle.systemPrompt
+    }
+
     public init(
         removeFillers: Bool = true,
         addPunctuation: Bool = true,
         toneStyle: ToneStyle = .casual,
-        rawMode: Bool = false
+        rawMode: Bool = false,
+        customSystemPrompt: String? = nil
     ) {
         self.removeFillers = removeFillers
         self.addPunctuation = addPunctuation
         self.toneStyle = toneStyle
         self.rawMode = rawMode
+        self.customSystemPrompt = customSystemPrompt
     }
 
     /// Convenience profile that bypasses all LLM processing.

@@ -3,6 +3,8 @@ name: CI
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,7 +34,40 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Restore vendor submodules
+        # Avoids network fetches to GitHub for whisper.cpp and llama.cpp on every run.
+        # The UDM Pro NAT drops long-lived connections that cause recursive submodule
+        # checkout to hang indefinitely. Instead we cache the source trees on the runner
+        # at ~/.whiskey-vendor-cache/ and restore from disk, only falling back to the
+        # network when the expected commit has changed (i.e. after a Vendor bump).
+        run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+
+          for MODULE in whisper.cpp llama.cpp; do
+            EXPECTED=$(git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}')
+            CACHE_COMMIT_FILE="${VENDOR_CACHE}/${MODULE}.commit"
+            CACHED_COMMIT=""
+            if [ -f "$CACHE_COMMIT_FILE" ]; then
+              CACHED_COMMIT=$(cat "$CACHE_COMMIT_FILE")
+            fi
+
+            echo "[vendor] ${MODULE}: expected=${EXPECTED} cached=${CACHED_COMMIT:-none}"
+
+            if [ -d "${VENDOR_CACHE}/${MODULE}" ] && [ "$EXPECTED" = "$CACHED_COMMIT" ]; then
+              echo "[vendor] Cache hit for ${MODULE} — restoring from disk"
+              rsync -a "${VENDOR_CACHE}/${MODULE}/" "Vendor/${MODULE}/"
+            else
+              echo "[vendor] Cache miss for ${MODULE} — fetching from GitHub"
+              git submodule update --init --recursive "Vendor/${MODULE}"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              echo "$EXPECTED" > "$CACHE_COMMIT_FILE"
+            fi
+          done
+
+          git submodule init
 
       - name: Restore local SPM cache
         # ~/whiskey-spm-cache lives outside the workspace so it survives
@@ -52,14 +87,13 @@ jobs:
         run: /opt/homebrew/bin/brew install sqlcipher 2>&1 || /opt/homebrew/bin/brew upgrade sqlcipher 2>&1 || true
 
       - name: Build (debug + tests)
-        # --build-tests compiles test targets here (under --jobs 4 throttle) so
-        # "Run tests" below has nothing to compile and runs in < 1 second.
-        # Without this, swift test compiled the test target with no --jobs limit,
-        # saturating all 8 cores and starving the runner's renewjob HTTP threads.
+        # Use all logical CPUs to minimize build time. The runner's job token
+        # window is 10 min; we need the build + tests to complete before renewal.
         run: |
+          NCPU=$(sysctl -n hw.logicalcpu)
           while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
           HPID=$!
-          swift build -c debug --build-tests --jobs 4 2>&1
+          swift build -c debug --build-tests --jobs "$NCPU" 2>&1
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
@@ -72,23 +106,113 @@ jobs:
           echo "Saving SPM cache to $CACHE_DIR"
           rsync -a .build/ "$CACHE_DIR/"
 
-      - name: Run tests
-        # --jobs 4 guards against any incremental recompile using all cores.
-        run: swift test --jobs 4 --filter WhisKeyCoreTests 2>&1
-
-      - name: Build (release) — catch release-only issues
-        # Only on PRs to main; skip on push to keep push CI fast.
-        # --jobs 2 prevents swift from saturating all CPU cores, which starves
-        # the runner's I/O threads and causes the renewjob connection to drop.
-        # The heartbeat loop emits a line every 30 s to keep log-streaming alive.
-        if: github.event_name == 'pull_request'
+      - name: Save vendor cache
+        # Persist any newly-fetched submodule source trees back to disk so the
+        # next run can skip the network entirely. Runs on failure too so a
+        # partial submodule fetch still warms the cache for subsequent runs.
+        if: success() || failure()
         run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+          for MODULE in whisper.cpp llama.cpp; do
+            if [ -d "Vendor/${MODULE}/.git" ] || [ -f "Vendor/${MODULE}/.git" ]; then
+              echo "[vendor] Saving ${MODULE} to cache"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}' > "${VENDOR_CACHE}/${MODULE}.commit"
+            fi
+          done
+
+      - name: Run tests
+        # --skip-build: binary was compiled by "Build (debug + tests)" above.
+        # Without this, swift test rebuilds all test targets (~11 min) even
+        # though --build-tests already compiled everything.
+        run: swift test --skip-build -c debug --filter WhisKeyCoreTests 2>&1
+
+# ---------------------------------------------------------------------------
+# Job: build-release
+# Depends on build-and-test. Runs in its own job to get a fresh 10-min
+# job token — the self-hosted runner's NAT connection times out mid-job
+# if build+test+release all run sequentially in one token window.
+# Reuses ~/.whiskey-spm-cache saved by build-and-test (same machine).
+# ---------------------------------------------------------------------------
+  build-release:
+    name: Build (release)
+    runs-on: [self-hosted, macOS]
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Restore vendor submodules
+        # Release builds always run on main where the cache should be warm from
+        # build-and-test. Restore unconditionally from disk; fall back to network
+        # only if the cache is absent (first ever run or manual cache purge).
+        run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+
+          for MODULE in whisper.cpp llama.cpp; do
+            EXPECTED=$(git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}')
+            CACHE_COMMIT_FILE="${VENDOR_CACHE}/${MODULE}.commit"
+            CACHED_COMMIT=""
+            if [ -f "$CACHE_COMMIT_FILE" ]; then
+              CACHED_COMMIT=$(cat "$CACHE_COMMIT_FILE")
+            fi
+
+            echo "[vendor] ${MODULE}: expected=${EXPECTED} cached=${CACHED_COMMIT:-none}"
+
+            if [ -d "${VENDOR_CACHE}/${MODULE}" ] && [ "$EXPECTED" = "$CACHED_COMMIT" ]; then
+              echo "[vendor] Cache hit for ${MODULE} — restoring from disk"
+              rsync -a "${VENDOR_CACHE}/${MODULE}/" "Vendor/${MODULE}/"
+            else
+              echo "[vendor] Cache miss for ${MODULE} — fetching from GitHub (cold)"
+              git submodule update --init --recursive "Vendor/${MODULE}"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              echo "$EXPECTED" > "$CACHE_COMMIT_FILE"
+            fi
+          done
+
+          git submodule init
+
+      - name: Restore local SPM cache
+        run: |
+          CACHE_DIR="${HOME}/.whiskey-spm-cache"
+          if [ -d "$CACHE_DIR" ]; then
+            echo "Restoring local SPM cache from $CACHE_DIR"
+            rsync -a "$CACHE_DIR/" .build/
+          else
+            echo "No local SPM cache — cold build"
+          fi
+
+      - name: Install SQLCipher
+        run: /opt/homebrew/bin/brew install sqlcipher 2>&1 || /opt/homebrew/bin/brew upgrade sqlcipher 2>&1 || true
+
+      - name: Build (release)
+        run: |
+          NCPU=$(sysctl -n hw.logicalcpu)
           while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
           HPID=$!
-          swift build -c release --jobs 2 2>&1
+          swift build -c release --jobs "$NCPU" 2>&1
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
+
+      - name: Save vendor cache
+        if: success() || failure()
+        run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+          for MODULE in whisper.cpp llama.cpp; do
+            if [ -d "Vendor/${MODULE}/.git" ] || [ -f "Vendor/${MODULE}/.git" ]; then
+              echo "[vendor] Saving ${MODULE} to cache"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}' > "${VENDOR_CACHE}/${MODULE}.commit"
+            fi
+          done
 
 # ---------------------------------------------------------------------------
 # Job: swiftlint

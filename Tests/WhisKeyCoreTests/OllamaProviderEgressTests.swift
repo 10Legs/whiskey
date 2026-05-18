@@ -8,7 +8,9 @@ import XCTest
 /// Registered only for the duration of each test that needs it.
 private final class TimeoutURLProtocol: URLProtocol {
 
+    // swiftlint:disable:next static_over_final_class
     override class func canInit(with request: URLRequest) -> Bool { true }
+    // swiftlint:disable:next static_over_final_class
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
@@ -59,9 +61,9 @@ class OllamaProviderEgressTests: XCTestCase {
         // Wire a fresh monitor so we have a clean egressLog.
         // NetworkActivityMonitor is @MainActor — initialise and configure on the main actor.
         let monitor = await MainActor.run {
-            let m = NetworkActivityMonitor()
-            m.egressState = .local
-            return m
+            let freshMonitor = NetworkActivityMonitor()
+            freshMonitor.egressState = .local
+            return freshMonitor
         }
         EgressAuditor.shared.configure(monitor: monitor)
 

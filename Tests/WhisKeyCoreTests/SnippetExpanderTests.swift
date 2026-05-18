@@ -17,14 +17,14 @@ final class SnippetExpanderTests: XCTestCase {
         enabled: Bool = true,
         createdAt: Date = Date()
     ) -> Snippet {
-        var s = Snippet(triggerPhrase: trigger, expansionText: expansion, isEnabled: enabled)
+        let snip = Snippet(triggerPhrase: trigger, expansionText: expansion, isEnabled: enabled)
         // Backdoor for creation-date control in tiebreaker tests:
         // Snippet.createdAt is a `let`; we work around this by noting that
         // when we need tiebreaker control we construct snippets in insertion order
         // and the sort is stable with .createdAt ascending. The real `createdAt`
         // is set in the init, so tests that depend on order use Task.sleep or
         // two separate Snippet values without caring about exact date equality.
-        return s
+        return snip
     }
 
     // MARK: - Basic Expansion
@@ -37,13 +37,14 @@ final class SnippetExpanderTests: XCTestCase {
         XCTAssertEqual(result?.matchedSnippet.id, snip.id)
     }
 
-    func testEmbeddedTriggerExpands() {
+    func testEmbeddedTriggerExpands() throws {
         let snip = snippet(trigger: "insert code header", expansion: "// MARK: -")
         let input = "please insert code header now"
         let result = SnippetExpander.expand(input, snippets: [snip])
         XCTAssertNotNil(result, "Embedded trigger should match.")
-        XCTAssertTrue(result!.expandedText.contains("// MARK: -"), "Expansion must appear in result.")
-        XCTAssertFalse(result!.expandedText.contains("insert code header"), "Trigger must be removed.")
+        let expandedResult = try XCTUnwrap(result)
+        XCTAssertTrue(expandedResult.expandedText.contains("// MARK: -"), "Expansion must appear in result.")
+        XCTAssertFalse(expandedResult.expandedText.contains("insert code header"), "Trigger must be removed.")
     }
 
     // MARK: - Case Insensitivity
@@ -126,11 +127,12 @@ final class SnippetExpanderTests: XCTestCase {
 
     // MARK: - Whitespace Collapse After Expansion
 
-    func testNoDoubleSpacesAfterExpansion() {
+    func testNoDoubleSpacesAfterExpansion() throws {
         let snip = snippet(trigger: "insert code header", expansion: "// MARK:")
         let result = SnippetExpander.expand("please insert code header now", snippets: [snip])
         XCTAssertNotNil(result)
-        XCTAssertFalse(result!.expandedText.contains("  "), "No double spaces after expansion.")
+        let expandedResult = try XCTUnwrap(result)
+        XCTAssertFalse(expandedResult.expandedText.contains("  "), "No double spaces after expansion.")
     }
 
     // MARK: - SnippetStore: Minimum 3 Words
@@ -188,8 +190,8 @@ final class SnippetExpanderTests: XCTestCase {
         // Build two snippets and export-then-import them into a fresh store instance.
         // We cannot easily use SnippetStore.shared because it touches the real file system,
         // so we test the JSON encoding/decoding logic directly.
-        let a = Snippet(triggerPhrase: "insert home address", expansionText: "123 Main St")
-        let b = Snippet(triggerPhrase: "insert code block header", expansionText: "// MARK: -")
+        let firstSnippet = Snippet(triggerPhrase: "insert home address", expansionText: "123 Main St")
+        let secondSnippet = Snippet(triggerPhrase: "insert code block header", expansionText: "// MARK: -")
 
         // Manually encode the two snippets into the export envelope format.
         let encoder = JSONEncoder()
@@ -202,7 +204,7 @@ final class SnippetExpanderTests: XCTestCase {
             let exportedAt: Date?
             let snippets: [Snippet]
         }
-        let envelope = Envelope(version: 1, exportedAt: Date(), snippets: [a, b])
+        let envelope = Envelope(version: 1, exportedAt: Date(), snippets: [firstSnippet, secondSnippet])
         let data = try encoder.encode(envelope)
 
         // Verify re-decodable.
@@ -211,10 +213,10 @@ final class SnippetExpanderTests: XCTestCase {
         let decoded = try decoder.decode(Envelope.self, from: data)
         XCTAssertEqual(decoded.version, 1)
         XCTAssertEqual(decoded.snippets.count, 2)
-        XCTAssertEqual(decoded.snippets[0].triggerPhrase, a.triggerPhrase)
-        XCTAssertEqual(decoded.snippets[0].expansionText, a.expansionText)
-        XCTAssertEqual(decoded.snippets[1].triggerPhrase, b.triggerPhrase)
-        XCTAssertEqual(decoded.snippets[1].expansionText, b.expansionText)
+        XCTAssertEqual(decoded.snippets[0].triggerPhrase, firstSnippet.triggerPhrase)
+        XCTAssertEqual(decoded.snippets[0].expansionText, firstSnippet.expansionText)
+        XCTAssertEqual(decoded.snippets[1].triggerPhrase, secondSnippet.triggerPhrase)
+        XCTAssertEqual(decoded.snippets[1].expansionText, secondSnippet.expansionText)
     }
 
     // MARK: - Original Text Preserved

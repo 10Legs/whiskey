@@ -228,7 +228,7 @@ public actor SnippetStore {
             // Generate fresh UUIDs for all imported snippets to avoid ID collisions.
             let fresh = file.snippets.map { src -> Snippet in
                 var copy = src
-                let _ = copy // suppress unused warning; mutation below is the point
+                _ = copy // suppress unused warning; mutation below is the point
                 return Snippet(triggerPhrase: src.triggerPhrase, expansionText: src.expansionText, isEnabled: src.isEnabled)
             }
             try await persist(fresh)
@@ -269,12 +269,12 @@ public actor SnippetStore {
     public func overlappingTriggers() async -> [(UUID, UUID)] {
         let snippets = await allSnippets()
         var pairs: [(UUID, UUID)] = []
-        for i in snippets.indices {
-            for j in snippets.indices where j > i {
-                let a = snippets[i].triggerPhrase.lowercased()
-                let b = snippets[j].triggerPhrase.lowercased()
-                if a.contains(b) || b.contains(a) {
-                    pairs.append((snippets[i].id, snippets[j].id))
+        for outerIdx in snippets.indices {
+            for innerIdx in snippets.indices where innerIdx > outerIdx {
+                let outerTrigger = snippets[outerIdx].triggerPhrase.lowercased()
+                let innerTrigger = snippets[innerIdx].triggerPhrase.lowercased()
+                if outerTrigger.contains(innerTrigger) || innerTrigger.contains(outerTrigger) {
+                    pairs.append((snippets[outerIdx].id, snippets[innerIdx].id))
                 }
             }
         }

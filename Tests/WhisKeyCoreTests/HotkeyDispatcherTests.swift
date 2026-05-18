@@ -1,5 +1,5 @@
-@testable import WhisKeyCore
 import CoreGraphics
+@testable import WhisKeyCore
 import XCTest
 
 // MARK: - HotkeyDispatcherTests (S4-T4)
@@ -19,102 +19,109 @@ import XCTest
 //   injectLastTranscription (e.g. F7), launch the app, press those keys, and
 //   confirm the popover opens / the last transcription is re-injected.
 
+/// Groups the three objects produced by `makeDispatcher()`.
+private struct DispatcherFixture {
+    let dispatcher: HotkeyDispatcher
+    let store: HotkeyBindingStore
+    let manager: HotkeyManager
+}
+
 @MainActor
 class HotkeyDispatcherTests: XCTestCase {
 
     // MARK: - Helpers
 
     /// Returns a fresh store backed by an in-memory UserDefaults suite.
-    private func makeStore(suite: String = UUID().uuidString) -> HotkeyBindingStore {
-        let defaults = UserDefaults(suiteName: suite)!
+    private func makeStore(suite: String = UUID().uuidString) throws -> HotkeyBindingStore {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         return HotkeyBindingStore(defaults: defaults)
     }
 
     private func makeDispatcher(
         store: HotkeyBindingStore? = nil
-    ) -> (HotkeyDispatcher, HotkeyBindingStore, HotkeyManager) {
-        let s = store ?? makeStore()
+    ) throws -> DispatcherFixture {
+        let bindingStore = try store ?? makeStore()
         let mgr = HotkeyManager()
-        let dispatcher = HotkeyDispatcher(bindingStore: s, hotkeyManager: mgr)
-        return (dispatcher, s, mgr)
+        let dispatcher = HotkeyDispatcher(bindingStore: bindingStore, hotkeyManager: mgr)
+        return DispatcherFixture(dispatcher: dispatcher, store: bindingStore, manager: mgr)
     }
 
     // MARK: - syncBindings: defaultTranscription → watchedKeyCode
 
-    func testSyncBindingsPushesDefaultTranscriptionKeyCode() {
-        let (dispatcher, store, mgr) = makeDispatcher()
+    func testSyncBindingsPushesDefaultTranscriptionKeyCode() throws {
+        let fixture = try makeDispatcher()
 
         let customKeyCode: CGKeyCode = 0x60 // F5
-        store.setBinding(HotkeyBinding(action: .defaultTranscription, keyCode: customKeyCode))
+        fixture.store.setBinding(HotkeyBinding(action: .defaultTranscription, keyCode: customKeyCode))
 
-        dispatcher.syncBindings()
+        fixture.dispatcher.syncBindings()
 
-        XCTAssertEqual(mgr.watchedKeyCode, customKeyCode,
+        XCTAssertEqual(fixture.manager.watchedKeyCode, customKeyCode,
             "syncBindings must push defaultTranscription keyCode into HotkeyManager.watchedKeyCode")
     }
 
-    func testSyncBindingsUsesDefaultKeyCodeWhenNoCustomBinding() {
-        let (dispatcher, _, mgr) = makeDispatcher()
-        dispatcher.syncBindings()
+    func testSyncBindingsUsesDefaultKeyCodeWhenNoCustomBinding() throws {
+        let fixture = try makeDispatcher()
+        fixture.dispatcher.syncBindings()
         // Default is Right Option (0x3D) seeded by HotkeyBindingStore.
-        XCTAssertEqual(mgr.watchedKeyCode, CGKeyCode(0x3D),
+        XCTAssertEqual(fixture.manager.watchedKeyCode, CGKeyCode(0x3D),
             "watchedKeyCode must equal the default Right Option key code when no custom binding is set")
     }
 
-    func testSyncBindingsWithNilKeyCodeLeavesWatchedKeyCodeUnchanged() {
-        let (dispatcher, store, mgr) = makeDispatcher()
+    func testSyncBindingsWithNilKeyCodeLeavesWatchedKeyCodeUnchanged() throws {
+        let fixture = try makeDispatcher()
         // Seed a known value first.
-        mgr.watchedKeyCode = 0x3D
+        fixture.manager.watchedKeyCode = 0x3D
         // Clear the default binding so keyCode is nil.
-        store.clearBinding(for: .defaultTranscription)
+        fixture.store.clearBinding(for: .defaultTranscription)
 
-        dispatcher.syncBindings()
+        fixture.dispatcher.syncBindings()
 
         // watchedKeyCode should remain 0x3D — no update when keyCode is nil.
-        XCTAssertEqual(mgr.watchedKeyCode, CGKeyCode(0x3D),
+        XCTAssertEqual(fixture.manager.watchedKeyCode, CGKeyCode(0x3D),
             "watchedKeyCode must not change when defaultTranscription binding has no keyCode")
     }
 
     // MARK: - syncBindings: handsFreeTranscription callback wiring
 
-    func testSyncBindingsWiresHandsFreeStartToHandsFreeTranscriptionCallback() {
-        let (dispatcher, _, mgr) = makeDispatcher()
+    func testSyncBindingsWiresHandsFreeStartToHandsFreeTranscriptionCallback() throws {
+        let fixture = try makeDispatcher()
 
         var handsFreeTranscriptionFired = false
-        dispatcher.onHandsFreeTranscription = { handsFreeTranscriptionFired = true }
+        fixture.dispatcher.onHandsFreeTranscription = { handsFreeTranscriptionFired = true }
 
-        dispatcher.syncBindings()
+        fixture.dispatcher.syncBindings()
 
         // Simulate HotkeyManager firing onHandsFreeStart directly (state machine
         // path tested in HotkeyManagerTests; here we verify wiring only).
-        mgr.onHandsFreeStart?()
+        fixture.manager.onHandsFreeStart?()
 
         XCTAssertTrue(handsFreeTranscriptionFired,
             "Firing HotkeyManager.onHandsFreeStart must invoke dispatcher.onHandsFreeTranscription")
     }
 
-    func testHandsFreeTranscriptionCallbackNotFiredWhenNotSet() {
-        let (dispatcher, _, mgr) = makeDispatcher()
-        dispatcher.onHandsFreeTranscription = nil
-        dispatcher.syncBindings()
+    func testHandsFreeTranscriptionCallbackNotFiredWhenNotSet() throws {
+        let fixture = try makeDispatcher()
+        fixture.dispatcher.onHandsFreeTranscription = nil
+        fixture.dispatcher.syncBindings()
         // Should not crash when callback is nil.
-        mgr.onHandsFreeStart?()
+        fixture.manager.onHandsFreeStart?()
     }
 
-    func testSyncBindingsRewiresHandsFreeStartOnSecondCall() {
-        let (dispatcher, _, mgr) = makeDispatcher()
+    func testSyncBindingsRewiresHandsFreeStartOnSecondCall() throws {
+        let fixture = try makeDispatcher()
 
         var firstCallbackFired = false
         var secondCallbackFired = false
 
-        dispatcher.onHandsFreeTranscription = { firstCallbackFired = true }
-        dispatcher.syncBindings()
+        fixture.dispatcher.onHandsFreeTranscription = { firstCallbackFired = true }
+        fixture.dispatcher.syncBindings()
 
         // Replace callback and re-sync.
-        dispatcher.onHandsFreeTranscription = { secondCallbackFired = true }
-        dispatcher.syncBindings()
+        fixture.dispatcher.onHandsFreeTranscription = { secondCallbackFired = true }
+        fixture.dispatcher.syncBindings()
 
-        mgr.onHandsFreeStart?()
+        fixture.manager.onHandsFreeStart?()
 
         XCTAssertFalse(firstCallbackFired,
             "Old handsFreeTranscription callback must not fire after re-sync")
@@ -124,67 +131,67 @@ class HotkeyDispatcherTests: XCTestCase {
 
     // MARK: - updateBinding
 
-    func testUpdateBindingReSyncsWatchedKeyCode() {
-        let (dispatcher, store, mgr) = makeDispatcher()
-        dispatcher.syncBindings()
+    func testUpdateBindingReSyncsWatchedKeyCode() throws {
+        let fixture = try makeDispatcher()
+        fixture.dispatcher.syncBindings()
 
         // Change the binding externally (as SettingsView does via HotkeyBindingStore).
         let newKeyCode: CGKeyCode = 0x61 // F6
-        store.setBinding(HotkeyBinding(action: .defaultTranscription, keyCode: newKeyCode))
+        fixture.store.setBinding(HotkeyBinding(action: .defaultTranscription, keyCode: newKeyCode))
 
-        dispatcher.updateBinding(HotkeyBinding(action: .defaultTranscription, keyCode: newKeyCode))
+        fixture.dispatcher.updateBinding(HotkeyBinding(action: .defaultTranscription, keyCode: newKeyCode))
 
-        XCTAssertEqual(mgr.watchedKeyCode, newKeyCode,
+        XCTAssertEqual(fixture.manager.watchedKeyCode, newKeyCode,
             "updateBinding must cause dispatcher to re-sync and update watchedKeyCode")
     }
 
-    func testUpdateBindingForNonPrimaryActionDoesNotCorruptWatchedKeyCode() {
-        let (dispatcher, store, mgr) = makeDispatcher()
-        store.setBinding(HotkeyBinding(action: .defaultTranscription, keyCode: CGKeyCode(0x3D)))
-        dispatcher.syncBindings()
+    func testUpdateBindingForNonPrimaryActionDoesNotCorruptWatchedKeyCode() throws {
+        let fixture = try makeDispatcher()
+        fixture.store.setBinding(HotkeyBinding(action: .defaultTranscription, keyCode: CGKeyCode(0x3D)))
+        fixture.dispatcher.syncBindings()
 
         // Update a secondary binding — must not disturb watchedKeyCode.
         let popoverBinding = HotkeyBinding(action: .openPopover, keyCode: CGKeyCode(0x61))
-        store.setBinding(popoverBinding)
-        dispatcher.updateBinding(popoverBinding)
+        fixture.store.setBinding(popoverBinding)
+        fixture.dispatcher.updateBinding(popoverBinding)
 
-        XCTAssertEqual(mgr.watchedKeyCode, CGKeyCode(0x3D),
+        XCTAssertEqual(fixture.manager.watchedKeyCode, CGKeyCode(0x3D),
             "Updating a non-primary binding must not change watchedKeyCode")
     }
 
     // MARK: - Callback assignment (openPopover, injectLastTranscription)
 
-    func testOpenPopoverCallbackCanBeAssignedAndCleared() {
-        let (dispatcher, _, _) = makeDispatcher()
+    func testOpenPopoverCallbackCanBeAssignedAndCleared() throws {
+        let fixture = try makeDispatcher()
         var fired = false
-        dispatcher.onOpenPopover = { fired = true }
-        dispatcher.onOpenPopover?()
+        fixture.dispatcher.onOpenPopover = { fired = true }
+        fixture.dispatcher.onOpenPopover?()
         XCTAssertTrue(fired)
 
-        dispatcher.onOpenPopover = nil
-        XCTAssertNil(dispatcher.onOpenPopover)
+        fixture.dispatcher.onOpenPopover = nil
+        XCTAssertNil(fixture.dispatcher.onOpenPopover)
     }
 
-    func testInjectLastTranscriptionCallbackCanBeAssignedAndCleared() {
-        let (dispatcher, _, _) = makeDispatcher()
+    func testInjectLastTranscriptionCallbackCanBeAssignedAndCleared() throws {
+        let fixture = try makeDispatcher()
         var fired = false
-        dispatcher.onInjectLastTranscription = { fired = true }
-        dispatcher.onInjectLastTranscription?()
+        fixture.dispatcher.onInjectLastTranscription = { fired = true }
+        fixture.dispatcher.onInjectLastTranscription?()
         XCTAssertTrue(fired)
 
-        dispatcher.onInjectLastTranscription = nil
-        XCTAssertNil(dispatcher.onInjectLastTranscription)
+        fixture.dispatcher.onInjectLastTranscription = nil
+        XCTAssertNil(fixture.dispatcher.onInjectLastTranscription)
     }
 
-    func testDefaultTranscriptionCallbackCanBeAssignedAndCleared() {
-        let (dispatcher, _, _) = makeDispatcher()
+    func testDefaultTranscriptionCallbackCanBeAssignedAndCleared() throws {
+        let fixture = try makeDispatcher()
         var fired = false
-        dispatcher.onDefaultTranscription = { fired = true }
-        dispatcher.onDefaultTranscription?()
+        fixture.dispatcher.onDefaultTranscription = { fired = true }
+        fixture.dispatcher.onDefaultTranscription?()
         XCTAssertTrue(fired)
 
-        dispatcher.onDefaultTranscription = nil
-        XCTAssertNil(dispatcher.onDefaultTranscription)
+        fixture.dispatcher.onDefaultTranscription = nil
+        XCTAssertNil(fixture.dispatcher.onDefaultTranscription)
     }
 
     // MARK: - Secondary tap (hardware-only)

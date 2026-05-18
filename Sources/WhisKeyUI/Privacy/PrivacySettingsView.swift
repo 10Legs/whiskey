@@ -177,14 +177,13 @@ struct PrivacySummaryView: View {
 
     private func formatMonitoringSince(_ date: Date) -> String {
         let cal = Calendar.current
+        let fmt = DateFormatter()
         if cal.isDateInToday(date) {
-            let f = DateFormatter()
-            f.dateFormat = "h:mm a"
-            return "Today at \(f.string(from: date))"
+            fmt.dateFormat = "h:mm a"
+            return "Today at \(fmt.string(from: date))"
         }
-        let f = DateFormatter()
-        f.dateFormat = "MMM d, h:mm a"
-        return f.string(from: date)
+        fmt.dateFormat = "MMM d, h:mm a"
+        return fmt.string(from: date)
     }
 }
 
@@ -270,14 +269,13 @@ struct EgressLogRowView: View {
 
     private func formatTimestamp(_ date: Date) -> String {
         let cal = Calendar.current
+        let fmt = DateFormatter()
         if cal.isDateInToday(date) {
-            let f = DateFormatter()
-            f.dateFormat = "h:mm a"
-            return "Today \(f.string(from: date))"
+            fmt.dateFormat = "h:mm a"
+            return "Today \(fmt.string(from: date))"
         }
-        let f = DateFormatter()
-        f.dateFormat = "MMM d, h:mm a"
-        return f.string(from: date)
+        fmt.dateFormat = "MMM d, h:mm a"
+        return fmt.string(from: date)
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
@@ -323,13 +321,12 @@ struct ZeroEgressClaimView: View {
     private var lastCheckedLabel: String {
         let cal = Calendar.current
         let now = Date()
+        let fmt = DateFormatter()
         if cal.isDateInToday(now) {
-            let f = DateFormatter()
-            f.dateFormat = "h:mm a"
-            return "Today at \(f.string(from: now))"
+            fmt.dateFormat = "h:mm a"
+            return "Today at \(fmt.string(from: now))"
         }
-        let f = DateFormatter()
-        f.dateFormat = "MMM d, h:mm a"
-        return f.string(from: now)
+        fmt.dateFormat = "MMM d, h:mm a"
+        return fmt.string(from: now)
     }
 }

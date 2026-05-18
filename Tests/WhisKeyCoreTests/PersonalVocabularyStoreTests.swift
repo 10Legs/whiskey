@@ -12,13 +12,15 @@ import XCTest
 @MainActor
 final class PersonalVocabularyStoreTests: XCTestCase {
 
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var defaults: UserDefaults!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var store: PersonalVocabularyStore!
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         let suiteName = "com.whiskey.test.vocabulary.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         store = PersonalVocabularyStore(defaults: defaults)
     }
 
@@ -73,15 +75,15 @@ final class PersonalVocabularyStoreTests: XCTestCase {
     // MARK: - Max 50 cap
 
     func testAddUpToMaxSucceeds() throws {
-        for i in 1...PersonalVocabularyStore.maximumTermCount {
-            try store.add("Term\(i)")
+        for idx in 1...PersonalVocabularyStore.maximumTermCount {
+            try store.add("Term\(idx)")
         }
         XCTAssertEqual(store.terms.count, PersonalVocabularyStore.maximumTermCount)
     }
 
     func testAddingFiftyFirstTermThrowsTooManyTerms() throws {
-        for i in 1...PersonalVocabularyStore.maximumTermCount {
-            try store.add("Term\(i)")
+        for idx in 1...PersonalVocabularyStore.maximumTermCount {
+            try store.add("Term\(idx)")
         }
         XCTAssertThrowsError(try store.add("OneMore")) { error in
             guard case PersonalVocabularyError.tooManyTerms(let max) = error else {
@@ -92,8 +94,8 @@ final class PersonalVocabularyStoreTests: XCTestCase {
     }
 
     func testAddingFiftyFirstTermDoesNotMutateTerms() throws {
-        for i in 1...PersonalVocabularyStore.maximumTermCount {
-            try store.add("Term\(i)")
+        for idx in 1...PersonalVocabularyStore.maximumTermCount {
+            try store.add("Term\(idx)")
         }
         _ = try? store.add("OneMore")
         XCTAssertEqual(store.terms.count, PersonalVocabularyStore.maximumTermCount)
@@ -195,9 +197,9 @@ final class PersonalVocabularyStoreTests: XCTestCase {
         XCTAssertEqual(store2.terms, ["SwiftUI"])
     }
 
-    func testFreshStoreLoadsEmptyWhenNoDefaultsKey() {
+    func testFreshStoreLoadsEmptyWhenNoDefaultsKey() throws {
         let freshSuite = "com.whiskey.test.vocabulary.fresh.\(UUID().uuidString)"
-        let freshDefaults = UserDefaults(suiteName: freshSuite)!
+        let freshDefaults = try XCTUnwrap(UserDefaults(suiteName: freshSuite))
         let freshStore = PersonalVocabularyStore(defaults: freshDefaults)
         XCTAssertTrue(freshStore.terms.isEmpty)
         freshDefaults.removeSuite(named: freshSuite)
@@ -205,7 +207,7 @@ final class PersonalVocabularyStoreTests: XCTestCase {
 
     func testRoundTripPreservesOrder() throws {
         let terms = ["Alpha", "Beta", "Gamma", "Delta"]
-        for t in terms { try store.add(t) }
+        for term in terms { try store.add(term) }
 
         let store2 = PersonalVocabularyStore(defaults: defaults)
         XCTAssertEqual(store2.terms, terms)
@@ -219,10 +221,10 @@ extension PersonalVocabularyError: Equatable {
         switch (lhs, rhs) {
         case (.emptyTerm, .emptyTerm):
             return true
-        case (.tooManyTerms(let a), .tooManyTerms(let b)):
-            return a == b
-        case (.duplicateTerm(let a), .duplicateTerm(let b)):
-            return a == b
+        case (.tooManyTerms(let lhs), .tooManyTerms(let rhs)):
+            return lhs == rhs
+        case (.duplicateTerm(let lhs), .duplicateTerm(let rhs)):
+            return lhs == rhs
         default:
             return false
         }

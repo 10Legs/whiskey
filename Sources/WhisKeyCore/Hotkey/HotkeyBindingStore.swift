@@ -65,7 +65,7 @@ public final class HotkeyBindingStore: ObservableObject {
         // ⌃F3 — Dock focus (keyCode 0x63 = F3)
         .init(keyCode: 0x63, modifierFlags: .maskControl),
         // ⌃F8 — Status menu focus (keyCode 0x64 = F8... wait: F8 = 0x64)
-        .init(keyCode: 0x64, modifierFlags: .maskControl),
+        .init(keyCode: 0x64, modifierFlags: .maskControl)
     ]
 
     // MARK: - Storage
@@ -113,13 +113,13 @@ public final class HotkeyBindingStore: ObservableObject {
     ) -> HotkeyAction? {
         for action in HotkeyAction.allCases {
             guard action != excluding else { continue }
-            let b = binding(for: action)
-            guard let existingCode = b.keyCode else { continue }
+            let existing = binding(for: action)
+            guard let existingCode = existing.keyCode else { continue }
             let flagsMatch: Bool = {
-                switch (b.modifierFlags, modifierFlags) {
-                case (.none, .none):         return true
-                case (.some(let a), .some(let b)): return a == b
-                default:                     return false
+                switch (existing.modifierFlags, modifierFlags) {
+                case (.none, .none): return true
+                case (.some(let lhs), .some(let rhs)): return lhs == rhs
+                default: return false
                 }
             }()
             if existingCode == keyCode && flagsMatch {

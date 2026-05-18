@@ -104,7 +104,6 @@ final class HotkeySettingsViewModel: ObservableObject {
         }
     }
 
-    // swiftlint:disable:next function_body_length
     private func handleCapturedEvent(_ event: NSEvent, action: HotkeyAction) {
         // Escape → cancel recording.
         if event.type == .keyDown && event.keyCode == 0x35 {
@@ -215,8 +214,8 @@ final class HotkeySettingsViewModel: ObservableObject {
     private func cgEventFlags(from nsFlags: NSEvent.ModifierFlags) -> CGEventFlags {
         var flags = CGEventFlags()
         if nsFlags.contains(.control) { flags.insert(.maskControl) }
-        if nsFlags.contains(.option)  { flags.insert(.maskAlternate) }
-        if nsFlags.contains(.shift)   { flags.insert(.maskShift) }
+        if nsFlags.contains(.option) { flags.insert(.maskAlternate) }
+        if nsFlags.contains(.shift) { flags.insert(.maskShift) }
         if nsFlags.contains(.command) { flags.insert(.maskCommand) }
         return flags
     }

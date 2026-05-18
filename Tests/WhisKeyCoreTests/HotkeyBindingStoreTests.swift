@@ -1,5 +1,5 @@
-@testable import WhisKeyCore
 import CoreGraphics
+@testable import WhisKeyCore
 import XCTest
 
 // MARK: - HotkeyBindingStore Tests (S3-T6)
@@ -12,14 +12,16 @@ import XCTest
 @MainActor
 final class HotkeyBindingStoreTests: XCTestCase {
 
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var defaults: UserDefaults!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private var store: HotkeyBindingStore!
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         // Fresh suite per test — no cross-test pollution.
         let suiteName = "com.whiskey.test.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: suiteName)!
+        defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         store = HotkeyBindingStore(defaults: defaults)
     }
 
