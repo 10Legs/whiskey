@@ -1,8 +1,5 @@
 import SwiftUI
 
-private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
-private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
-
 /// Read-only reference view listing every built-in voice command phrase and
 /// the action it triggers.  Surfaced as the "Commands" tab in SettingsView.
 public struct VoiceCommandsSettingsView: View {
@@ -67,7 +64,7 @@ public struct VoiceCommandsSettingsView: View {
             }
             .padding()
         }
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
     }
 
     // MARK: - Sections
@@ -79,10 +76,10 @@ public struct VoiceCommandsSettingsView: View {
                     CommandRow(entry: entry)
                     Rectangle()
                         .frame(height: 1)
-                        .foregroundColor(phosphorGreen.opacity(0.08))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.08))
                 }
             }
-            .overlay(Rectangle().stroke(phosphorGreen.opacity(0.15), lineWidth: 1))
+            .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.15), lineWidth: 1))
         }
     }
 
@@ -100,13 +97,13 @@ public struct VoiceCommandsSettingsView: View {
     private func noteRow(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
             Text("\u{25B8}")
-                .foregroundColor(phosphorGreen.opacity(0.5))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 .font(.caption)
                 .fontDesign(.monospaced)
             Text(text)
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.5))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -124,7 +121,7 @@ private struct CommandRow: View {
                     Text("\"\(phrase)\"")
                         .font(.body)
                         .fontDesign(.monospaced)
-                        .foregroundColor(phosphorGreen)
+                        .foregroundColor(HalideTokens.accentAmber)
                 }
             }
             .frame(minWidth: 140, alignment: .leading)
@@ -133,7 +130,7 @@ private struct CommandRow: View {
                 Text(entry.action)
                     .font(.caption)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen.opacity(0.7))
+                    .foregroundColor(HalideTokens.accentAmber.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
 
                 statusBadge
@@ -150,18 +147,18 @@ private struct CommandRow: View {
             Text("ACTIVE")
                 .font(.caption2)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen)
+                .foregroundColor(HalideTokens.accentAmber)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 2)
-                .overlay(Rectangle().stroke(phosphorGreen.opacity(0.5), lineWidth: 1))
+                .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.5), lineWidth: 1))
         case .stripped:
             Text("STRIPPED")
                 .font(.caption2)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.45))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.45))
                 .padding(.horizontal, 5)
                 .padding(.vertical, 2)
-                .overlay(Rectangle().stroke(phosphorGreen.opacity(0.25), lineWidth: 1))
+                .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.25), lineWidth: 1))
         }
     }
 }
@@ -177,11 +174,11 @@ private struct VCommandSection<Content: View>: View {
             Text(title)
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.6))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
 
             Rectangle()
                 .frame(height: 1)
-                .foregroundColor(phosphorGreen.opacity(0.2))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.2))
 
             content()
         }

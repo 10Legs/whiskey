@@ -79,8 +79,8 @@ public final class VoiceCommandHUDController {
 private struct VoiceCommandHUDContentView: View {
     let label: String
 
-    private let bgColor   = Color(red: 0.024, green: 0.031, blue: 0.031)
-    private let neonGreen = Color(red: 0, green: 1, blue: 0.533)
+    private let bgColor   = HalideTokens.backgroundPrimary
+    private let neonGreen = HalideTokens.accentAmber
 
     var body: some View {
         Text(label)

@@ -1,10 +1,6 @@
 import SwiftUI
 import WhisKeyCore
 
-// Matches the phosphor-green terminal aesthetic used throughout WhisKey UI.
-private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
-private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
-
 // MARK: - ModelSettingsView
 
 /// "Models" tab shown inside `SettingsView`.
@@ -44,7 +40,7 @@ public struct ModelSettingsView: View {
 
                 Rectangle()
                     .frame(height: 1)
-                    .foregroundColor(phosphorGreen.opacity(0.2))
+                    .foregroundColor(HalideTokens.accentAmber.opacity(0.2))
 
                 ModelKindSection(
                     title: "AI CLEANUP MODELS (LLM)",
@@ -60,7 +56,7 @@ public struct ModelSettingsView: View {
             }
             .padding()
         }
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
         .onAppear { modelStatus.refresh() }
     }
 }
@@ -79,16 +75,16 @@ private struct ModelKindSection: View {
             Text(title)
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.6))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
 
             Text(subtitle)
                 .font(.caption2)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.4))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
 
             Rectangle()
                 .frame(height: 1)
-                .foregroundColor(phosphorGreen.opacity(0.2))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.2))
 
             ForEach(models) { model in
                 ModelDownloadRow(
@@ -99,7 +95,7 @@ private struct ModelKindSection: View {
                 if model.id != models.last?.id {
                     Rectangle()
                         .frame(height: 1)
-                        .foregroundColor(phosphorGreen.opacity(0.08))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.08))
                 }
             }
         }
@@ -128,21 +124,21 @@ private struct ModelDownloadRow: View {
                         Text(model.name)
                             .font(.body)
                             .fontDesign(.monospaced)
-                            .foregroundColor(phosphorGreen)
+                            .foregroundColor(HalideTokens.accentAmber)
                         if isActive {
                             Text("ACTIVE")
                                 .font(.caption2)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(hudBackground)
+                                .foregroundColor(HalideTokens.backgroundPrimary)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 2)
-                                .background(phosphorGreen)
+                                .background(HalideTokens.accentAmber)
                         }
                     }
                     Text(sizeLabel)
                         .font(.caption)
                         .fontDesign(.monospaced)
-                        .foregroundColor(phosphorGreen.opacity(0.5))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 }
 
                 Spacer()
@@ -158,10 +154,10 @@ private struct ModelDownloadRow: View {
                         ZStack(alignment: .leading) {
                             Rectangle()
                                 .frame(width: geo.size.width, height: 3)
-                                .foregroundColor(phosphorGreen.opacity(0.15))
+                                .foregroundColor(HalideTokens.accentAmber.opacity(0.15))
                             Rectangle()
                                 .frame(width: geo.size.width * pct, height: 3)
-                                .foregroundColor(phosphorGreen)
+                                .foregroundColor(HalideTokens.accentAmber)
                         }
                     }
                     .frame(height: 3)
@@ -170,7 +166,7 @@ private struct ModelDownloadRow: View {
                     Text("\(Int(pct * 100))%  —  \(downloadedSizeLabel(progress: pct))")
                         .font(.caption2)
                         .fontDesign(.monospaced)
-                        .foregroundColor(phosphorGreen.opacity(0.5))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 }
             }
 
@@ -204,7 +200,7 @@ private struct ModelDownloadRow: View {
             HStack(spacing: 8) {
                 // Checkmark status icon
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(phosphorGreen)
+                    .foregroundColor(HalideTokens.accentAmber)
                     .imageScale(.small)
 
                 if model.kind == .asr && !isActive {
@@ -254,13 +250,13 @@ private struct KindBadge: View {
         Text(kind == .asr ? "ASR" : "LLM")
             .font(.caption2)
             .fontDesign(.monospaced)
-            .foregroundColor(kind == .asr ? phosphorGreen : Color.cyan)
+            .foregroundColor(kind == .asr ? HalideTokens.accentAmber : Color.cyan)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .overlay(
                 Rectangle()
                     .stroke(
-                        (kind == .asr ? phosphorGreen : Color.cyan).opacity(0.5),
+                        (kind == .asr ? HalideTokens.accentAmber : Color.cyan).opacity(0.5),
                         lineWidth: 1
                     )
             )
@@ -297,7 +293,7 @@ private struct ModelButtonStyle: ButtonStyle {
             .font(.caption)
             .fontDesign(.monospaced)
             .foregroundColor(
-                (destructive ? Color.red : phosphorGreen)
+                (destructive ? Color.red : HalideTokens.accentAmber)
                     .opacity(configuration.isPressed ? 0.6 : 1.0)
             )
             .padding(.horizontal, 8)
@@ -305,10 +301,10 @@ private struct ModelButtonStyle: ButtonStyle {
             .overlay(
                 Rectangle()
                     .stroke(
-                        (destructive ? Color.red : phosphorGreen).opacity(0.4),
+                        (destructive ? Color.red : HalideTokens.accentAmber).opacity(0.4),
                         lineWidth: 1
                     )
             )
-            .background(hudBackground)
+            .background(HalideTokens.backgroundPrimary)
     }
 }

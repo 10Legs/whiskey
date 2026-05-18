@@ -1,9 +1,6 @@
 import SwiftUI
 import WhisKeyCore
 
-private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
-private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
-
 /// Displays downloadable models grouped by kind (ASR and LLM) with
 /// download/delete controls and progress feedback.
 public struct ModelPickerView: View {
@@ -27,7 +24,7 @@ public struct ModelPickerView: View {
             ModelSectionView(title: "TRANSCRIPTION", models: asrModels, modelManager: modelManager)
             Rectangle()
                 .frame(height: 1)
-                .foregroundColor(phosphorGreen.opacity(0.25))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.25))
             ModelSectionView(title: "AI CLEANUP", models: llmModels, modelManager: modelManager)
         }
     }
@@ -46,13 +43,13 @@ private struct ModelSectionView: View {
             Text(title)
                 .font(.caption2)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.4))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
             ForEach(models) { model in
                 ModelRowView(model: model, modelManager: modelManager)
                 if model.id != models.last?.id {
                     Rectangle()
                         .frame(height: 1)
-                        .foregroundColor(phosphorGreen.opacity(0.1))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.1))
                 }
             }
         }
@@ -80,21 +77,21 @@ private struct ModelRowView: View {
                     HStack(spacing: 6) {
                         Text(model.name)
                             .fontDesign(.monospaced)
-                            .foregroundColor(phosphorGreen)
+                            .foregroundColor(HalideTokens.accentAmber)
                         if isActive {
                             Text("ACTIVE")
                                 .font(.caption2)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(hudBackground)
+                                .foregroundColor(HalideTokens.backgroundPrimary)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 2)
-                                .background(phosphorGreen)
+                                .background(HalideTokens.accentAmber)
                         }
                     }
                     Text(sizeLabel)
                         .font(.caption)
                         .fontDesign(.monospaced)
-                        .foregroundColor(phosphorGreen.opacity(0.5))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 }
 
                 Spacer()
@@ -134,10 +131,10 @@ private struct ModelRowView: View {
                     ZStack(alignment: .leading) {
                         Rectangle()
                             .frame(width: geo.size.width, height: 3)
-                            .foregroundColor(phosphorGreen.opacity(0.15))
+                            .foregroundColor(HalideTokens.accentAmber.opacity(0.15))
                         Rectangle()
                             .frame(width: geo.size.width * pct, height: 3)
-                            .foregroundColor(phosphorGreen)
+                            .foregroundColor(HalideTokens.accentAmber)
                     }
                 }
                 .frame(height: 3)
@@ -146,7 +143,7 @@ private struct ModelRowView: View {
                 Text("\(Int(pct * 100))% — \(downloadedSizeLabel(progress: pct))")
                     .font(.caption2)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen.opacity(0.5))
+                    .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
             }
 
             // Error message
@@ -182,7 +179,7 @@ private struct PhosphorButtonStyle: ButtonStyle {
             .font(.caption)
             .fontDesign(.monospaced)
             .foregroundColor(
-                (destructive ? Color.red : phosphorGreen)
+                (destructive ? Color.red : HalideTokens.accentAmber)
                     .opacity(configuration.isPressed ? 0.6 : 1.0)
             )
             .padding(.horizontal, 8)
@@ -190,10 +187,10 @@ private struct PhosphorButtonStyle: ButtonStyle {
             .overlay(
                 Rectangle()
                     .stroke(
-                        (destructive ? Color.red : phosphorGreen).opacity(0.4),
+                        (destructive ? Color.red : HalideTokens.accentAmber).opacity(0.4),
                         lineWidth: 1
                     )
             )
-            .background(hudBackground)
+            .background(HalideTokens.backgroundPrimary)
     }
 }
