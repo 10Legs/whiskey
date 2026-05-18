@@ -4,7 +4,7 @@ import WhisKeyCore
 
 /// Tabbed settings window.
 ///
-/// Tabs: General | Models | Hotkey | Transcription | AI Cleanup | Snippets | Privacy | Hotkeys
+/// Tabs: General | Recording | Transcription | Models | Customization | Privacy | About
 public struct SettingsView: View {
 
     @Bindable private var settings: SettingsManager
@@ -38,26 +38,17 @@ public struct SettingsView: View {
             GeneralTab(settings: settings, modelManager: modelManager)
                 .tabItem { Label("General", systemImage: "gear") }
 
-            ModelSettingsView(modelManager: modelManager)
-                .tabItem { Label("Models", systemImage: "square.and.arrow.down") }
-
-            HotkeyTab(settings: settings)
-                .tabItem { Label("Hotkey", systemImage: "keyboard") }
+            RecordingTab(settings: settings, bindingStore: bindingStore)
+                .tabItem { Label("Recording", systemImage: "keyboard") }
 
             TranscriptionTab(settings: settings)
                 .tabItem { Label("Transcription", systemImage: "waveform") }
 
-            AICleanupTab(settings: settings)
-                .tabItem { Label("AI Cleanup", systemImage: "sparkles") }
+            ModelSettingsView(modelManager: modelManager)
+                .tabItem { Label("Models", systemImage: "square.and.arrow.down") }
 
-            SnippetsSettingsView()
-                .tabItem { Label("Snippets", systemImage: "text.badge.plus") }
-
-            VocabularyTab(store: vocabularyStore)
-                .tabItem { Label("Vocabulary", systemImage: "text.and.list.bullet") }
-
-            ToneProfilesSettingsView(store: toneProfileStore)
-                .tabItem { Label("Tone", systemImage: "slider.horizontal.3") }
+            CustomizationTab(vocabularyStore: vocabularyStore, toneProfileStore: toneProfileStore)
+                .tabItem { Label("Customization", systemImage: "slider.horizontal.3") }
 
             if let monitor = networkMonitor {
                 PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)
@@ -67,13 +58,10 @@ public struct SettingsView: View {
                     .tabItem { Label("Privacy", systemImage: "lock.shield") }
             }
 
-            HotkeySettingsView(store: bindingStore)
-                .tabItem { Label("Hotkeys", systemImage: "keyboard.badge.ellipsis") }
-
-            VoiceCommandsSettingsView()
-                .tabItem { Label("Commands", systemImage: "list.bullet.clipboard") }
+            AboutTab()
+                .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 520, height: 460)
+        .frame(width: 520, height: 520)
         .background(HalideTokens.backgroundPrimary)
         .accentColor(HalideTokens.accentAmber)
     }
@@ -88,7 +76,7 @@ private struct GeneralTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HalideSection(title: "STARTUP") {
+                HalideSection(title: "Startup") {
                     Toggle("Launch at Login", isOn: .constant(false))
                         .disabled(true)
                         .tint(HalideTokens.accentAmber)
@@ -96,11 +84,11 @@ private struct GeneralTab: View {
                         .help("Coming soon — requires SMAppService integration.")
                 }
 
-                HalideSection(title: "WHISPER MODEL") {
+                HalideSection(title: "Whisper model") {
                     ModelPickerView(modelManager: modelManager)
                 }
 
-                HalideSection(title: "OUTPUT MODE") {
+                HalideSection(title: "Output mode") {
                     Picker("Output Mode", selection: $settings.outputMode) {
                         Text("Active Window").tag(OutputMode.activeWindow)
                         Text("Clipboard").tag(OutputMode.clipboard)
@@ -113,7 +101,7 @@ private struct GeneralTab: View {
                         " Both does both."
                     )
                         .font(.caption)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
+                        .foregroundColor(HalideTokens.textSecondary)
                 }
             }
             .padding()
@@ -122,98 +110,131 @@ private struct GeneralTab: View {
     }
 }
 
-// MARK: - Hotkey Tab
+// MARK: - Recording Tab
 
-private struct HotkeyTab: View {
+private struct RecordingTab: View {
     @Bindable var settings: SettingsManager
+    let bindingStore: HotkeyBindingStore
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HalideSection(title: "PUSH-TO-TALK HOTKEY") {
-                    HStack {
-                        Text("CURRENT HOTKEY:")
-                            .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
-                        Spacer()
-                        Text("RIGHT OPTION")
-                            .fontDesign(.monospaced)
-                            .foregroundColor(HalideTokens.accentAmber)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(HalideTokens.accentAmber.opacity(0.4), lineWidth: 1)
-                            )
-                    }
-                    Text("Hold to record, release to transcribe. Double-tap to start hands-free recording.")
-                        .font(.caption)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
+                HotkeySection(settings: settings)
+                HalideSection(title: "Hotkey bindings") {
+                    HotkeySettingsView(store: bindingStore)
                 }
-
-                HalideSection(title: "INTERACTION MODE") {
-                    Toggle("Enable hands-free mode (double-tap)", isOn: $settings.handsFreeEnabled)
-                        .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.textPrimary)
-                        .accessibilityLabel("Enable hands-free mode")
-                        .accessibilityHint(
-                            "Double-tap the hotkey to start recording hands-free. Tap again to stop."
-                        )
-                    Text("Double-tap the hotkey to start recording hands-free. Tap again to stop.")
-                        .font(.caption)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("DOUBLE-TAP WINDOW")
-                                .font(.caption)
-                                .fontDesign(.monospaced)
-                                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
-                            Spacer()
-                            Text("\(Int(settings.disambiguationWindowMs)) ms")
-                                .font(.caption)
-                                .fontDesign(.monospaced)
-                                .foregroundColor(HalideTokens.accentAmber)
-                        }
-                        HStack(spacing: 8) {
-                            Text("FASTER")
-                                .font(.caption2)
-                                .fontDesign(.monospaced)
-                                .foregroundColor(HalideTokens.accentAmber.opacity(0.45))
-                            Slider(
-                                value: $settings.disambiguationWindowMs,
-                                in: 250...500,
-                                step: 25
-                            )
-                            .tint(HalideTokens.accentAmber)
-                            .accessibilityLabel("Double-tap speed")
-                            .accessibilityHint(
-                                "Controls how quickly you must double-tap. Increase if double-taps aren't registering."
-                            )
-                            Text("SLOWER")
-                                .font(.caption2)
-                                .fontDesign(.monospaced)
-                                .foregroundColor(HalideTokens.accentAmber.opacity(0.45))
-                        }
-                        Text(
-                            "Controls how quickly you must double-tap. " +
-                            "Increase if your double-taps aren't registering."
-                        )
-                        .font(.caption)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
-                    }
-                    .opacity(settings.handsFreeEnabled ? 1 : 0.35)
-                    .disabled(!settings.handsFreeEnabled)
+                HalideSection(title: "Voice commands") {
+                    VoiceCommandsSettingsView()
                 }
             }
             .padding()
         }
         .background(HalideTokens.backgroundPrimary)
+    }
+}
+
+// MARK: - Hotkey Section (formerly HotkeyTab)
+
+private struct HotkeySection: View {
+    @Bindable var settings: SettingsManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HalideSection(title: "Push-to-talk hotkey") {
+                HStack {
+                    Text("Current hotkey:")
+                        .foregroundColor(HalideTokens.textSecondary)
+                    Spacer()
+                    Text("RIGHT OPTION")
+                        .fontDesign(.monospaced)
+                        .foregroundColor(HalideTokens.textPrimary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: HalideTokens.radiusSmall)
+                                .stroke(HalideTokens.borderDefault, lineWidth: 1)
+                        )
+                }
+                Text("Hold to record, release to transcribe. Double-tap to start hands-free recording.")
+                    .font(.caption)
+                    .foregroundColor(HalideTokens.textSecondary)
+            }
+
+            HalideSection(title: "Interaction mode") {
+                Toggle("Enable hands-free mode (double-tap)", isOn: $settings.handsFreeEnabled)
+                    .tint(HalideTokens.accentAmber)
+                    .foregroundColor(HalideTokens.textPrimary)
+                    .accessibilityLabel("Enable hands-free mode")
+                    .accessibilityHint(
+                        "Double-tap the hotkey to start recording hands-free. Tap again to stop."
+                    )
+                Text("Double-tap the hotkey to start recording hands-free. Tap again to stop.")
+                    .font(.caption)
+                    .foregroundColor(HalideTokens.textSecondary)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Double-tap window")
+                            .font(.caption)
+                            .foregroundColor(HalideTokens.textSecondary)
+                        Spacer()
+                        Text("\(Int(settings.disambiguationWindowMs)) ms")
+                            .font(.caption)
+                            .fontDesign(.monospaced)
+                            .foregroundColor(HalideTokens.accentAmber)
+                    }
+                    HStack(spacing: 8) {
+                        Text("FASTER")
+                            .font(.caption2)
+                            .foregroundColor(HalideTokens.textTertiary)
+                        Slider(
+                            value: $settings.disambiguationWindowMs,
+                            in: 250...500,
+                            step: 25
+                        )
+                        .tint(HalideTokens.accentAmber)
+                        .accessibilityLabel("Double-tap speed")
+                        .accessibilityHint(
+                            "Controls how quickly you must double-tap. Increase if double-taps aren't registering."
+                        )
+                        Text("SLOWER")
+                            .font(.caption2)
+                            .foregroundColor(HalideTokens.textTertiary)
+                    }
+                    Text(
+                        "Controls how quickly you must double-tap. " +
+                        "Increase if your double-taps aren't registering."
+                    )
+                    .font(.caption)
+                    .foregroundColor(HalideTokens.textSecondary)
+                }
+                .opacity(settings.handsFreeEnabled ? 1 : 0.35)
+                .disabled(!settings.handsFreeEnabled)
+            }
+        }
     }
 }
 
 // MARK: - Transcription Tab
 
 private struct TranscriptionTab: View {
+    @Bindable var settings: SettingsManager
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                LanguageSection(settings: settings)
+                AICleanupSection(settings: settings)
+            }
+            .padding()
+        }
+        .background(HalideTokens.backgroundPrimary)
+    }
+}
+
+// MARK: - Language Section (formerly TranscriptionTab)
+
+private struct LanguageSection: View {
     @Bindable var settings: SettingsManager
 
     private static let languages: [(String, String?)] = [
@@ -230,21 +251,102 @@ private struct TranscriptionTab: View {
     ]
 
     var body: some View {
+        HalideSection(title: "Language") {
+            Picker("Language Hint", selection: $settings.languageHint) {
+                ForEach(Self.languages, id: \.1) { name, code in
+                    Text(name).tag(code)
+                }
+            }
+            .pickerStyle(.menu)
+            .accentColor(HalideTokens.accentAmber)
+            .foregroundColor(HalideTokens.accentAmber)
+            Text("Providing a language hint improves accuracy when you know the spoken language.")
+                .font(.caption)
+                .foregroundColor(HalideTokens.textSecondary)
+        }
+    }
+}
+
+// MARK: - AI Cleanup Section (formerly AICleanupTab)
+
+private struct AICleanupSection: View {
+    @Bindable var settings: SettingsManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HalideSection(title: "AI cleanup") {
+                Toggle("Enable AI Cleanup", isOn: $settings.llmEnabled)
+                    .tint(HalideTokens.accentAmber)
+                    .foregroundColor(HalideTokens.textPrimary)
+                Text("When off, raw Whisper output is injected verbatim — no LLM runs.")
+                    .font(.caption)
+                    .foregroundColor(HalideTokens.textSecondary)
+            }
+
+            HalideSection(title: "LLM provider") {
+                Picker("Provider", selection: $settings.llmProviderName) {
+                    Text("None (raw transcript)").tag("none")
+                    Text("LlamaCpp (local)").tag("llamacpp")
+                    Text("Ollama (local HTTP)").tag("ollama")
+                }
+                .pickerStyle(.menu)
+                .accentColor(HalideTokens.accentAmber)
+                .foregroundColor(HalideTokens.accentAmber)
+            }
+            .opacity(settings.llmEnabled ? 1 : 0.35)
+            .disabled(!settings.llmEnabled)
+
+            HalideSection(title: "Cleanup options") {
+                Toggle("Remove Filler Words", isOn: $settings.removeFillers)
+                    .tint(HalideTokens.accentAmber)
+                    .foregroundColor(HalideTokens.textPrimary)
+                Toggle("Add Punctuation", isOn: $settings.addPunctuation)
+                    .tint(HalideTokens.accentAmber)
+                    .foregroundColor(HalideTokens.textPrimary)
+                Toggle("Raw Mode (skip LLM, keep options)", isOn: $settings.rawMode)
+                    .tint(HalideTokens.accentAmber)
+                    .foregroundColor(HalideTokens.textPrimary)
+            }
+            .opacity(settings.llmEnabled ? 1 : 0.35)
+            .disabled(!settings.llmEnabled)
+
+            HalideSection(title: "Tone style") {
+                Picker("Default Tone", selection: $settings.toneStyle) {
+                    ForEach(ToneStyle.allCases, id: \.self) { style in
+                        Text(style.rawValue.uppercased()).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accentColor(HalideTokens.accentAmber)
+                Text("Tone auto-adjusts based on the active application unless overridden here.")
+                    .font(.caption)
+                    .foregroundColor(HalideTokens.textSecondary)
+            }
+            .opacity(settings.llmEnabled ? 1 : 0.35)
+            .disabled(!settings.llmEnabled)
+        }
+    }
+}
+
+// MARK: - Customization Tab
+
+private struct CustomizationTab: View {
+    @ObservedObject var vocabularyStore: PersonalVocabularyStore
+    @Bindable var toneProfileStore: AppToneProfileStore
+
+    init(vocabularyStore: PersonalVocabularyStore, toneProfileStore: AppToneProfileStore) {
+        self.vocabularyStore = vocabularyStore
+        self.toneProfileStore = toneProfileStore
+    }
+
+    var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HalideSection(title: "LANGUAGE") {
-                    Picker("Language Hint", selection: $settings.languageHint) {
-                        ForEach(Self.languages, id: \.1) { name, code in
-                            Text(name).tag(code)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accentColor(HalideTokens.accentAmber)
-                    .foregroundColor(HalideTokens.accentAmber)
-                    Text("Providing a language hint improves accuracy when you know the spoken language.")
-                        .font(.caption)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
+                VocabularyContent(store: vocabularyStore)
+                HalideSection(title: "Text snippets") {
+                    SnippetsSettingsView()
                 }
+                ToneProfilesSettingsView(store: toneProfileStore)
             }
             .padding()
         }
@@ -252,68 +354,92 @@ private struct TranscriptionTab: View {
     }
 }
 
-// MARK: - AI Cleanup Tab
+// MARK: - Vocabulary Content (inlined from VocabularyTab)
 
-private struct AICleanupTab: View {
-    @Bindable var settings: SettingsManager
+private struct VocabularyContent: View {
+    @ObservedObject var store: PersonalVocabularyStore
+    @State private var newTerm: String = ""
+    @State private var errorMessage: String?
+
+    private let maxTerms = PersonalVocabularyStore.maximumTermCount
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HalideSection(title: "AI CLEANUP") {
-                    Toggle("Enable AI Cleanup", isOn: $settings.llmEnabled)
-                        .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.textPrimary)
-                    Text("When off, raw Whisper output is injected verbatim — no LLM runs.")
+        VStack(alignment: .leading, spacing: 20) {
+            HalideSection(title: "Personal vocabulary") {
+                Text(
+                    "Terms are passed to Whisper as a prompt hint, improving accuracy for " +
+                    "proper nouns, product names, and domain-specific words."
+                )
+                .font(.caption)
+                .foregroundColor(HalideTokens.textSecondary)
+            }
+
+            HalideSection(title: "Add term") {
+                HStack(spacing: 8) {
+                    TextField("e.g. SwiftUI, Xcode, WhisKey", text: $newTerm)
+                        .halideTextField()
+                        .onSubmit { commitNewTerm() }
+
+                    Button("ADD") { commitNewTerm() }
+                        .buttonStyle(HalidePrimaryButtonStyle())
+                        .disabled(newTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                if let msg = errorMessage {
+                    Text(msg)
                         .font(.caption)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
+                        .fontDesign(.monospaced)
+                        .foregroundColor(.red.opacity(0.85))
                 }
+            }
 
-                HalideSection(title: "LLM PROVIDER") {
-                    Picker("Provider", selection: $settings.llmProviderName) {
-                        Text("None (raw transcript)").tag("none")
-                        Text("LlamaCpp (local)").tag("llamacpp")
-                        Text("Ollama (local HTTP)").tag("ollama")
-                    }
-                    .pickerStyle(.menu)
-                    .accentColor(HalideTokens.accentAmber)
-                    .foregroundColor(HalideTokens.accentAmber)
-                }
-                .opacity(settings.llmEnabled ? 1 : 0.35)
-                .disabled(!settings.llmEnabled)
+            HalideSection(title: "Terms (\(store.terms.count) / \(maxTerms))") {
+                if store.terms.isEmpty {
+                    Text("No vocabulary terms added.")
+                        .font(.caption)
+                        .foregroundColor(HalideTokens.textSecondary)
+                        .padding(.vertical, 4)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(store.terms, id: \.self) { term in
+                            HStack {
+                                Text(term)
+                                    .foregroundColor(HalideTokens.textPrimary)
+                                Spacer()
+                                Button {
+                                    store.remove(term)
+                                    errorMessage = nil
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.caption)
+                                        .foregroundColor(HalideTokens.textSecondary.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove \(term)")
+                            }
+                            .padding(.vertical, 5)
+                            .padding(.horizontal, 4)
 
-                HalideSection(title: "CLEANUP OPTIONS") {
-                    Toggle("Remove Filler Words", isOn: $settings.removeFillers)
-                        .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.textPrimary)
-                    Toggle("Add Punctuation", isOn: $settings.addPunctuation)
-                        .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.textPrimary)
-                    Toggle("Raw Mode (skip LLM, keep options)", isOn: $settings.rawMode)
-                        .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.textPrimary)
-                }
-                .opacity(settings.llmEnabled ? 1 : 0.35)
-                .disabled(!settings.llmEnabled)
-
-                HalideSection(title: "TONE STYLE") {
-                    Picker("Default Tone", selection: $settings.toneStyle) {
-                        ForEach(ToneStyle.allCases, id: \.self) { style in
-                            Text(style.rawValue.uppercased()).tag(style)
+                            Divider()
                         }
                     }
-                    .pickerStyle(.segmented)
-                    .accentColor(HalideTokens.accentAmber)
-                    Text("Tone auto-adjusts based on the active application unless overridden here.")
-                        .font(.caption)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HalideTokens.radiusSmall)
+                            .stroke(HalideTokens.borderSubtle, lineWidth: 1)
+                    )
                 }
-                .opacity(settings.llmEnabled ? 1 : 0.35)
-                .disabled(!settings.llmEnabled)
             }
-            .padding()
         }
-        .background(HalideTokens.backgroundPrimary)
+    }
+
+    private func commitNewTerm() {
+        do {
+            try store.add(newTerm)
+            newTerm = ""
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 
@@ -323,23 +449,19 @@ private struct PrivacyTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HalideSection(title: "REQUIRED PERMISSIONS") {
+                HalideSection(title: "Required permissions") {
                     PrivacyRow(
                         title: "MICROPHONE",
                         description: "Required for voice capture.",
                         urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
                     )
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.15))
+                    Divider()
                     PrivacyRow(
                         title: "ACCESSIBILITY",
                         description: "Required for text injection via AX API.",
                         urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
                     )
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.15))
+                    Divider()
                     PrivacyRow(
                         title: "INPUT MONITORING",
                         description: "Required for global hotkey (Right Option).",
@@ -367,8 +489,7 @@ private struct PrivacyRow: View {
                     .foregroundColor(HalideTokens.accentAmber)
                 Text(description)
                     .font(.caption)
-                    .fontDesign(.monospaced)
-                    .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
+                    .foregroundColor(HalideTokens.textSecondary)
             }
             Spacer()
             Button("OPEN") {
@@ -381,96 +502,24 @@ private struct PrivacyRow: View {
     }
 }
 
-// MARK: - Vocabulary Tab
+// MARK: - About Tab
 
-private struct VocabularyTab: View {
-    @ObservedObject var store: PersonalVocabularyStore
-    @State private var newTerm: String = ""
-    @State private var errorMessage: String?
-
-    private let maxTerms = PersonalVocabularyStore.maximumTermCount
-
+private struct AboutTab: View {
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HalideSection(title: "PERSONAL VOCABULARY") {
-                    Text(
-                        "Terms are passed to Whisper as a prompt hint, improving accuracy for " +
-                        "proper nouns, product names, and domain-specific words."
-                    )
-                    .font(.caption)
-                    .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
-                }
-
-                HalideSection(title: "ADD TERM") {
-                    HStack(spacing: 8) {
-                        TextField("e.g. SwiftUI, Xcode, WhisKey", text: $newTerm)
-                            .halideTextField()
-                            .onSubmit { commitNewTerm() }
-
-                        Button("ADD") { commitNewTerm() }
-                            .buttonStyle(HalidePrimaryButtonStyle())
-                            .disabled(newTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-
-                    if let msg = errorMessage {
-                        Text(msg)
-                            .font(.caption)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(.red.opacity(0.85))
-                    }
-                }
-
-                HalideSection(title: "TERMS  (\(store.terms.count) / \(maxTerms))") {
-                    if store.terms.isEmpty {
-                        Text("No vocabulary terms added.")
-                            .font(.caption)
-                            .fontDesign(.monospaced)
-                            .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
-                            .padding(.vertical, 4)
-                    } else {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ForEach(store.terms, id: \.self) { term in
-                                HStack {
-                                    Text(term)
-                                        .foregroundColor(HalideTokens.accentAmber)
-                                        .fontDesign(.monospaced)
-                                    Spacer()
-                                    Button {
-                                        store.remove(term)
-                                        errorMessage = nil
-                                    } label: {
-                                        Image(systemName: "xmark")
-                                            .font(.caption)
-                                            .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Remove \(term)")
-                                }
-                                .padding(.vertical, 5)
-                                .padding(.horizontal, 4)
-
-                                Rectangle()
-                                    .frame(height: 1)
-                                    .foregroundColor(HalideTokens.accentAmber.opacity(0.08))
-                            }
-                        }
-                        .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.15), lineWidth: 1))
-                    }
-                }
-            }
-            .padding()
+        VStack(spacing: HalideTokens.spacing16) {
+            Image(systemName: "waveform.circle")
+                .font(.system(size: 48))
+                .foregroundColor(HalideTokens.accentAmber)
+            Text("WhisKey")
+                .font(.title2).fontWeight(.semibold)
+                .foregroundColor(HalideTokens.textPrimary)
+            Text("Local-first voice transcription for macOS")
+                .font(.callout)
+                .foregroundColor(HalideTokens.textSecondary)
+            Spacer()
         }
+        .padding(.top, HalideTokens.spacing24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(HalideTokens.backgroundPrimary)
-    }
-
-    private func commitNewTerm() {
-        do {
-            try store.add(newTerm)
-            newTerm = ""
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
-        }
     }
 }
