@@ -36,7 +36,11 @@ public final class AppToneProfileStore {
 
     public static let maximumBundleIDLength = 255
     private static let bundleIDPattern: NSRegularExpression = {
-        try! NSRegularExpression(pattern: #"^[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+){1,}$"#)
+        do {
+            return try NSRegularExpression(pattern: #"^[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+){1,}$"#)
+        } catch {
+            fatalError("bundleIDPattern regex is invalid: \(error)")
+        }
     }()
 
     // MARK: - Singleton

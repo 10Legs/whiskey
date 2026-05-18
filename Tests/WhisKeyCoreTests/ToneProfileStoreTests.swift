@@ -173,8 +173,8 @@ extension AppToneProfileError: Equatable {
         switch (lhs, rhs) {
         case (.invalidBundleID, .invalidBundleID):
             return true
-        case (.bundleIDTooLong(let l), .bundleIDTooLong(let r)):
-            return l == r
+        case (.bundleIDTooLong(let lhs), .bundleIDTooLong(let rhs)):
+            return lhs == rhs
         default:
             return false
         }
