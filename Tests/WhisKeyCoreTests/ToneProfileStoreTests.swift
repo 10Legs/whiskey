@@ -44,35 +44,34 @@ final class ToneProfileStoreTests: XCTestCase {
 
     // MARK: - Set / Get
 
-    func testSetAndGetProfile() {
-        store.setProfile(.formal, for: "com.example.word")
+    func testSetAndGetProfile() throws {
+        try store.setProfile(.formal, for: "com.example.word")
         XCTAssertEqual(store.profile(for: "com.example.word"), .formal)
     }
 
-    func testSetOverwritesPreviousProfile() {
-        store.setProfile(.formal, for: "com.example.word")
-        store.setProfile(.code, for: "com.example.word")
+    func testSetOverwritesPreviousProfile() throws {
+        try store.setProfile(.formal, for: "com.example.word")
+        try store.setProfile(.code, for: "com.example.word")
         XCTAssertEqual(store.profile(for: "com.example.word"), .code,
                        "Second setProfile call must overwrite the first.")
     }
 
-    func testSetRawProfile() {
-        store.setProfile(.raw, for: "com.example.terminal")
+    func testSetRawProfile() throws {
+        try store.setProfile(.raw, for: "com.example.terminal")
         XCTAssertEqual(store.profile(for: "com.example.terminal"), .raw)
     }
 
     // MARK: - Remove
 
-    func testRemoveProfile() {
-        store.setProfile(.formal, for: "com.example.word")
+    func testRemoveProfile() throws {
+        try store.setProfile(.formal, for: "com.example.word")
         store.removeProfile(for: "com.example.word")
         XCTAssertEqual(store.profile(for: "com.example.word"), .casual,
                        "After removal, bundle ID must revert to the .casual default.")
     }
 
-    func testRemoveNonExistentProfileIsIdempotent() {
-        // Should not crash or affect other mappings.
-        store.setProfile(.formal, for: "com.example.word")
+    func testRemoveNonExistentProfileIsIdempotent() throws {
+        try store.setProfile(.formal, for: "com.example.word")
         store.removeProfile(for: "com.unknown.other")
         XCTAssertEqual(store.profile(for: "com.example.word"), .formal,
                        "Removing a non-existent entry must not affect existing mappings.")
@@ -84,18 +83,18 @@ final class ToneProfileStoreTests: XCTestCase {
         XCTAssertTrue(store.allMappings.isEmpty, "Fresh store must return empty allMappings.")
     }
 
-    func testAllMappingsSortedByBundleID() {
-        store.setProfile(.formal, for: "com.zzz.app")
-        store.setProfile(.code, for: "com.aaa.app")
-        store.setProfile(.casual, for: "com.mmm.app")
+    func testAllMappingsSortedByBundleID() throws {
+        try store.setProfile(.formal, for: "com.zzz.app")
+        try store.setProfile(.code, for: "com.aaa.app")
+        try store.setProfile(.casual, for: "com.mmm.app")
 
         let ids = store.allMappings.map(\.bundleID)
         XCTAssertEqual(ids, ids.sorted(), "allMappings must be sorted ascending by bundle ID.")
     }
 
-    func testAllMappingsContainsCorrectProfiles() {
-        store.setProfile(.raw, for: "com.example.terminal")
-        store.setProfile(.formal, for: "com.example.word")
+    func testAllMappingsContainsCorrectProfiles() throws {
+        try store.setProfile(.raw, for: "com.example.terminal")
+        try store.setProfile(.formal, for: "com.example.word")
 
         let mapping = store.allMappings
         XCTAssertEqual(mapping.count, 2)
@@ -109,11 +108,10 @@ final class ToneProfileStoreTests: XCTestCase {
 
     // MARK: - Persistence (save → reload)
 
-    func testPersistenceAcrossStoreReload() {
-        store.setProfile(.formal, for: "com.example.word")
-        store.setProfile(.raw, for: "com.example.terminal")
+    func testPersistenceAcrossStoreReload() throws {
+        try store.setProfile(.formal, for: "com.example.word")
+        try store.setProfile(.raw, for: "com.example.terminal")
 
-        // Create a second store over the same defaults suite — simulates restart.
         let reloaded = AppToneProfileStore(defaults: defaults)
 
         XCTAssertEqual(reloaded.profile(for: "com.example.word"), .formal,
@@ -124,13 +122,62 @@ final class ToneProfileStoreTests: XCTestCase {
                        "Unmapped app must still default to .casual after reload.")
     }
 
-    func testRemovalPersistedAcrossReload() {
-        store.setProfile(.formal, for: "com.example.word")
+    func testRemovalPersistedAcrossReload() throws {
+        try store.setProfile(.formal, for: "com.example.word")
         store.removeProfile(for: "com.example.word")
 
         let reloaded = AppToneProfileStore(defaults: defaults)
         XCTAssertEqual(reloaded.profile(for: "com.example.word"), .casual,
                        "Removal must persist: reloaded store must see .casual for removed key.")
+    }
+
+    // MARK: - Bundle ID validation (S5-M3)
+
+    func testValidBundleIDAccepted() throws {
+        XCTAssertNoThrow(try store.setProfile(.casual, for: "com.apple.Terminal"))
+    }
+
+    func testSingleComponentBundleIDRejected() {
+        XCTAssertThrowsError(try store.setProfile(.casual, for: "nodot")) { error in
+            XCTAssertEqual(error as? AppToneProfileError, .invalidBundleID)
+        }
+    }
+
+    func testEmptyBundleIDRejected() {
+        XCTAssertThrowsError(try store.setProfile(.casual, for: "")) { error in
+            XCTAssertEqual(error as? AppToneProfileError, .invalidBundleID)
+        }
+    }
+
+    func testOversizedBundleIDRejected() {
+        let oversized = String(repeating: "a", count: 128) + "." + String(repeating: "b", count: 128)
+        XCTAssertThrowsError(try store.setProfile(.casual, for: oversized)) { error in
+            guard case AppToneProfileError.bundleIDTooLong(let max) = error else {
+                return XCTFail("Expected .bundleIDTooLong, got \(error)")
+            }
+            XCTAssertEqual(max, AppToneProfileStore.maximumBundleIDLength)
+        }
+    }
+
+    func testSpecialCharsBundleIDRejected() {
+        XCTAssertThrowsError(try store.setProfile(.casual, for: "com.example.app!")) { error in
+            XCTAssertEqual(error as? AppToneProfileError, .invalidBundleID)
+        }
+    }
+}
+
+// MARK: - Equatable conformance for test assertions
+
+extension AppToneProfileError: Equatable {
+    public static func == (lhs: AppToneProfileError, rhs: AppToneProfileError) -> Bool {
+        switch (lhs, rhs) {
+        case (.invalidBundleID, .invalidBundleID):
+            return true
+        case (.bundleIDTooLong(let lhs), .bundleIDTooLong(let rhs)):
+            return lhs == rhs
+        default:
+            return false
+        }
     }
 }
 
