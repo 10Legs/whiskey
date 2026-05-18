@@ -111,9 +111,10 @@ jobs:
 
       - name: Build (release)
         run: |
+          NCPU=$(sysctl -n hw.logicalcpu)
           while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
           HPID=$!
-          swift build -c release --jobs 2 2>&1
+          swift build -c release --jobs "$NCPU" 2>&1
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
