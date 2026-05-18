@@ -52,14 +52,13 @@ jobs:
         run: /opt/homebrew/bin/brew install sqlcipher 2>&1 || /opt/homebrew/bin/brew upgrade sqlcipher 2>&1 || true
 
       - name: Build (debug + tests)
-        # --build-tests compiles test targets here (under --jobs 4 throttle) so
-        # "Run tests" below has nothing to compile and runs in < 1 second.
-        # Without this, swift test compiled the test target with no --jobs limit,
-        # saturating all 8 cores and starving the runner's renewjob HTTP threads.
+        # Use all logical CPUs to minimize build time. The runner's job token
+        # window is 10 min; we need the build + tests to complete before renewal.
         run: |
+          NCPU=$(sysctl -n hw.logicalcpu)
           while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
           HPID=$!
-          swift build -c debug --build-tests --jobs 4 2>&1
+          swift build -c debug --build-tests --jobs "$NCPU" 2>&1
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
@@ -73,8 +72,7 @@ jobs:
           rsync -a .build/ "$CACHE_DIR/"
 
       - name: Run tests
-        # --jobs 4 guards against any incremental recompile using all cores.
-        run: swift test --jobs 4 --filter WhisKeyCoreTests 2>&1
+        run: swift test --jobs "$(sysctl -n hw.logicalcpu)" --filter WhisKeyCoreTests 2>&1
 
 # ---------------------------------------------------------------------------
 # Job: build-release
