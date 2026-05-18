@@ -139,7 +139,8 @@ public struct WaveformHUDView: View {
         maxAmplitude: CGFloat,
         renderCtx: WaveformRenderContext
     ) {
-        let amplitude = CGFloat(renderCtx.level) * maxAmplitude
+        let curved = CGFloat(pow(Double(max(renderCtx.level, 0)), 0.50))
+        let amplitude = curved * maxAmplitude
         let phase = renderCtx.phase
         var path = Path()
         let steps = Int(size.width)
@@ -148,8 +149,9 @@ public struct WaveformHUDView: View {
             let fraction = Double(step) / Double(steps)
             let noise = sin(fraction * 47.3 + phase * 3.7) * 0.15
             let yPos = midY - amplitude * CGFloat(
-                sin(fraction * .pi * 4 + phase * 5) * 0.6 +
-                sin(fraction * .pi * 7 + phase * 3) * 0.3 +
+                sin(fraction * .pi * 5 + phase * 4.8) * 0.55 +
+                sin(fraction * .pi * 9 + phase * 2.9) * 0.28 +
+                sin(fraction * .pi * 13 + phase * 7.1) * 0.12 +
                 noise
             )
             if step == 0 {
@@ -164,13 +166,13 @@ public struct WaveformHUDView: View {
         ctx.stroke(
             path,
             with: .color(HalideTokens.textPrimary.opacity(opacity)),
-            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
+            style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
         )
     }
 
     private func drawIdleLine(ctx: GraphicsContext, size: CGSize, midY: CGFloat, renderCtx: WaveformRenderContext) {
         // Breathing: ~8-second cycle, 2 pt peak-to-trough, disabled when reduceMotion.
-        let breathingAmplitude: CGFloat = renderCtx.reduceMotion ? 0 : 2.0 * sin(renderCtx.phase * 0.8)
+        let breathingAmplitude: CGFloat = renderCtx.reduceMotion ? 0 : 3.5 * sin(renderCtx.phase * 0.8)
         let steps = Int(size.width)
         var path = Path()
 
@@ -187,7 +189,7 @@ public struct WaveformHUDView: View {
         ctx.stroke(
             path,
             with: .color(HalideTokens.accentIdle),
-            style: StrokeStyle(lineWidth: 1.0, lineCap: .round, lineJoin: .round)
+            style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
         )
     }
 }

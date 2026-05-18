@@ -29,7 +29,7 @@ public struct ToneProfilesSettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
 
                 // ── Active App Hint ─────────────────────────────────────────
-                HalideSection(title: "ACTIVE APP") {
+                HalideSection(title: "Active app") {
                     if frontmostBundleID.isEmpty {
                         Text("No frontmost app detected.")
                             .font(.caption)
@@ -57,7 +57,7 @@ public struct ToneProfilesSettingsView: View {
                 }
 
                 // ── Add New Mapping ─────────────────────────────────────────
-                HalideSection(title: "ADD MAPPING") {
+                HalideSection(title: "Add mapping") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             TextField("com.example.app", text: $newBundleID)
@@ -100,7 +100,7 @@ public struct ToneProfilesSettingsView: View {
 
                 // ── Configured Mappings ─────────────────────────────────────
                 let mappings = store.allMappings
-                HalideSection(title: "CONFIGURED MAPPINGS  (\(mappings.count))") {
+                HalideSection(title: "Configured mappings (\(mappings.count))") {
                     if mappings.isEmpty {
                         Text("No app-specific tone profiles configured.")
                             .font(.caption)
