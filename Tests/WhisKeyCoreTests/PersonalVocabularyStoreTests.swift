@@ -229,6 +229,51 @@ final class PersonalVocabularyStoreTests: XCTestCase {
         XCTAssertNoThrow(try store.add("ValidTerm123"))
     }
 
+    // MARK: - Unicode bidi / zero-width / separator filter (S5-M2a)
+
+    func testRightToLeftOverrideRejected() {
+        // U+202E RIGHT-TO-LEFT OVERRIDE — bidi spoofing vector
+        XCTAssertThrowsError(try store.add("hel\u{202E}lo")) { error in
+            XCTAssertEqual(error as? PersonalVocabularyError, .invalidTerm)
+        }
+    }
+
+    func testZeroWidthSpaceRejected() {
+        // U+200B ZERO WIDTH SPACE — invisible injection
+        XCTAssertThrowsError(try store.add("hel\u{200B}lo")) { error in
+            XCTAssertEqual(error as? PersonalVocabularyError, .invalidTerm)
+        }
+    }
+
+    func testBOMRejected() {
+        // U+FEFF BYTE ORDER MARK / ZERO WIDTH NO-BREAK SPACE
+        XCTAssertThrowsError(try store.add("\u{FEFF}term")) { error in
+            XCTAssertEqual(error as? PersonalVocabularyError, .invalidTerm)
+        }
+    }
+
+    func testLineSeparatorRejected() {
+        // U+2028 LINE SEPARATOR
+        XCTAssertThrowsError(try store.add("line\u{2028}break")) { error in
+            XCTAssertEqual(error as? PersonalVocabularyError, .invalidTerm)
+        }
+    }
+
+    func testAccentedCharsAccepted() throws {
+        // Accented Latin — must NOT be rejected by the broader filter
+        XCTAssertNoThrow(try store.add("café"))
+    }
+
+    func testEmojiAccepted() throws {
+        // Emoji — must NOT be rejected
+        XCTAssertNoThrow(try store.add("🎙 Podcast"))
+    }
+
+    func testCyrillicAccepted() throws {
+        // Non-Latin script — must NOT be rejected
+        XCTAssertNoThrow(try store.add("Москва"))
+    }
+
     // MARK: - UserDefaults persistence
 
     func testTermsPersistedAfterAdd() throws {

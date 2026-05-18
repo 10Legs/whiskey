@@ -12,8 +12,8 @@ public enum PersonalVocabularyError: Error, LocalizedError {
     case duplicateTerm(existing: String)
     /// The term exceeds the per-term character limit.
     case termTooLong(max: Int)
-    /// The term contains ASCII control characters (U+0000–U+001F or U+007F) that
-    /// would corrupt Whisper's `initial_prompt` input.
+    /// The term contains control, format, bidi-override, zero-width, or other
+    /// characters that would corrupt Whisper's `initial_prompt` input.
     case invalidTerm
 
     public var errorDescription: String? {
@@ -27,7 +27,7 @@ public enum PersonalVocabularyError: Error, LocalizedError {
         case .termTooLong(let max):
             return "Vocabulary terms cannot exceed \(max) characters."
         case .invalidTerm:
-            return "Vocabulary terms cannot contain control characters."
+            return "Vocabulary terms cannot contain control or special formatting characters."
         }
     }
 }
@@ -56,6 +56,23 @@ public final class PersonalVocabularyStore: ObservableObject {
     public static let userDefaultsKey = "com.whiskey.personalVocabulary"
     public static let maximumTermCount = 50
     public static let maximumTermLength = 100
+
+    // Scalars that are never permitted inside a vocabulary term.
+    // Covers: Unicode control/illegal characters; bidi-override / bidi-isolate
+    // (U+202A–U+202E, U+2066–U+2069); zero-width characters (U+200B–U+200F);
+    // line/paragraph separators (U+2028, U+2029); BOM / ZWNBSP (U+FEFF).
+    private static let rejectedScalars: CharacterSet = {
+        var set = CharacterSet.controlCharacters
+        set.formUnion(.illegalCharacters)
+        let extra: [Unicode.Scalar] = [
+            "\u{200B}", "\u{200C}", "\u{200D}", "\u{200E}", "\u{200F}",
+            "\u{202A}", "\u{202B}", "\u{202C}", "\u{202D}", "\u{202E}",
+            "\u{2028}", "\u{2029}", "\u{2066}", "\u{2067}", "\u{2068}", "\u{2069}",
+            "\u{FEFF}"
+        ]
+        for scalar in extra { set.insert(scalar) }
+        return set
+    }()
 
     // MARK: - Shared instance
 
@@ -98,7 +115,7 @@ public final class PersonalVocabularyStore: ObservableObject {
             throw PersonalVocabularyError.termTooLong(max: Self.maximumTermLength)
         }
 
-        guard !trimmed.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) else {
+        guard !trimmed.unicodeScalars.contains(where: { Self.rejectedScalars.contains($0) }) else {
             throw PersonalVocabularyError.invalidTerm
         }
 
