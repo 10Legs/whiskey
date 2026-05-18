@@ -10,6 +10,11 @@ public enum PersonalVocabularyError: Error, LocalizedError {
     case tooManyTerms(max: Int)
     /// A case-insensitive duplicate of the term already exists.
     case duplicateTerm(existing: String)
+    /// The term exceeds the per-term character limit.
+    case termTooLong(max: Int)
+    /// The term contains ASCII control characters (U+0000–U+001F or U+007F) that
+    /// would corrupt Whisper's `initial_prompt` input.
+    case invalidTerm
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +24,10 @@ public enum PersonalVocabularyError: Error, LocalizedError {
             return "You can store at most \(max) vocabulary terms."
         case .duplicateTerm(let existing):
             return "\"\(existing)\" is already in your vocabulary."
+        case .termTooLong(let max):
+            return "Vocabulary terms cannot exceed \(max) characters."
+        case .invalidTerm:
+            return "Vocabulary terms cannot contain control characters."
         }
     }
 }
@@ -46,6 +55,7 @@ public final class PersonalVocabularyStore: ObservableObject {
 
     public static let userDefaultsKey = "com.whiskey.personalVocabulary"
     public static let maximumTermCount = 50
+    public static let maximumTermLength = 100
 
     // MARK: - Shared instance
 
@@ -82,6 +92,14 @@ public final class PersonalVocabularyStore: ObservableObject {
 
         guard !trimmed.isEmpty else {
             throw PersonalVocabularyError.emptyTerm
+        }
+
+        guard trimmed.count <= Self.maximumTermLength else {
+            throw PersonalVocabularyError.termTooLong(max: Self.maximumTermLength)
+        }
+
+        guard !trimmed.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) else {
+            throw PersonalVocabularyError.invalidTerm
         }
 
         guard terms.count < Self.maximumTermCount else {

@@ -181,6 +181,54 @@ final class PersonalVocabularyStoreTests: XCTestCase {
         XCTAssertEqual(store.promptString, "Xcode, SwiftUI, WhisKey")
     }
 
+    // MARK: - Per-term length cap (S5-M2)
+
+    func testTermAtExactlyMaxLengthAccepted() throws {
+        let term = String(repeating: "a", count: PersonalVocabularyStore.maximumTermLength)
+        XCTAssertNoThrow(try store.add(term))
+        XCTAssertEqual(store.terms.first, term)
+    }
+
+    func testTermOneOverMaxLengthRejected() {
+        let term = String(repeating: "a", count: PersonalVocabularyStore.maximumTermLength + 1)
+        XCTAssertThrowsError(try store.add(term)) { error in
+            guard case PersonalVocabularyError.termTooLong(let max) = error else {
+                return XCTFail("Expected .termTooLong, got \(error)")
+            }
+            XCTAssertEqual(max, PersonalVocabularyStore.maximumTermLength)
+        }
+    }
+
+    func testTooLongTermDoesNotMutateStore() {
+        let term = String(repeating: "z", count: PersonalVocabularyStore.maximumTermLength + 1)
+        _ = try? store.add(term)
+        XCTAssertTrue(store.terms.isEmpty)
+    }
+
+    // MARK: - Control character filter (S5-M2)
+
+    func testTermWithControlCharInMiddleRejected() {
+        XCTAssertThrowsError(try store.add("hel\u{01}lo")) { error in
+            XCTAssertEqual(error as? PersonalVocabularyError, .invalidTerm)
+        }
+    }
+
+    func testTermWithNullByteRejected() {
+        XCTAssertThrowsError(try store.add("bad\u{00}term")) { error in
+            XCTAssertEqual(error as? PersonalVocabularyError, .invalidTerm)
+        }
+    }
+
+    func testTermWithDeleteCharRejected() {
+        XCTAssertThrowsError(try store.add("bad\u{7F}term")) { error in
+            XCTAssertEqual(error as? PersonalVocabularyError, .invalidTerm)
+        }
+    }
+
+    func testTermWithoutControlCharsAccepted() throws {
+        XCTAssertNoThrow(try store.add("ValidTerm123"))
+    }
+
     // MARK: - UserDefaults persistence
 
     func testTermsPersistedAfterAdd() throws {
@@ -225,6 +273,10 @@ extension PersonalVocabularyError: Equatable {
             return lhs == rhs
         case (.duplicateTerm(let lhs), .duplicateTerm(let rhs)):
             return lhs == rhs
+        case (.termTooLong(let lhs), .termTooLong(let rhs)):
+            return lhs == rhs
+        case (.invalidTerm, .invalidTerm):
+            return true
         default:
             return false
         }

@@ -17,6 +17,7 @@ public struct ToneProfilesSettingsView: View {
 
     @State private var newBundleID: String = ""
     @State private var newProfile: ToneProfile = .casual
+    @State private var addError: String?
 
     // MARK: - Frontmost app hint
 
@@ -86,7 +87,12 @@ public struct ToneProfilesSettingsView: View {
                         .padding(6)
                         .overlay(Rectangle().stroke(phosphorGreen.opacity(0.25), lineWidth: 1))
 
-                        if !newProfile.systemPromptSuffix.isEmpty {
+                        if let addError {
+                            Text(addError)
+                                .font(.caption2)
+                                .fontDesign(.monospaced)
+                                .foregroundColor(.red.opacity(0.85))
+                        } else if !newProfile.systemPromptSuffix.isEmpty {
                             Text("Prompt suffix: \"\(newProfile.systemPromptSuffix.trimmingCharacters(in: .whitespaces))\"")
                                 .font(.caption2)
                                 .fontDesign(.monospaced)
@@ -157,9 +163,14 @@ public struct ToneProfilesSettingsView: View {
     private func commitAdd() {
         let trimmed = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        store.setProfile(newProfile, for: trimmed)
-        newBundleID = ""
-        newProfile = .casual
+        do {
+            try store.setProfile(newProfile, for: trimmed)
+            newBundleID = ""
+            newProfile = .casual
+            addError = nil
+        } catch {
+            addError = error.localizedDescription
+        }
     }
 
     private func refreshFrontmostApp() {

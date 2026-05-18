@@ -3,6 +3,24 @@ import os.log
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "AppToneProfileStore")
 
+// MARK: - AppToneProfileError
+
+public enum AppToneProfileError: Error, LocalizedError {
+    /// The bundle ID is empty or does not conform to reverse-DNS format.
+    case invalidBundleID
+    /// The bundle ID exceeds the maximum allowed length.
+    case bundleIDTooLong(max: Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidBundleID:
+            return "Bundle IDs must be in reverse-DNS format (e.g. com.apple.Terminal)."
+        case .bundleIDTooLong(let max):
+            return "Bundle IDs cannot exceed \(max) characters."
+        }
+    }
+}
+
 /// Persists per-app `ToneProfile` mappings in `UserDefaults`.
 ///
 /// Maps bundle identifier strings to `ToneProfile` values.
@@ -13,6 +31,13 @@ private let logger = Logger(subsystem: "com.whiskey.app", category: "AppToneProf
 @Observable
 @MainActor
 public final class AppToneProfileStore {
+
+    // MARK: - Constants
+
+    public static let maximumBundleIDLength = 255
+    private static let bundleIDPattern: NSRegularExpression = {
+        try! NSRegularExpression(pattern: #"^[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+){1,}$"#)
+    }()
 
     // MARK: - Singleton
 
@@ -52,7 +77,18 @@ public final class AppToneProfileStore {
     }
 
     /// Persists `profile` for the given `bundleID`, replacing any prior value.
-    public func setProfile(_ profile: ToneProfile, for bundleID: String) {
+    ///
+    /// - Throws: `AppToneProfileError.bundleIDTooLong` when `bundleID` exceeds 255 characters.
+    /// - Throws: `AppToneProfileError.invalidBundleID` when `bundleID` does not match
+    ///   reverse-DNS format (`^[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+){1,}$`).
+    public func setProfile(_ profile: ToneProfile, for bundleID: String) throws {
+        guard bundleID.count <= Self.maximumBundleIDLength else {
+            throw AppToneProfileError.bundleIDTooLong(max: Self.maximumBundleIDLength)
+        }
+        let range = NSRange(bundleID.startIndex..., in: bundleID)
+        guard Self.bundleIDPattern.firstMatch(in: bundleID, range: range) != nil else {
+            throw AppToneProfileError.invalidBundleID
+        }
         mappings[bundleID] = profile
         save()
     }
