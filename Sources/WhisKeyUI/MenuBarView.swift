@@ -339,7 +339,7 @@ private struct WaveformBarsView: View {
         HStack(alignment: .center, spacing: 3) {
             ForEach(0..<barCount, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.accentColor)
+                    .fill(HalideTokens.accentAmber)
                     .frame(width: 3, height: barHeight(for: index))
                     .animation(
                         reduceMotion ? nil : .easeInOut(duration: 0.1),

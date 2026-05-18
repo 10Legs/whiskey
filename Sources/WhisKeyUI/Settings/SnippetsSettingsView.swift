@@ -80,15 +80,15 @@ public struct SnippetsSettingsView: View {
             Button("+ ADD SNIPPET") {
                 isShowingAddSheet = true
             }
-            .buttonStyle(PhosphorButtonStyle())
+            .buttonStyle(HalidePrimaryButtonStyle())
 
             Spacer()
 
             Button("IMPORT") { Task { await importJSON() } }
-                .buttonStyle(PhosphorButtonStyle())
+                .buttonStyle(HalideSecondaryButtonStyle())
 
             Button("EXPORT") { Task { await exportJSON() } }
-                .buttonStyle(PhosphorButtonStyle())
+                .buttonStyle(HalideSecondaryButtonStyle())
                 .disabled(snippets.isEmpty)
         }
         .padding(.horizontal, 16)
@@ -124,7 +124,7 @@ public struct SnippetsSettingsView: View {
             Button("RESET SNIPPET STORE") {
                 Task { await resetStore() }
             }
-            .buttonStyle(PhosphorButtonStyle())
+            .buttonStyle(HalideDestructiveButtonStyle())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(HalideTokens.backgroundPrimary)
@@ -273,12 +273,12 @@ public struct SnippetsSettingsView: View {
                 .lineLimit(1)
             Spacer()
             Button("CANCEL") { cancelDelete() }
-                .buttonStyle(PhosphorButtonStyle())
+                .buttonStyle(HalideSecondaryButtonStyle())
             Button("DELETE") {
                 autoDismissTask?.cancel()
                 Task { await confirmDelete(snippet.id) }
             }
-            .buttonStyle(DestructivePhosphorButtonStyle())
+            .buttonStyle(HalideDestructiveButtonStyle())
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -521,10 +521,7 @@ private struct SnippetEditView: View {
                     .fontDesign(.monospaced)
                     .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
                 TextField("insert email signature", text: $triggerPhrase)
-                    .textFieldStyle(.roundedBorder)
-                    .fontDesign(.monospaced)
-                    .foregroundColor(HalideTokens.accentAmber)
-                    .background(HalideTokens.backgroundPrimary)
+                    .halideTextField()
                 Text("Say this phrase to trigger the expansion.")
                     .font(.caption)
                     .fontDesign(.monospaced)
@@ -588,8 +585,7 @@ private struct SnippetEditView: View {
             Toggle("Show preview notification before first use", isOn: $previewEnabled)
                 .toggleStyle(.switch)
                 .tint(HalideTokens.accentAmber)
-                .fontDesign(.monospaced)
-                .foregroundColor(HalideTokens.accentAmber.opacity(0.8))
+                .foregroundColor(HalideTokens.textPrimary)
 
             Divider().background(HalideTokens.accentAmber.opacity(0.3))
 
@@ -597,7 +593,7 @@ private struct SnippetEditView: View {
             HStack {
                 Spacer()
                 Button("CANCEL") { onCancel() }
-                    .buttonStyle(PhosphorButtonStyle())
+                    .buttonStyle(HalideSecondaryButtonStyle())
                 Button("SAVE SNIPPET") {
                     attemptedSave = true
                     guard canSave else { return }
@@ -610,7 +606,7 @@ private struct SnippetEditView: View {
                     snippet.previewNotificationEnabled = previewEnabled
                     onSave(snippet)
                 }
-                .buttonStyle(PhosphorButtonStyle())
+                .buttonStyle(HalidePrimaryButtonStyle())
                 .disabled(!canSave)
                 .opacity(canSave ? 1.0 : 0.4)
             }
@@ -662,39 +658,5 @@ private struct SnippetsImportPreview {
             throw SnippetStoreError.importFailed("The import file contains no valid snippets.")
         }
         self.snippets = file.snippets.map { Entry(triggerPhrase: $0.triggerPhrase, expansionText: $0.expansionText) }
-    }
-}
-
-// MARK: - Shared Button Styles (mirrors SettingsView.swift private styles)
-
-private struct PhosphorButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.caption)
-            .fontDesign(.monospaced)
-            .foregroundColor(HalideTokens.accentAmber.opacity(configuration.isPressed ? 0.6 : 1.0))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .overlay(
-                Rectangle()
-                    .stroke(HalideTokens.accentAmber.opacity(0.4), lineWidth: 1)
-            )
-            .background(HalideTokens.backgroundPrimary)
-    }
-}
-
-private struct DestructivePhosphorButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.caption)
-            .fontDesign(.monospaced)
-            .foregroundColor(.red.opacity(configuration.isPressed ? 0.5 : 1.0))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .overlay(
-                Rectangle()
-                    .stroke(Color.red.opacity(0.5), lineWidth: 1)
-            )
-            .background(HalideTokens.backgroundPrimary)
     }
 }

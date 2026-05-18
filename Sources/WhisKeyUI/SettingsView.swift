@@ -88,19 +88,19 @@ private struct GeneralTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                PhosphorSection(title: "STARTUP") {
+                HalideSection(title: "STARTUP") {
                     Toggle("Launch at Login", isOn: .constant(false))
                         .disabled(true)
                         .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
+                        .foregroundColor(HalideTokens.textPrimary)
                         .help("Coming soon — requires SMAppService integration.")
                 }
 
-                PhosphorSection(title: "WHISPER MODEL") {
+                HalideSection(title: "WHISPER MODEL") {
                     ModelPickerView(modelManager: modelManager)
                 }
 
-                PhosphorSection(title: "OUTPUT MODE") {
+                HalideSection(title: "OUTPUT MODE") {
                     Picker("Output Mode", selection: $settings.outputMode) {
                         Text("Active Window").tag(OutputMode.activeWindow)
                         Text("Clipboard").tag(OutputMode.clipboard)
@@ -130,7 +130,7 @@ private struct HotkeyTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                PhosphorSection(title: "PUSH-TO-TALK HOTKEY") {
+                HalideSection(title: "PUSH-TO-TALK HOTKEY") {
                     HStack {
                         Text("CURRENT HOTKEY:")
                             .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
@@ -150,10 +150,10 @@ private struct HotkeyTab: View {
                         .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 }
 
-                PhosphorSection(title: "INTERACTION MODE") {
+                HalideSection(title: "INTERACTION MODE") {
                     Toggle("Enable hands-free mode (double-tap)", isOn: $settings.handsFreeEnabled)
                         .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.accentAmber)
+                        .foregroundColor(HalideTokens.textPrimary)
                         .accessibilityLabel("Enable hands-free mode")
                         .accessibilityHint(
                             "Double-tap the hotkey to start recording hands-free. Tap again to stop."
@@ -232,7 +232,7 @@ private struct TranscriptionTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                PhosphorSection(title: "LANGUAGE") {
+                HalideSection(title: "LANGUAGE") {
                     Picker("Language Hint", selection: $settings.languageHint) {
                         ForEach(Self.languages, id: \.1) { name, code in
                             Text(name).tag(code)
@@ -260,16 +260,16 @@ private struct AICleanupTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                PhosphorSection(title: "AI CLEANUP") {
+                HalideSection(title: "AI CLEANUP") {
                     Toggle("Enable AI Cleanup", isOn: $settings.llmEnabled)
                         .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.accentAmber)
+                        .foregroundColor(HalideTokens.textPrimary)
                     Text("When off, raw Whisper output is injected verbatim — no LLM runs.")
                         .font(.caption)
                         .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 }
 
-                PhosphorSection(title: "LLM PROVIDER") {
+                HalideSection(title: "LLM PROVIDER") {
                     Picker("Provider", selection: $settings.llmProviderName) {
                         Text("None (raw transcript)").tag("none")
                         Text("LlamaCpp (local)").tag("llamacpp")
@@ -282,21 +282,21 @@ private struct AICleanupTab: View {
                 .opacity(settings.llmEnabled ? 1 : 0.35)
                 .disabled(!settings.llmEnabled)
 
-                PhosphorSection(title: "CLEANUP OPTIONS") {
+                HalideSection(title: "CLEANUP OPTIONS") {
                     Toggle("Remove Filler Words", isOn: $settings.removeFillers)
                         .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.accentAmber)
+                        .foregroundColor(HalideTokens.textPrimary)
                     Toggle("Add Punctuation", isOn: $settings.addPunctuation)
                         .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.accentAmber)
+                        .foregroundColor(HalideTokens.textPrimary)
                     Toggle("Raw Mode (skip LLM, keep options)", isOn: $settings.rawMode)
                         .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.accentAmber)
+                        .foregroundColor(HalideTokens.textPrimary)
                 }
                 .opacity(settings.llmEnabled ? 1 : 0.35)
                 .disabled(!settings.llmEnabled)
 
-                PhosphorSection(title: "TONE STYLE") {
+                HalideSection(title: "TONE STYLE") {
                     Picker("Default Tone", selection: $settings.toneStyle) {
                         ForEach(ToneStyle.allCases, id: \.self) { style in
                             Text(style.rawValue.uppercased()).tag(style)
@@ -323,7 +323,7 @@ private struct PrivacyTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                PhosphorSection(title: "REQUIRED PERMISSIONS") {
+                HalideSection(title: "REQUIRED PERMISSIONS") {
                     PrivacyRow(
                         title: "MICROPHONE",
                         description: "Required for voice capture.",
@@ -376,7 +376,7 @@ private struct PrivacyRow: View {
                     NSWorkspace.shared.open(url)
                 }
             }
-            .buttonStyle(PhosphorButtonStyle())
+            .buttonStyle(HalideSecondaryButtonStyle())
         }
     }
 }
@@ -393,7 +393,7 @@ private struct VocabularyTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                PhosphorSection(title: "PERSONAL VOCABULARY") {
+                HalideSection(title: "PERSONAL VOCABULARY") {
                     Text(
                         "Terms are passed to Whisper as a prompt hint, improving accuracy for " +
                         "proper nouns, product names, and domain-specific words."
@@ -402,20 +402,16 @@ private struct VocabularyTab: View {
                     .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 }
 
-                PhosphorSection(title: "ADD TERM") {
+                HalideSection(title: "ADD TERM") {
                     HStack(spacing: 8) {
                         TextField("e.g. SwiftUI, Xcode, WhisKey", text: $newTerm)
-                            .textFieldStyle(.plain)
-                            .foregroundColor(HalideTokens.accentAmber)
-                            .fontDesign(.monospaced)
+                            .halideTextField()
                             .onSubmit { commitNewTerm() }
 
                         Button("ADD") { commitNewTerm() }
-                            .buttonStyle(PhosphorButtonStyle())
+                            .buttonStyle(HalidePrimaryButtonStyle())
                             .disabled(newTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .padding(6)
-                    .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.25), lineWidth: 1))
 
                     if let msg = errorMessage {
                         Text(msg)
@@ -425,7 +421,7 @@ private struct VocabularyTab: View {
                     }
                 }
 
-                PhosphorSection(title: "TERMS  (\(store.terms.count) / \(maxTerms))") {
+                HalideSection(title: "TERMS  (\(store.terms.count) / \(maxTerms))") {
                     if store.terms.isEmpty {
                         Text("No vocabulary terms added.")
                             .font(.caption)
@@ -476,43 +472,5 @@ private struct VocabularyTab: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-}
-
-// MARK: - Shared Phosphor Components
-
-private struct PhosphorSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.caption)
-                .fontDesign(.monospaced)
-                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
-
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(HalideTokens.accentAmber.opacity(0.2))
-
-            content()
-        }
-    }
-}
-
-private struct PhosphorButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.caption)
-            .fontDesign(.monospaced)
-            .foregroundColor(HalideTokens.accentAmber.opacity(configuration.isPressed ? 0.6 : 1.0))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .overlay(
-                Rectangle()
-                    .stroke(HalideTokens.accentAmber.opacity(0.4), lineWidth: 1)
-            )
-            .background(HalideTokens.backgroundPrimary)
     }
 }
