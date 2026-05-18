@@ -34,7 +34,40 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Restore vendor submodules
+        # Avoids network fetches to GitHub for whisper.cpp and llama.cpp on every run.
+        # The UDM Pro NAT drops long-lived connections that cause recursive submodule
+        # checkout to hang indefinitely. Instead we cache the source trees on the runner
+        # at ~/.whiskey-vendor-cache/ and restore from disk, only falling back to the
+        # network when the expected commit has changed (i.e. after a Vendor bump).
+        run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+
+          for MODULE in whisper.cpp llama.cpp; do
+            EXPECTED=$(git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}')
+            CACHE_COMMIT_FILE="${VENDOR_CACHE}/${MODULE}.commit"
+            CACHED_COMMIT=""
+            if [ -f "$CACHE_COMMIT_FILE" ]; then
+              CACHED_COMMIT=$(cat "$CACHE_COMMIT_FILE")
+            fi
+
+            echo "[vendor] ${MODULE}: expected=${EXPECTED} cached=${CACHED_COMMIT:-none}"
+
+            if [ -d "${VENDOR_CACHE}/${MODULE}" ] && [ "$EXPECTED" = "$CACHED_COMMIT" ]; then
+              echo "[vendor] Cache hit for ${MODULE} — restoring from disk"
+              rsync -a "${VENDOR_CACHE}/${MODULE}/" "Vendor/${MODULE}/"
+            else
+              echo "[vendor] Cache miss for ${MODULE} — fetching from GitHub"
+              git submodule update --init --recursive "Vendor/${MODULE}"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              echo "$EXPECTED" > "$CACHE_COMMIT_FILE"
+            fi
+          done
+
+          git submodule init
 
       - name: Restore local SPM cache
         # ~/whiskey-spm-cache lives outside the workspace so it survives
@@ -73,6 +106,22 @@ jobs:
           echo "Saving SPM cache to $CACHE_DIR"
           rsync -a .build/ "$CACHE_DIR/"
 
+      - name: Save vendor cache
+        # Persist any newly-fetched submodule source trees back to disk so the
+        # next run can skip the network entirely. Runs on failure too so a
+        # partial submodule fetch still warms the cache for subsequent runs.
+        if: success() || failure()
+        run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+          for MODULE in whisper.cpp llama.cpp; do
+            if [ -d "Vendor/${MODULE}/.git" ] || [ -f "Vendor/${MODULE}/.git" ]; then
+              echo "[vendor] Saving ${MODULE} to cache"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}' > "${VENDOR_CACHE}/${MODULE}.commit"
+            fi
+          done
+
       - name: Run tests
         # --skip-build: binary was compiled by "Build (debug + tests)" above.
         # Without this, swift test rebuilds all test targets (~11 min) even
@@ -96,7 +145,38 @@ jobs:
       - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+
+      - name: Restore vendor submodules
+        # Release builds always run on main where the cache should be warm from
+        # build-and-test. Restore unconditionally from disk; fall back to network
+        # only if the cache is absent (first ever run or manual cache purge).
+        run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+
+          for MODULE in whisper.cpp llama.cpp; do
+            EXPECTED=$(git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}')
+            CACHE_COMMIT_FILE="${VENDOR_CACHE}/${MODULE}.commit"
+            CACHED_COMMIT=""
+            if [ -f "$CACHE_COMMIT_FILE" ]; then
+              CACHED_COMMIT=$(cat "$CACHE_COMMIT_FILE")
+            fi
+
+            echo "[vendor] ${MODULE}: expected=${EXPECTED} cached=${CACHED_COMMIT:-none}"
+
+            if [ -d "${VENDOR_CACHE}/${MODULE}" ] && [ "$EXPECTED" = "$CACHED_COMMIT" ]; then
+              echo "[vendor] Cache hit for ${MODULE} — restoring from disk"
+              rsync -a "${VENDOR_CACHE}/${MODULE}/" "Vendor/${MODULE}/"
+            else
+              echo "[vendor] Cache miss for ${MODULE} — fetching from GitHub (cold)"
+              git submodule update --init --recursive "Vendor/${MODULE}"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              echo "$EXPECTED" > "$CACHE_COMMIT_FILE"
+            fi
+          done
+
+          git submodule init
 
       - name: Restore local SPM cache
         run: |
@@ -120,6 +200,19 @@ jobs:
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
+
+      - name: Save vendor cache
+        if: success() || failure()
+        run: |
+          VENDOR_CACHE="${HOME}/.whiskey-vendor-cache"
+          mkdir -p "$VENDOR_CACHE"
+          for MODULE in whisper.cpp llama.cpp; do
+            if [ -d "Vendor/${MODULE}/.git" ] || [ -f "Vendor/${MODULE}/.git" ]; then
+              echo "[vendor] Saving ${MODULE} to cache"
+              rsync -a "Vendor/${MODULE}/" "${VENDOR_CACHE}/${MODULE}/"
+              git ls-tree HEAD "Vendor/${MODULE}" | awk '{print $3}' > "${VENDOR_CACHE}/${MODULE}.commit"
+            fi
+          done
 
 # ---------------------------------------------------------------------------
 # Job: swiftlint
