@@ -478,7 +478,6 @@ public actor TranscriptionPipeline {
         return vcResult.cleanedText
     }
 
-
     /// Applies silence trimming to `rawSamples` when `enabled` is true.
     ///
     /// Returns the trimmed buffer, the original buffer (trim disabled), or `nil`
