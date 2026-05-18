@@ -3,11 +3,6 @@ import AppKit
 import SwiftUI
 import WhisKeyCore
 
-// MARK: - Design tokens (mirrors SettingsView.swift private constants)
-
-private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
-private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
-
 // MARK: - SnippetsSettingsView
 
 // Settings tab content for Voice Snippets (S3-T5).
@@ -32,7 +27,7 @@ public struct SnippetsSettingsView: View {
     public var body: some View {
         VStack(spacing: 0) {
             toolbar
-            Divider().background(phosphorGreen.opacity(0.2))
+            Divider().background(HalideTokens.accentAmber.opacity(0.2))
             if isLoading {
                 loadingView
             } else if let err = loadError {
@@ -43,7 +38,7 @@ public struct SnippetsSettingsView: View {
                 snippetList
             }
         }
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
         .task { await reload() }
         .sheet(isPresented: $isShowingAddSheet) {
             SnippetEditView(existing: nil) { saved in
@@ -66,10 +61,10 @@ public struct SnippetsSettingsView: View {
                 Text(msg)
                     .font(.caption)
                     .fontDesign(.monospaced)
-                    .foregroundColor(hudBackground)
+                    .foregroundColor(HalideTokens.backgroundPrimary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(phosphorGreen)
+                    .background(HalideTokens.accentAmber)
                     .cornerRadius(4)
                     .padding(.bottom, 12)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -105,14 +100,14 @@ public struct SnippetsSettingsView: View {
     private var loadingView: some View {
         VStack {
             ProgressView()
-                .tint(phosphorGreen)
+                .tint(HalideTokens.accentAmber)
             Text("LOADING...")
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.6))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
     }
 
     private func errorView(message: String) -> some View {
@@ -123,7 +118,7 @@ public struct SnippetsSettingsView: View {
             Text(message)
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.8))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
             Button("RESET SNIPPET STORE") {
@@ -132,25 +127,25 @@ public struct SnippetsSettingsView: View {
             .buttonStyle(PhosphorButtonStyle())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
     }
 
     private var emptyStateView: some View {
         VStack(spacing: 10) {
             Image(systemName: "text.badge.plus")
                 .font(.system(size: 32))
-                .foregroundColor(phosphorGreen.opacity(0.4))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
             Text("No snippets yet.")
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.6))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
             Text("Tap \"+ Add Snippet\" to create your first voice expansion.")
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.4))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
     }
 
     // MARK: - Snippet List
@@ -171,19 +166,19 @@ public struct SnippetsSettingsView: View {
                 }
                 .font(.system(size: 10))
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.5))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
 
-                Divider().background(phosphorGreen.opacity(0.2))
+                Divider().background(HalideTokens.accentAmber.opacity(0.2))
 
                 ForEach(snippets) { snippet in
                     snippetRow(snippet)
-                    Divider().background(phosphorGreen.opacity(0.1))
+                    Divider().background(HalideTokens.accentAmber.opacity(0.1))
                 }
             }
         }
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
     }
 
     // swiftlint:disable function_body_length
@@ -206,7 +201,7 @@ public struct SnippetsSettingsView: View {
                             }
                             Text(snippet.triggerPhrase)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(phosphorGreen)
+                                .foregroundColor(HalideTokens.accentAmber)
                                 .lineLimit(1)
                         }
                         if isConflicted {
@@ -221,7 +216,7 @@ public struct SnippetsSettingsView: View {
                     Text(expansionPreview(snippet.expansionText))
                         .font(.caption)
                         .fontDesign(.monospaced)
-                        .foregroundColor(phosphorGreen.opacity(0.6))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -230,7 +225,7 @@ public struct SnippetsSettingsView: View {
                         set: { newValue in Task { await toggle(snippet, enabled: newValue) } }
                     ))
                     .toggleStyle(.switch)
-                    .tint(phosphorGreen)
+                    .tint(HalideTokens.accentAmber)
                     .labelsHidden()
                     .frame(width: 40)
 
@@ -242,7 +237,7 @@ public struct SnippetsSettingsView: View {
                                 .frame(width: 24, height: 24)
                         }
                         .buttonStyle(.plain)
-                        .foregroundColor(phosphorGreen)
+                        .foregroundColor(HalideTokens.accentAmber)
                         .accessibilityLabel("Edit \(snippet.triggerPhrase)")
                         .help("Edit snippet")
 
@@ -264,7 +259,7 @@ public struct SnippetsSettingsView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Snippet: \(snippet.triggerPhrase), \(snippet.isEnabled ? "enabled" : "disabled")")
-            .background(hudBackground)
+            .background(HalideTokens.backgroundPrimary)
         }
     }
     // swiftlint:enable function_body_length
@@ -274,7 +269,7 @@ public struct SnippetsSettingsView: View {
             Text("Delete \"\(snippet.triggerPhrase)\"?")
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen)
+                .foregroundColor(HalideTokens.accentAmber)
                 .lineLimit(1)
             Spacer()
             Button("CANCEL") { cancelDelete() }
@@ -287,7 +282,7 @@ public struct SnippetsSettingsView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
     }
 
     // MARK: - Actions
@@ -515,25 +510,25 @@ private struct SnippetEditView: View {
             Text(existing == nil ? "ADD SNIPPET" : "EDIT SNIPPET")
                 .font(.headline)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen)
+                .foregroundColor(HalideTokens.accentAmber)
 
-            Divider().background(phosphorGreen.opacity(0.3))
+            Divider().background(HalideTokens.accentAmber.opacity(0.3))
 
             // Trigger Phrase
             VStack(alignment: .leading, spacing: 4) {
                 Text("TRIGGER PHRASE")
                     .font(.caption)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen.opacity(0.6))
+                    .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
                 TextField("insert email signature", text: $triggerPhrase)
                     .textFieldStyle(.roundedBorder)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen)
-                    .background(hudBackground)
+                    .foregroundColor(HalideTokens.accentAmber)
+                    .background(HalideTokens.backgroundPrimary)
                 Text("Say this phrase to trigger the expansion.")
                     .font(.caption)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen.opacity(0.4))
+                    .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
                 if attemptedSave && !triggerIsValid {
                     Text("Trigger must be at least 3 words to reduce accidental matches. (\(wordCount) word(s))")
                         .font(.caption)
@@ -547,22 +542,22 @@ private struct SnippetEditView: View {
                 Text("EXPANSION TEXT")
                     .font(.caption)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen.opacity(0.6))
+                    .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
                 TextEditor(text: $expansionText)
                     .font(.body)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen)
-                    .background(hudBackground)
+                    .foregroundColor(HalideTokens.accentAmber)
+                    .background(HalideTokens.backgroundPrimary)
                     .frame(height: 80)
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
-                            .stroke(phosphorGreen.opacity(0.3), lineWidth: 1)
+                            .stroke(HalideTokens.accentAmber.opacity(0.3), lineWidth: 1)
                     )
                 if hasVariableTokens {
                     Text("Variable substitution ({date}, {time}) is not yet supported and will be treated as literal text.")
                         .font(.caption)
                         .fontDesign(.monospaced)
-                        .foregroundColor(phosphorGreen.opacity(0.5))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.5))
                 }
             }
 
@@ -571,20 +566,20 @@ private struct SnippetEditView: View {
                 Text("LIVE PREVIEW")
                     .font(.caption)
                     .fontDesign(.monospaced)
-                    .foregroundColor(phosphorGreen.opacity(0.6))
+                    .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
                 ScrollView(.vertical) {
                     Text(expansionText.isEmpty ? " " : expansionText)
                         .font(.body)
                         .fontDesign(.monospaced)
-                        .foregroundColor(phosphorGreen.opacity(0.9))
+                        .foregroundColor(HalideTokens.accentAmber.opacity(0.9))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
                 }
                 .frame(height: 120)
-                .background(phosphorGreen.opacity(0.05))
+                .background(HalideTokens.accentAmber.opacity(0.05))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(phosphorGreen.opacity(0.4), lineWidth: 2)
+                        .stroke(HalideTokens.accentAmber.opacity(0.4), lineWidth: 2)
                 )
                 .accessibilityLabel("Expansion preview: \(String(expansionText.prefix(60)))")
             }
@@ -592,11 +587,11 @@ private struct SnippetEditView: View {
             // Preview notification toggle
             Toggle("Show preview notification before first use", isOn: $previewEnabled)
                 .toggleStyle(.switch)
-                .tint(phosphorGreen)
+                .tint(HalideTokens.accentAmber)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.8))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.8))
 
-            Divider().background(phosphorGreen.opacity(0.3))
+            Divider().background(HalideTokens.accentAmber.opacity(0.3))
 
             // Buttons
             HStack {
@@ -622,7 +617,7 @@ private struct SnippetEditView: View {
         }
         .padding(20)
         .frame(width: 480)
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
     }
 }
 
@@ -677,14 +672,14 @@ private struct PhosphorButtonStyle: ButtonStyle {
         configuration.label
             .font(.caption)
             .fontDesign(.monospaced)
-            .foregroundColor(phosphorGreen.opacity(configuration.isPressed ? 0.6 : 1.0))
+            .foregroundColor(HalideTokens.accentAmber.opacity(configuration.isPressed ? 0.6 : 1.0))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .overlay(
                 Rectangle()
-                    .stroke(phosphorGreen.opacity(0.4), lineWidth: 1)
+                    .stroke(HalideTokens.accentAmber.opacity(0.4), lineWidth: 1)
             )
-            .background(hudBackground)
+            .background(HalideTokens.backgroundPrimary)
     }
 }
 
@@ -700,6 +695,6 @@ private struct DestructivePhosphorButtonStyle: ButtonStyle {
                 Rectangle()
                     .stroke(Color.red.opacity(0.5), lineWidth: 1)
             )
-            .background(hudBackground)
+            .background(HalideTokens.backgroundPrimary)
     }
 }

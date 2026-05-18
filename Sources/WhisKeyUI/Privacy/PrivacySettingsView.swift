@@ -1,9 +1,6 @@
 import SwiftUI
 import WhisKeyCore
 
-private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
-private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
-
 // MARK: - PrivacySettingsView
 
 /// Settings → Privacy tab: full egress audit log, summary stats, and CSV export.
@@ -65,7 +62,7 @@ public struct PrivacySettingsView: View {
             }
             .padding()
         }
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
         .onReceive(timer) { _ in tickCount += 1 }
     }
 

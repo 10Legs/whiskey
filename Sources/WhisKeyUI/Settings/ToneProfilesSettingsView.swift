@@ -2,9 +2,6 @@ import AppKit
 import SwiftUI
 import WhisKeyCore
 
-private let phosphorGreen = Color(red: 0, green: 1, blue: 0.533)
-private let hudBackground  = Color(red: 0.024, green: 0.031, blue: 0.031)
-
 /// Settings tab for per-app tone profiles (S4-T7).
 ///
 /// Displays the current app → profile mappings, lets the user add new entries
@@ -37,24 +34,24 @@ public struct ToneProfilesSettingsView: View {
                         Text("No frontmost app detected.")
                             .font(.caption)
                             .fontDesign(.monospaced)
-                            .foregroundColor(phosphorGreen.opacity(0.4))
+                            .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
                     } else {
                         HStack {
                             Text(frontmostBundleID)
                                 .font(.caption)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(phosphorGreen)
+                                .foregroundColor(HalideTokens.accentAmber)
                             Spacer()
                             let currentProfile = store.profile(for: frontmostBundleID)
                             Text(currentProfile.displayName.uppercased())
                                 .font(.caption2)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(phosphorGreen.opacity(0.6))
+                                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
                         }
                         Text("Tap the bundle ID to use it in the Add field below.")
                             .font(.caption)
                             .fontDesign(.monospaced)
-                            .foregroundColor(phosphorGreen.opacity(0.4))
+                            .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
                             .onTapGesture { newBundleID = frontmostBundleID }
                     }
                 }
@@ -65,7 +62,7 @@ public struct ToneProfilesSettingsView: View {
                         HStack(spacing: 8) {
                             TextField("com.example.app", text: $newBundleID)
                                 .textFieldStyle(.plain)
-                                .foregroundColor(phosphorGreen)
+                                .foregroundColor(HalideTokens.accentAmber)
                                 .fontDesign(.monospaced)
                                 .font(.caption)
                                 .onSubmit { commitAdd() }
@@ -76,8 +73,8 @@ public struct ToneProfilesSettingsView: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .accentColor(phosphorGreen)
-                            .foregroundColor(phosphorGreen)
+                            .accentColor(HalideTokens.accentAmber)
+                            .foregroundColor(HalideTokens.accentAmber)
                             .frame(width: 140)
 
                             Button("ADD") { commitAdd() }
@@ -85,7 +82,7 @@ public struct ToneProfilesSettingsView: View {
                                 .disabled(newBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
                         .padding(6)
-                        .overlay(Rectangle().stroke(phosphorGreen.opacity(0.25), lineWidth: 1))
+                        .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.25), lineWidth: 1))
 
                         if let addError {
                             Text(addError)
@@ -96,12 +93,12 @@ public struct ToneProfilesSettingsView: View {
                             Text("Prompt suffix: \"\(newProfile.systemPromptSuffix.trimmingCharacters(in: .whitespaces))\"")
                                 .font(.caption2)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(phosphorGreen.opacity(0.45))
+                                .foregroundColor(HalideTokens.accentAmber.opacity(0.45))
                         } else {
                             Text("Raw mode — LLM cleanup skipped entirely.")
                                 .font(.caption2)
                                 .fontDesign(.monospaced)
-                                .foregroundColor(phosphorGreen.opacity(0.45))
+                                .foregroundColor(HalideTokens.accentAmber.opacity(0.45))
                         }
                     }
                 }
@@ -113,7 +110,7 @@ public struct ToneProfilesSettingsView: View {
                         Text("No app-specific tone profiles configured.")
                             .font(.caption)
                             .fontDesign(.monospaced)
-                            .foregroundColor(phosphorGreen.opacity(0.4))
+                            .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
                             .padding(.vertical, 4)
                     } else {
                         VStack(alignment: .leading, spacing: 0) {
@@ -123,23 +120,23 @@ public struct ToneProfilesSettingsView: View {
                                         Text(mapping.bundleID)
                                             .font(.caption)
                                             .fontDesign(.monospaced)
-                                            .foregroundColor(phosphorGreen)
+                                            .foregroundColor(HalideTokens.accentAmber)
                                         HStack(spacing: 6) {
                                             Text(mapping.profile.displayName.uppercased())
                                                 .font(.caption2)
                                                 .fontDesign(.monospaced)
-                                                .foregroundColor(phosphorGreen.opacity(0.55))
+                                                .foregroundColor(HalideTokens.accentAmber.opacity(0.55))
                                             if let used = store.lastUsed[mapping.bundleID] {
                                                 if Date().timeIntervalSince(used) < 60 {
                                                     Text("● Active")
                                                         .font(.caption2)
                                                         .fontDesign(.monospaced)
-                                                        .foregroundColor(phosphorGreen)
+                                                        .foregroundColor(HalideTokens.accentAmber)
                                                 } else {
                                                     Text(RelativeDateTimeFormatter.whiskey.localizedString(for: used, relativeTo: Date()))
                                                         .font(.caption2)
                                                         .fontDesign(.monospaced)
-                                                        .foregroundColor(phosphorGreen.opacity(0.4))
+                                                        .foregroundColor(HalideTokens.accentAmber.opacity(0.4))
                                                 }
                                             }
                                         }
@@ -150,7 +147,7 @@ public struct ToneProfilesSettingsView: View {
                                     } label: {
                                         Image(systemName: "xmark")
                                             .font(.caption)
-                                            .foregroundColor(phosphorGreen.opacity(0.6))
+                                            .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
                                     }
                                     .buttonStyle(.plain)
                                     .accessibilityLabel("Remove tone profile for \(mapping.bundleID)")
@@ -160,16 +157,16 @@ public struct ToneProfilesSettingsView: View {
 
                                 Rectangle()
                                     .frame(height: 1)
-                                    .foregroundColor(phosphorGreen.opacity(0.08))
+                                    .foregroundColor(HalideTokens.accentAmber.opacity(0.08))
                             }
                         }
-                        .overlay(Rectangle().stroke(phosphorGreen.opacity(0.15), lineWidth: 1))
+                        .overlay(Rectangle().stroke(HalideTokens.accentAmber.opacity(0.15), lineWidth: 1))
                     }
                 }
             }
             .padding()
         }
-        .background(hudBackground)
+        .background(HalideTokens.backgroundPrimary)
         .onAppear { refreshFrontmostApp() }
     }
 
@@ -204,11 +201,11 @@ private struct PhosphorToneSection<Content: View>: View {
             Text(title)
                 .font(.caption)
                 .fontDesign(.monospaced)
-                .foregroundColor(phosphorGreen.opacity(0.6))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.6))
 
             Rectangle()
                 .frame(height: 1)
-                .foregroundColor(phosphorGreen.opacity(0.2))
+                .foregroundColor(HalideTokens.accentAmber.opacity(0.2))
 
             content()
         }
@@ -220,14 +217,14 @@ private struct PhosphorToneButtonStyle: ButtonStyle {
         configuration.label
             .font(.caption)
             .fontDesign(.monospaced)
-            .foregroundColor(phosphorGreen.opacity(configuration.isPressed ? 0.6 : 1.0))
+            .foregroundColor(HalideTokens.accentAmber.opacity(configuration.isPressed ? 0.6 : 1.0))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .overlay(
                 Rectangle()
-                    .stroke(phosphorGreen.opacity(0.4), lineWidth: 1)
+                    .stroke(HalideTokens.accentAmber.opacity(0.4), lineWidth: 1)
             )
-            .background(hudBackground)
+            .background(HalideTokens.backgroundPrimary)
     }
 }
 

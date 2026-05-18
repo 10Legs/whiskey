@@ -45,9 +45,9 @@ public struct WaveformHUDView: View {
 
     @ObservedObject var viewModel: FloatingHUDViewModel
 
-    // Phosphor Ghost palette
-    private let bgColor   = Color(red: 0.024, green: 0.031, blue: 0.031)
-    private let neonGreen = Color(red: 0, green: 1, blue: 0.533)
+    // Design tokens
+    private let bgColor   = HalideTokens.backgroundPrimary
+    private let neonGreen = HalideTokens.accentAmber
 
     // Waveform geometry
     private let idleSize      = CGSize(width: 72, height: 12)
@@ -140,7 +140,7 @@ public struct WaveformHUDView: View {
 
         ctx.stroke(
             path,
-            with: .color(Color(red: 0, green: 1, blue: 0.533)),
+            with: .color(HalideTokens.accentAmber),
             style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round)
         )
     }
