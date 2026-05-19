@@ -40,8 +40,8 @@ public actor WhisperBridge {
 
     // MARK: - Configuration
 
-    /// File name of the default model binary.
-    private let modelFileName: String
+    /// File name of the active model binary. Mutable so `resetContext` can swap models at runtime.
+    private var modelFileName: String
 
     /// Override the model directory (defaults to Application Support).
     private let modelDirectoryURL: URL
@@ -81,6 +81,16 @@ public actor WhisperBridge {
     }
 
     // MARK: - Public API
+
+    /// Replace the active model. Frees the current whisper.cpp context so the
+    /// next `transcribe` call loads from the new file.
+    public func resetContext(newModelFileName: String) {
+        if let ctx = context {
+            whisper_bridge_free(ctx)
+            context = nil
+        }
+        modelFileName = newModelFileName
+    }
 
     /// Transcribe raw PCM audio (16 kHz, mono, Float32).
     ///
