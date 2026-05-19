@@ -20,6 +20,18 @@ jobs:
     runs-on: [self-hosted, macOS]
 
     steps:
+      - name: Configure TCP keepalive
+        # The UDM Pro NAT drops TCP sessions that go idle for ~10 minutes.
+        # macOS default keepidle is 2 hours — the OS never probes, NAT expires,
+        # runner loses its GitHub connection partway through a long job.
+        # Setting keepidle to 55s makes the OS send TCP keepalive probes after
+        # 55s of idle, keeping the NAT mapping alive for the full job duration.
+        run: |
+          sudo sysctl -w net.inet.tcp.keepidle=55000  || true
+          sudo sysctl -w net.inet.tcp.keepintvl=10000 || true
+          sudo sysctl -w net.inet.tcp.keepcnt=6       || true
+          echo "TCP keepalive: idle=$(sysctl -n net.inet.tcp.keepidle)ms interval=$(sysctl -n net.inet.tcp.keepintvl)ms count=$(sysctl -n net.inet.tcp.keepcnt)"
+
       - name: Runner info
         run: |
           echo "Hostname:  $(hostname)"
@@ -126,15 +138,7 @@ jobs:
         # --skip-build: binary was compiled by "Build (debug + tests)" above.
         # Without this, swift test rebuilds all test targets (~11 min) even
         # though --build-tests already compiled everything.
-        # Heartbeat keeps the UDM Pro NAT from dropping the idle TCP connection
-        # during the ~10 min test run (same pattern as the Build step above).
-        run: |
-          while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
-          HPID=$!
-          swift test --skip-build -c debug --filter WhisKeyCoreTests 2>&1
-          STATUS=$?
-          kill $HPID 2>/dev/null || true
-          exit $STATUS
+        run: swift test --skip-build -c debug --filter WhisKeyCoreTests 2>&1
 
 # ---------------------------------------------------------------------------
 # Job: build-release
