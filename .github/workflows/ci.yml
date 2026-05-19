@@ -20,18 +20,6 @@ jobs:
     runs-on: [self-hosted, macOS]
 
     steps:
-      - name: Configure TCP keepalive
-        # The UDM Pro NAT drops TCP sessions that go idle for ~10 minutes.
-        # macOS default keepidle is 2 hours — the OS never probes, NAT expires,
-        # runner loses its GitHub connection partway through a long job.
-        # Setting keepidle to 55s makes the OS send TCP keepalive probes after
-        # 55s of idle, keeping the NAT mapping alive for the full job duration.
-        run: |
-          sudo sysctl -w net.inet.tcp.keepidle=55000  || true
-          sudo sysctl -w net.inet.tcp.keepintvl=10000 || true
-          sudo sysctl -w net.inet.tcp.keepcnt=6       || true
-          echo "TCP keepalive: idle=$(sysctl -n net.inet.tcp.keepidle)ms interval=$(sysctl -n net.inet.tcp.keepintvl)ms count=$(sysctl -n net.inet.tcp.keepcnt)"
-
       - name: Runner info
         run: |
           echo "Hostname:  $(hostname)"
