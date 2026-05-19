@@ -297,6 +297,12 @@ public actor TranscriptionPipeline {
 
     // MARK: - Public API
 
+    /// Reload the Whisper model. Frees the existing context so the next
+    /// transcription call loads from `filename`.
+    public func reloadWhisperModel(filename: String) async {
+        await whisper.resetContext(newModelFileName: filename)
+    }
+
     /// Preload the LLM model in the background so first-use latency is eliminated.
     public func warmUpLLM() async {
         await llmProvider.warmUp()

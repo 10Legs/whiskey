@@ -64,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Tracks whether the egress dot has ever pulsed red; passed into PrivacySettingsView.
     private var hasPulsedRed: Bool = false
 
+    private var modelObservationTask: Task<Void, Never>?
+
     // MARK: - Network Activity Monitor (S3-T3)
 
     /// Live egress monitor. Started before the status item is created so the
@@ -653,6 +655,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             flog.log(.error, "HotkeyManager failed to start — \(reason)")
             logger.error("Failed to start HotkeyManager — \(reason)")
             pipeline.onError?(PipelineError.hotkeyUnavailable(reason))
+        }
+
+        startModelObservation()
+    }
+
+    /// Watch `settingsManager.activeModelID` and reload WhisperBridge whenever it changes.
+    private func startModelObservation() {
+        modelObservationTask?.cancel()
+        modelObservationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var lastModelID = self.settingsManager.activeModelID
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { break }
+                let current = self.settingsManager.activeModelID
+                guard current != lastModelID else { continue }
+                lastModelID = current
+                guard let modelID = current,
+                      let model = ModelManager.availableModels.first(where: { $0.id == modelID })
+                else { continue }
+                await self.pipeline.reloadWhisperModel(filename: model.filename)
+                FileLogger.shared.log(.info, "WhisperBridge reloaded: \(model.filename)")
+            }
         }
     }
 

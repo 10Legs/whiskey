@@ -264,7 +264,7 @@ public final class HotkeyManager: @unchecked Sendable {
     /// Starts the hold disambiguation timer. If it fires while still in keyDown, transitions to holding.
     private func scheduleHoldTimer() {
         let windowMs = disambiguationWindowMs
-        pendingTimerTask = Task { [weak self] in
+        pendingTimerTask = Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: UInt64(windowMs * 1_000_000))
             guard !Task.isCancelled else { return }
@@ -275,7 +275,7 @@ public final class HotkeyManager: @unchecked Sendable {
     /// Starts the inter-tap timer. If it fires while still in tapPending, discards the single tap.
     private func scheduleInterTapTimer() {
         let windowMs = disambiguationWindowMs
-        pendingTimerTask = Task { [weak self] in
+        pendingTimerTask = Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: UInt64(windowMs * 1_000_000))
             guard !Task.isCancelled else { return }
