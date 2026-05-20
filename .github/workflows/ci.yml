@@ -130,9 +130,9 @@ jobs:
 
 # ---------------------------------------------------------------------------
 # Job: build-release
-# Depends on build-and-test. Runs in its own job to get a fresh 10-min
-# job token — the self-hosted runner's NAT connection times out mid-job
-# if build+test+release all run sequentially in one token window.
+# Depends on build-and-test. Runs in its own job so the release build
+# gets a fresh runner session — separating long jobs reduces the chance
+# of a broker reconnect overlapping with job teardown.
 # Reuses ~/.whiskey-spm-cache saved by build-and-test (same machine).
 # ---------------------------------------------------------------------------
   build-release:
