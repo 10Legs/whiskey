@@ -178,14 +178,19 @@ jobs:
 
           git submodule init
 
-      - name: Restore local SPM cache
+      - name: Restore release SPM cache
+        # ~/.whiskey-spm-cache-release persists release-configuration artifacts
+        # (.build/release/) across runs. Debug artifacts (from build-and-test)
+        # are in a separate cache and not useful here. First run is cold (~11 min);
+        # subsequent runs are warm (~2 min) and complete well within the
+        # 10-minute broker session window.
         run: |
-          CACHE_DIR="${HOME}/.whiskey-spm-cache"
+          CACHE_DIR="${HOME}/.whiskey-spm-cache-release"
           if [ -d "$CACHE_DIR" ]; then
-            echo "Restoring local SPM cache from $CACHE_DIR"
+            echo "Restoring release SPM cache from $CACHE_DIR"
             rsync -a "$CACHE_DIR/" .build/
           else
-            echo "No local SPM cache — cold build"
+            echo "No release SPM cache — cold build"
           fi
 
       - name: Install SQLCipher
@@ -200,6 +205,13 @@ jobs:
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
+
+      - name: Save release SPM cache
+        if: success() || failure()
+        run: |
+          CACHE_DIR="${HOME}/.whiskey-spm-cache-release"
+          echo "Saving release SPM cache to $CACHE_DIR"
+          rsync -a .build/ "$CACHE_DIR/"
 
       - name: Save vendor cache
         if: success() || failure()
