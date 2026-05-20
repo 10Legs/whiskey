@@ -131,9 +131,9 @@ public final class SettingsManager: @unchecked Sendable {
     }
 
     /// When `false`, the LLM cleanup step is skipped entirely and the raw Whisper
-    /// transcript is injected verbatim. Defaults to `true`.
+    /// transcript is injected verbatim. Defaults to `false`.
     public var llmEnabled: Bool {
-        get { get(.llmEnabled, default: true) }
+        get { get(.llmEnabled, default: false) }
         set { set(.llmEnabled, value: newValue) }
     }
 

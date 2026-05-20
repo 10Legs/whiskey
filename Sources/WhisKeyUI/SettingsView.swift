@@ -73,7 +73,7 @@ public struct SettingsView: View {
                 .tag(6)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selectedTab)
-        .frame(width: 520, height: 520)
+        .frame(width: 540, height: 560)
         .background(HalideTokens.backgroundPrimary)
         .accentColor(HalideTokens.accentAmber)
     }
@@ -88,14 +88,6 @@ private struct GeneralTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HalideSection(title: "Startup") {
-                    Toggle("Launch at Login", isOn: .constant(false))
-                        .disabled(true)
-                        .tint(HalideTokens.accentAmber)
-                        .foregroundColor(HalideTokens.textPrimary)
-                        .help("Coming soon — requires SMAppService integration.")
-                }
-
                 HalideSection(title: "Whisper model") {
                     ModelPickerView(modelManager: modelManager)
                 }
@@ -195,24 +187,10 @@ private struct HotkeySection: View {
                             .fontDesign(.monospaced)
                             .foregroundColor(HalideTokens.accentAmber)
                     }
-                    HStack(spacing: 8) {
-                        Text("FASTER")
-                            .font(.caption2)
-                            .foregroundColor(HalideTokens.textTertiary)
-                        Slider(
-                            value: $settings.disambiguationWindowMs,
-                            in: 250...500,
-                            step: 25
-                        )
+                    Slider(value: $settings.disambiguationWindowMs, in: 250...500, step: 25)
                         .tint(HalideTokens.accentAmber)
                         .accessibilityLabel("Double-tap speed")
-                        .accessibilityHint(
-                            "Controls how quickly you must double-tap. Increase if double-taps aren't registering."
-                        )
-                        Text("SLOWER")
-                            .font(.caption2)
-                            .foregroundColor(HalideTokens.textTertiary)
-                    }
+                        .accessibilityHint("Controls how quickly you must double-tap.")
                     Text(
                         "Controls how quickly you must double-tap. " +
                         "Increase if your double-taps aren't registering."
@@ -285,54 +263,60 @@ private struct AICleanupSection: View {
     @Bindable var settings: SettingsManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HalideSection(title: "AI cleanup") {
-                Toggle("Enable AI Cleanup", isOn: $settings.llmEnabled)
-                    .tint(HalideTokens.accentAmber)
-                    .foregroundColor(HalideTokens.textPrimary)
-                Text("When off, raw Whisper output is injected verbatim — no LLM runs.")
-                    .font(.caption)
-                    .foregroundColor(HalideTokens.textSecondary)
-            }
+        HalideSection(title: "AI cleanup") {
+            // Row 1: master enable toggle
+            Toggle("Enable AI cleanup", isOn: $settings.llmEnabled)
+                .tint(HalideTokens.accentAmber)
+                .foregroundColor(HalideTokens.textPrimary)
+            Text("When off, raw Whisper output is injected verbatim.")
+                .font(.caption)
+                .foregroundColor(HalideTokens.textSecondary)
 
-            HalideSection(title: "LLM provider") {
-                Picker("Provider", selection: $settings.llmProviderName) {
-                    Text("None (raw transcript)").tag("none")
-                    Text("LlamaCpp (local)").tag("llamacpp")
-                    Text("Ollama (local HTTP)").tag("ollama")
-                }
-                .pickerStyle(.menu)
-                .accentColor(HalideTokens.accentAmber)
-                .foregroundColor(HalideTokens.accentAmber)
-            }
-            .opacity(settings.llmEnabled ? 1 : 0.35)
-            .disabled(!settings.llmEnabled)
+            Divider()
 
-            HalideSection(title: "Cleanup options") {
-                Toggle("Remove Filler Words", isOn: $settings.removeFillers)
-                    .tint(HalideTokens.accentAmber)
-                    .foregroundColor(HalideTokens.textPrimary)
-                Toggle("Add Punctuation", isOn: $settings.addPunctuation)
-                    .tint(HalideTokens.accentAmber)
-                    .foregroundColor(HalideTokens.textPrimary)
-                Toggle("Raw Mode (skip LLM, keep options)", isOn: $settings.rawMode)
-                    .tint(HalideTokens.accentAmber)
-                    .foregroundColor(HalideTokens.textPrimary)
-            }
-            .opacity(settings.llmEnabled ? 1 : 0.35)
-            .disabled(!settings.llmEnabled)
-
-            HalideSection(title: "Tone style") {
-                Picker("Default Tone", selection: $settings.toneStyle) {
-                    ForEach(ToneStyle.allCases, id: \.self) { style in
-                        Text(style.rawValue.uppercased()).tag(style)
+            // Sub-controls — faded + disabled when llmEnabled is false
+            VStack(alignment: .leading, spacing: 12) {
+                // Provider picker
+                HStack {
+                    Text("Provider")
+                        .foregroundColor(HalideTokens.textSecondary)
+                    Spacer()
+                    Picker("", selection: $settings.llmProviderName) {
+                        Text("None").tag("none")
+                        Text("LlamaCpp (local)").tag("llamacpp")
+                        Text("Ollama (local HTTP)").tag("ollama")
                     }
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: 180)
                 }
-                .pickerStyle(.segmented)
-                .accentColor(HalideTokens.accentAmber)
-                Text("Tone auto-adjusts based on the active application unless overridden here.")
-                    .font(.caption)
-                    .foregroundColor(HalideTokens.textSecondary)
+
+                Divider()
+
+                // Cleanup options toggles
+                Toggle("Remove filler words", isOn: $settings.removeFillers)
+                    .tint(HalideTokens.accentAmber)
+                Toggle("Add punctuation", isOn: $settings.addPunctuation)
+                    .tint(HalideTokens.accentAmber)
+                Toggle("Raw mode (skip LLM, keep options)", isOn: $settings.rawMode)
+                    .tint(HalideTokens.accentAmber)
+
+                Divider()
+
+                // Tone style
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Tone style")
+                        .font(.caption)
+                        .foregroundColor(HalideTokens.textSecondary)
+                    Picker("", selection: $settings.toneStyle) {
+                        ForEach(ToneStyle.allCases, id: \.self) { style in
+                            Text(style.rawValue.capitalized).tag(style)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("Auto-adjusts based on the active application unless overridden.")
+                        .font(.caption)
+                        .foregroundColor(HalideTokens.textSecondary)
+                }
             }
             .opacity(settings.llmEnabled ? 1 : 0.35)
             .disabled(!settings.llmEnabled)
@@ -463,19 +447,22 @@ private struct PrivacyTab: View {
             VStack(alignment: .leading, spacing: 20) {
                 HalideSection(title: "Required permissions") {
                     PrivacyRow(
-                        title: "MICROPHONE",
+                        icon: "mic.fill",
+                        title: "Microphone",
                         description: "Required for voice capture.",
                         urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
                     )
                     Divider()
                     PrivacyRow(
-                        title: "ACCESSIBILITY",
+                        icon: "accessibility",
+                        title: "Accessibility",
                         description: "Required for text injection via AX API.",
                         urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
                     )
                     Divider()
                     PrivacyRow(
-                        title: "INPUT MONITORING",
+                        icon: "keyboard",
+                        title: "Input Monitoring",
                         description: "Required for global hotkey (Right Option).",
                         urlString: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
                     )
@@ -488,23 +475,27 @@ private struct PrivacyTab: View {
 }
 
 private struct PrivacyRow: View {
+    let icon: String
     let title: String
     let description: String
     let urlString: String
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(HalideTokens.accentAmber)
+                .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.body)
-                    .fontDesign(.monospaced)
-                    .foregroundColor(HalideTokens.accentAmber)
+                    .foregroundColor(HalideTokens.textPrimary)
                 Text(description)
                     .font(.caption)
                     .foregroundColor(HalideTokens.textSecondary)
             }
             Spacer()
-            Button("OPEN") {
+            Button("Open") {
                 if let url = URL(string: urlString) {
                     NSWorkspace.shared.open(url)
                 }
@@ -517,20 +508,36 @@ private struct PrivacyRow: View {
 // MARK: - About Tab
 
 private struct AboutTab: View {
+    private var versionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
+        return "Version \(version) (\(build))"
+    }
+
     var body: some View {
-        VStack(spacing: HalideTokens.spacing16) {
-            Image(systemName: "waveform.circle")
-                .font(.system(size: 48))
-                .foregroundColor(HalideTokens.accentAmber)
+        VStack(spacing: 0) {
+            Spacer()
+            Image(systemName: "waveform.circle.fill")
+                .font(.system(size: 52))
+                .foregroundStyle(HalideTokens.accentAmber)
+                .padding(.bottom, 12)
             Text("WhisKey")
                 .font(.title2).fontWeight(.semibold)
                 .foregroundColor(HalideTokens.textPrimary)
             Text("Local-first voice transcription for macOS")
                 .font(.callout)
                 .foregroundColor(HalideTokens.textSecondary)
+                .padding(.top, 4)
+            Text(versionString)
+                .font(.caption)
+                .foregroundColor(HalideTokens.textTertiary)
+                .padding(.top, 8)
             Spacer()
+            Text("© 2026 WhisKey. All rights reserved.")
+                .font(.caption2)
+                .foregroundColor(HalideTokens.textTertiary)
+                .padding(.bottom, HalideTokens.spacing16)
         }
-        .padding(.top, HalideTokens.spacing24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(HalideTokens.backgroundPrimary)
     }
