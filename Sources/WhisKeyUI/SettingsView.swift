@@ -92,6 +92,17 @@ private struct GeneralTab: View {
                     ModelPickerView(modelManager: modelManager)
                 }
 
+                HalideSection(title: "Display") {
+                    Toggle("Show floating waveform HUD", isOn: $settings.hudEnabled)
+                        .tint(HalideTokens.accentAmber)
+                        .foregroundColor(HalideTokens.textPrimary)
+                        .accessibilityLabel("Show floating waveform HUD")
+                        .accessibilityHint("When off, the waveform overlay is hidden during recording.")
+                    Text("Displays a live waveform in the corner of your screen while recording.")
+                        .font(.caption)
+                        .foregroundColor(HalideTokens.textSecondary)
+                }
+
                 HalideSection(title: "Output mode") {
                     Picker("Output Mode", selection: $settings.outputMode) {
                         Text("Active Window").tag(OutputMode.activeWindow)

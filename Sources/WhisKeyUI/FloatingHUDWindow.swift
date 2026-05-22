@@ -358,8 +358,16 @@ public final class FloatingHUDWindowController {
     public init(pipeline: TranscriptionPipeline) {
         window = FloatingHUDWindow(viewModel: viewModel)
         viewModel.subscribe(toPublisher: pipeline.audioLevelPublisher)
-        // Show immediately in idle state so users see the HUD from launch.
-        window.showHUD()
+    }
+
+    /// Show or hide the HUD panel. Called at launch to honour the persisted setting,
+    /// and from the live-sync observer whenever the user toggles the setting.
+    public func setVisible(_ visible: Bool) {
+        if visible {
+            window.showHUD()
+        } else {
+            window.hideHUD()
+        }
     }
 
     public func recordingDidStart() {
