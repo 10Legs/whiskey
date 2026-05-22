@@ -44,6 +44,11 @@ public enum PipelineError: Error, LocalizedError {
     /// LLM cleanup failed but raw transcript was injected. Informational only.
     case llmCleanupFailed(Error)
 
+    /// On-device speech preview was unavailable for this session (permission not
+    /// granted, recognizer unavailable, or on-device SR unsupported). Recording and
+    /// Whisper injection are unaffected. Severity: `.info` — never surface to user.
+    case previewUnavailable(String)
+
     public var errorDescription: String? {
         switch self {
         case .alreadyRecording:
@@ -62,6 +67,8 @@ public enum PipelineError: Error, LocalizedError {
             return "Hotkey unavailable: \(reason)"
         case .llmCleanupFailed(let err):
             return "LLM cleanup failed: \(err.localizedDescription) \u{2014} raw transcript was used."
+        case .previewUnavailable(let reason):
+            return "Live preview unavailable: \(reason)"
         }
     }
 
@@ -77,7 +84,7 @@ public enum PipelineError: Error, LocalizedError {
 
     public var severity: Severity {
         switch self {
-        case .alreadyRecording, .notRecording:
+        case .alreadyRecording, .notRecording, .previewUnavailable:
             return .info
         case .injectionSkipped, .llmCleanupFailed:
             return .warning
@@ -94,7 +101,7 @@ public enum PipelineError: Error, LocalizedError {
         case .microphonePermissionDenied, .hotkeyUnavailable, .injectionSkipped:
             return true
         case .captureError, .transcriptionError, .llmCleanupFailed,
-             .alreadyRecording, .notRecording:
+             .alreadyRecording, .notRecording, .previewUnavailable:
             return false
         }
     }
