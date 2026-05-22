@@ -553,6 +553,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         voiceCommandHUD = VoiceCommandHUDController()
         pipelineState.subscribe(toAudioLevel: pipeline.audioLevelPublisher)
 
+        // P1: Subscribe HUD caption strip to streaming partial transcripts.
+        hud.subscribeToPartials(pipeline.partialTranscriptPublisher.eraseToAnyPublisher())
+
+        // P1: Clear the caption strip after the final transcript is injected.
+        pipeline.onPreviewClear = { [weak hud] in
+            Task { @MainActor in hud?.clearPreview() }
+        }
+
         // Wire hotkey to pipeline + state model.
         hotkey.onStartRecording = { [weak self, weak hud] in
             flog.log(.info, "Hotkey down — recording started.")
