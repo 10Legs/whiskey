@@ -2,6 +2,7 @@ import AVFoundation
 import Combine
 import Foundation
 import Speech
+import os.log
 
 /// Streams partial transcription results using on-device SFSpeechRecognizer.
 ///
@@ -42,8 +43,27 @@ public final class SpeechRecognitionService {
     /// - The recognizer is unavailable (offline, locale unsupported, etc.)
     /// - On-device recognition is not supported by this recognizer
     public func start(audioBufferPublisher: AnyPublisher<AVAudioPCMBuffer, Never>) {
-        guard let recognizer, recognizer.isAvailable else { return }
-        guard recognizer.supportsOnDeviceRecognition else { return }
+        // Auth: if not yet determined, fire the system prompt and bail.
+        // On next recording the status will be resolved and SR can start.
+        let authStatus = SFSpeechRecognizer.authorizationStatus()
+        if authStatus == .notDetermined {
+            SpeechRecognitionService.requestAuthorization { granted in
+                FileLogger.shared.log(.info, "[SR] Authorization result: \(granted)")
+            }
+        }
+        guard authStatus == .authorized else {
+            FileLogger.shared.log(.warn, "[SR] Speech recognition not authorized — preview unavailable")
+            return
+        }
+
+        guard let recognizer, recognizer.isAvailable else {
+            FileLogger.shared.log(.info, "[SR] Recognizer unavailable — no live preview this session")
+            return
+        }
+        guard recognizer.supportsOnDeviceRecognition else {
+            FileLogger.shared.log(.warn, "[SR] On-device SR not supported — preview unavailable")
+            return
+        }
 
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.requiresOnDeviceRecognition = true
@@ -52,10 +72,15 @@ public final class SpeechRecognitionService {
 
         task = recognizer.recognitionTask(with: req) { [weak self] result, error in
             guard let self else { return }
+            if let error {
+                FileLogger.shared.log(.warn, "[SR] Recognition ended: \(error.localizedDescription)")
+                self.cleanupTask()
+                return
+            }
             if let result, !result.isFinal {
                 self.partialTranscriptPublisher.send(result.bestTranscription.formattedString)
             }
-            if error != nil || result?.isFinal == true {
+            if result?.isFinal == true {
                 self.cleanupTask()
             }
         }
