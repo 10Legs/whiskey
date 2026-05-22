@@ -188,6 +188,13 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.hudEnabled, value: newValue) }
     }
 
+    /// How long the live-preview caption strip lingers after the final transcript
+    /// is injected. Defaults to `.linger(seconds: 2)` (UX-approved P2 default).
+    public var previewLingerMode: PreviewLingerMode {
+        get { get(.previewLingerMode, default: PreviewLingerMode.linger(seconds: 2)) }
+        set { set(.previewLingerMode, value: newValue) }
+    }
+
     /// Double-tap disambiguation window in milliseconds. Default: 300. Valid range: 200-500. (S3-T4)
     public var disambiguationWindowMs: Double {
         get {
