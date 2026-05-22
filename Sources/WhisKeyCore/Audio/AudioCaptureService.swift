@@ -56,6 +56,13 @@ public final class AudioCaptureService: @unchecked Sendable {
     /// Subscribers should observe on the main thread for UI updates.
     public let audioLevelPublisher = PassthroughSubject<Float, Never>()
 
+    // MARK: - Raw Audio Buffer Publisher
+
+    /// Emits the hardware-native AVAudioPCMBuffer received from the tap, before
+    /// resampling to 16 kHz. Used by SpeechRecognitionService to feed
+    /// SFSpeechAudioBufferRecognitionRequest, which requires the native device format.
+    public let audioBufferPublisher = PassthroughSubject<AVAudioPCMBuffer, Never>()
+
     public init() {
         // Fix A: Subscribe to AVAudioEngineConfigurationChange so that when the
         // system reconfigures the engine (e.g. default device change handled by
@@ -136,6 +143,8 @@ public final class AudioCaptureService: @unchecked Sendable {
             bufferSize: Self.tapBufferSize,
             format: inputFormat
         ) { [weak self] inBuffer, _ in
+            // Emit pre-resample buffer for SFSpeechRecognizer (native device format required).
+            self?.audioBufferPublisher.send(inBuffer)
             self?.handleAudioBuffer(inBuffer, whisperFormat: whisperFormat)
         }
 
@@ -255,6 +264,8 @@ public final class AudioCaptureService: @unchecked Sendable {
             bufferSize: Self.tapBufferSize,
             format: inputFormat
         ) { [weak self] inBuffer, _ in
+            // Emit pre-resample buffer for SFSpeechRecognizer (native device format required).
+            self?.audioBufferPublisher.send(inBuffer)
             self?.handleAudioBuffer(inBuffer, whisperFormat: whisperFormat)
         }
 
