@@ -182,11 +182,12 @@ public struct WaveformHUDView: View {
             .frame(width: size.width, height: viewModel.isRecording ? 56 : size.height)
 
             // Caption strip — slides in below the waveform row when recording is active.
-            // Shows partial transcript when available; falls back to "Listening…" placeholder.
+            // Shows sliding window of last 7 words from partial transcript with a left-fade
+            // mask to indicate earlier words have scrolled off. Falls back to "Listening…".
             if viewModel.isRecording {
                 Group {
                     if viewModel.showCaptionStrip {
-                        Text(viewModel.partialTranscript)
+                        Text(captionDisplayText(viewModel.partialTranscript))
                             .font(HalideTokens.fontCaption)
                             .foregroundColor(
                                 viewModel.captionHighlighted
@@ -197,6 +198,20 @@ public struct WaveformHUDView: View {
                                 reduceMotion ? nil : .easeOut(duration: 0.15),
                                 value: viewModel.captionHighlighted
                             )
+                            .mask(alignment: .leading) {
+                                LinearGradient(
+                                    stops: [
+                                        .init(
+                                            color: captionNeedsFade(viewModel.partialTranscript) && !reduceMotion
+                                                ? .clear : .black,
+                                            location: 0
+                                        ),
+                                        .init(color: .black, location: 0.15)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            }
                     } else {
                         Text("Listening\u{2026}")
                             .font(HalideTokens.fontCaption)
@@ -204,7 +219,6 @@ public struct WaveformHUDView: View {
                     }
                 }
                 .lineLimit(1)
-                .truncationMode(.tail)
                 .frame(width: 200, alignment: .leading)
                 .padding(.horizontal, 10)
                 .frame(height: 18)
@@ -233,6 +247,17 @@ public struct WaveformHUDView: View {
         )
         .accessibilityLabel(viewModel.isRecording ? "Recording in progress" : "WhisKey idle")
         .accessibilityHidden(false)
+    }
+
+    // MARK: - Caption Helpers
+
+    private func captionDisplayText(_ transcript: String) -> String {
+        let words = transcript.split(separator: " ", omittingEmptySubsequences: true)
+        return words.suffix(7).joined(separator: " ")
+    }
+
+    private func captionNeedsFade(_ transcript: String) -> Bool {
+        transcript.split(separator: " ", omittingEmptySubsequences: true).count > 7
     }
 
     // MARK: - Waveform Drawing
