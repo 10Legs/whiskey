@@ -11,8 +11,11 @@ public final class FloatingHUDViewModel: ObservableObject {
 
     @Published public var isRecording: Bool = false
     @Published public var audioLevel: Float = 0.0
+    @Published public var partialTranscript: String = ""
+    @Published public var showCaptionStrip: Bool = false
 
     private var levelCancellable: AnyCancellable?
+    private var partialCancellable: AnyCancellable?
 
     public init() {}
 
@@ -34,6 +37,25 @@ public final class FloatingHUDViewModel: ObservableObject {
         isRecording = false
         // Decay level to zero so the waveform doesn't freeze on last value.
         audioLevel = 0.0
+        // NOTE: Do NOT clear partialTranscript here. The pipeline fires onPreviewClear
+        // after the final transcript is injected, so the caption strip stays visible
+        // during Whisper processing and clears when the result lands.
+    }
+
+    /// Subscribe to partial transcripts from the pipeline's streaming SR service.
+    public func subscribeToPartials(_ publisher: AnyPublisher<String, Never>) {
+        partialCancellable = publisher
+            .receive(on: RunLoop.main)
+            .sink { [weak self] text in
+                self?.partialTranscript = text
+                self?.showCaptionStrip = !text.isEmpty
+            }
+    }
+
+    /// Clear the live-preview caption strip. Called by onPreviewClear after final inject.
+    public func clearPreview() {
+        partialTranscript = ""
+        showCaptionStrip = false
     }
 }
 
@@ -61,8 +83,11 @@ public struct WaveformHUDView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Halide sizing
-    private let idleSize      = CGSize(width: 80, height: 14)
-    private let recordingSize = CGSize(width: 200, height: 56)
+    private let idleSize = CGSize(width: 80, height: 14)
+    // recordingSize height grows to 80 pt when the caption strip is showing.
+    private var recordingSize: CGSize {
+        CGSize(width: 200, height: viewModel.showCaptionStrip ? 80 : 56)
+    }
 
     public init(viewModel: FloatingHUDViewModel) {
         self.viewModel = viewModel
@@ -74,35 +99,56 @@ public struct WaveformHUDView: View {
             ? nil
             : .spring(response: 0.35, dampingFraction: 0.75)
 
-        ZStack(alignment: .leading) {
-            // Recording indicator dot — static 6×6 pt, left-aligned, 10 pt inset.
-            if viewModel.isRecording {
-                Circle()
-                    .fill(HalideTokens.accentRecording)
-                    .frame(width: 6, height: 6)
-                    .padding(.leading, 10)
-                    .frame(maxHeight: .infinity, alignment: .center)
-            }
-
-            // Waveform / idle line — always present, centered.
-            let isRecording = viewModel.isRecording
-            let level = viewModel.audioLevel
-            let noMotion = reduceMotion
-            TimelineView(.animation) { timeline in
-                Canvas { ctx, canvasSize in
-                    let renderCtx = WaveformRenderContext(
-                        phase: timeline.date.timeIntervalSinceReferenceDate,
-                        level: level,
-                        isRecording: isRecording,
-                        reduceMotion: noMotion
-                    )
-                    drawWaveform(ctx: ctx, size: canvasSize, renderCtx: renderCtx)
+        VStack(spacing: 0) {
+            ZStack(alignment: .leading) {
+                // Recording indicator dot — static 6×6 pt, left-aligned, 10 pt inset.
+                if viewModel.isRecording {
+                    Circle()
+                        .fill(HalideTokens.accentRecording)
+                        .frame(width: 6, height: 6)
+                        .padding(.leading, 10)
+                        .frame(maxHeight: .infinity, alignment: .center)
                 }
+
+                // Waveform / idle line — always present, centered.
+                let isRecording = viewModel.isRecording
+                let level = viewModel.audioLevel
+                let noMotion = reduceMotion
+                TimelineView(.animation) { timeline in
+                    Canvas { ctx, canvasSize in
+                        let renderCtx = WaveformRenderContext(
+                            phase: timeline.date.timeIntervalSinceReferenceDate,
+                            level: level,
+                            isRecording: isRecording,
+                            reduceMotion: noMotion
+                        )
+                        drawWaveform(ctx: ctx, size: canvasSize, renderCtx: renderCtx)
+                    }
+                }
+                .padding(.horizontal, viewModel.isRecording ? 24 : 10)
             }
-            .padding(.horizontal, viewModel.isRecording ? 24 : 10)
+            .frame(width: size.width, height: viewModel.isRecording ? 56 : size.height)
+
+            // Caption strip — slides in below the waveform row when partials arrive.
+            if viewModel.showCaptionStrip {
+                Text(viewModel.partialTranscript)
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundColor(HalideTokens.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(width: 200, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .frame(height: 18)
+                    .opacity(viewModel.showCaptionStrip ? 1 : 0)
+                    .animation(
+                        reduceMotion ? nil : .easeIn(duration: 0.15).delay(0.15),
+                        value: viewModel.showCaptionStrip
+                    )
+            }
         }
         .frame(width: size.width, height: size.height)
         .animation(sizeAnimation, value: viewModel.isRecording)
+        .animation(sizeAnimation, value: viewModel.showCaptionStrip)
         .background {
             RoundedRectangle(cornerRadius: viewModel.isRecording ? HalideTokens.radiusXL : HalideTokens.radiusLarge)
                 .fill(.ultraThinMaterial)

@@ -185,10 +185,9 @@ public final class FloatingHUDWindow: NSPanel {
     // Idle panel footprint used for default positioning.
     private static let idlePanelWidth: CGFloat  = 80
     private static let idlePanelHeight: CGFloat  = 14
-    // Recording size — SwiftUI expands in-place; the panel frame uses the larger value
-    // only for content sizing. The origin stays fixed.
+    // Recording size — SwiftUI expands in-place; 80 pt height accommodates caption strip.
     private static let recordingPanelWidth: CGFloat  = 200
-    private static let recordingPanelHeight: CGFloat = 56
+    private static let recordingPanelHeight: CGFloat = 80
 
     // Bottom-right margin from screen edge, in points.
     private static let screenMargin: CGFloat = 20
@@ -370,13 +369,16 @@ public final class FloatingHUDWindowController {
         }
     }
 
-    public func recordingDidStart() {
-        viewModel.notifyRecordingStarted()
+    public func recordingDidStart() { viewModel.notifyRecordingStarted() }
+    public func recordingDidStop() { viewModel.notifyRecordingStopped() }
+
+    /// Forward partial transcripts to the caption strip.
+    public func subscribeToPartials(_ publisher: AnyPublisher<String, Never>) {
+        viewModel.subscribeToPartials(publisher)
     }
 
-    public func recordingDidStop() {
-        viewModel.notifyRecordingStopped()
-    }
+    /// Clear the live-preview caption strip.
+    public func clearPreview() { viewModel.clearPreview() }
 }
 
 // MARK: - VoiceCommand displayLabel
