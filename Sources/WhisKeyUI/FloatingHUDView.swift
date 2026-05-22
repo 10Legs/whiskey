@@ -1,5 +1,6 @@
 import Combine
 import SwiftUI
+import WhisKeyCore
 
 // MARK: - View Model
 
@@ -16,6 +17,7 @@ public final class FloatingHUDViewModel: ObservableObject {
 
     private var levelCancellable: AnyCancellable?
     private var partialCancellable: AnyCancellable?
+    private var lingerTask: Task<Void, Never>?
 
     public init() {}
 
@@ -31,6 +33,8 @@ public final class FloatingHUDViewModel: ObservableObject {
 
     public func notifyRecordingStarted() {
         isRecording = true
+        // Reset any lingering caption state from the previous recording.
+        clearPreview()
     }
 
     public func notifyRecordingStopped() {
@@ -52,8 +56,35 @@ public final class FloatingHUDViewModel: ObservableObject {
             }
     }
 
-    /// Clear the live-preview caption strip. Called by onPreviewClear after final inject.
+    /// Apply linger behaviour after the final transcript is injected.
+    ///
+    /// - Parameter mode: The user-configured linger mode read from `SettingsManager`
+    ///   at the time injection completes.
+    public func handlePreviewClear(mode: PreviewLingerMode) {
+        lingerTask?.cancel()
+        switch mode {
+        case .immediate, .untilInjected:
+            partialTranscript = ""
+            showCaptionStrip = false
+        case .linger(let seconds):
+            lingerTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(seconds))
+                guard !Task.isCancelled else { return }
+                self?.partialTranscript = ""
+                self?.showCaptionStrip = false
+            }
+        case .errorHold:
+            // Keep visible until next recording; `clearPreview()` called by
+            // `notifyRecordingStarted()` will cancel the linger task and reset state.
+            break
+        }
+    }
+
+    /// Immediately clear the caption strip, cancelling any active linger timer.
+    /// Called by `notifyRecordingStarted()` to reset state before a new recording.
     public func clearPreview() {
+        lingerTask?.cancel()
+        lingerTask = nil
         partialTranscript = ""
         showCaptionStrip = false
     }

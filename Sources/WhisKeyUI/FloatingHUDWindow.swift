@@ -377,8 +377,14 @@ public final class FloatingHUDWindowController {
         viewModel.subscribeToPartials(publisher)
     }
 
-    /// Clear the live-preview caption strip.
+    /// Immediately clear the caption strip, cancelling any active linger timer.
+    /// Called directly to reset state (e.g. before a new recording starts).
     public func clearPreview() { viewModel.clearPreview() }
+
+    /// Apply user-configured linger behaviour after the final transcript is injected.
+    public func handlePreviewClear(mode: PreviewLingerMode) {
+        viewModel.handlePreviewClear(mode: mode)
+    }
 }
 
 // MARK: - VoiceCommand displayLabel

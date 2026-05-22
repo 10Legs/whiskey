@@ -556,9 +556,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // P1: Subscribe HUD caption strip to streaming partial transcripts.
         hud.subscribeToPartials(pipeline.partialTranscriptPublisher.eraseToAnyPublisher())
 
-        // P1: Clear the caption strip after the final transcript is injected.
-        pipeline.onPreviewClear = { [weak hud] in
-            Task { @MainActor in hud?.clearPreview() }
+        // P2: Clear the caption strip after injection, honouring the user's linger setting.
+        // The closure reads settingsManager.previewLingerMode live at call time, so
+        // no observation task is needed — changes take effect on the next transcription.
+        pipeline.onPreviewClear = { [weak hud, weak settingsManager] in
+            Task { @MainActor in
+                let mode = settingsManager?.previewLingerMode ?? .linger(seconds: 2)
+                hud?.handlePreviewClear(mode: mode)
+            }
         }
 
         // Wire hotkey to pipeline + state model.
