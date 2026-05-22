@@ -14,6 +14,8 @@ public final class FloatingHUDViewModel: ObservableObject {
     @Published public var audioLevel: Float = 0.0
     @Published public var partialTranscript: String = ""
     @Published public var showCaptionStrip: Bool = false
+    /// Briefly true after preview clear for non-immediate modes — drives flash animation.
+    @Published public var captionHighlighted: Bool = false
 
     private var levelCancellable: AnyCancellable?
     private var partialCancellable: AnyCancellable?
@@ -63,11 +65,27 @@ public final class FloatingHUDViewModel: ObservableObject {
     public func handlePreviewClear(mode: PreviewLingerMode) {
         lingerTask?.cancel()
         switch mode {
-        case .immediate, .untilInjected:
+        case .immediate:
+            captionHighlighted = false
             partialTranscript = ""
             showCaptionStrip = false
-        case .linger(let seconds):
+        case .untilInjected:
+            // Flash to textPrimary for 400 ms, then clear.
+            captionHighlighted = true
             lingerTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                self?.captionHighlighted = false
+                self?.partialTranscript = ""
+                self?.showCaptionStrip = false
+            }
+        case .linger(let seconds):
+            // Flash to textPrimary for 400 ms, then linger for the configured duration.
+            captionHighlighted = true
+            lingerTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                self?.captionHighlighted = false
                 try? await Task.sleep(for: .seconds(seconds))
                 guard !Task.isCancelled else { return }
                 self?.partialTranscript = ""
@@ -76,6 +94,7 @@ public final class FloatingHUDViewModel: ObservableObject {
         case .errorHold:
             // Keep visible until next recording; `clearPreview()` called by
             // `notifyRecordingStarted()` will cancel the linger task and reset state.
+            captionHighlighted = false
             break
         }
     }
@@ -85,6 +104,7 @@ public final class FloatingHUDViewModel: ObservableObject {
     public func clearPreview() {
         lingerTask?.cancel()
         lingerTask = nil
+        captionHighlighted = false
         partialTranscript = ""
         showCaptionStrip = false
     }
@@ -115,9 +135,10 @@ public struct WaveformHUDView: View {
 
     // Halide sizing
     private let idleSize = CGSize(width: 80, height: 14)
-    // recordingSize height grows to 80 pt when the caption strip is showing.
+    // recordingSize height is always 80 pt while recording (caption area is always present —
+    // either partial transcript or "Listening…" placeholder).
     private var recordingSize: CGSize {
-        CGSize(width: 200, height: viewModel.showCaptionStrip ? 80 : 56)
+        CGSize(width: 200, height: 80)
     }
 
     public init(viewModel: FloatingHUDViewModel) {
@@ -160,26 +181,42 @@ public struct WaveformHUDView: View {
             }
             .frame(width: size.width, height: viewModel.isRecording ? 56 : size.height)
 
-            // Caption strip — slides in below the waveform row when partials arrive.
-            if viewModel.showCaptionStrip {
-                Text(viewModel.partialTranscript)
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .foregroundColor(HalideTokens.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(width: 200, alignment: .leading)
-                    .padding(.horizontal, 10)
-                    .frame(height: 18)
-                    .opacity(viewModel.showCaptionStrip ? 1 : 0)
-                    .animation(
-                        reduceMotion ? nil : .easeIn(duration: 0.15).delay(0.15),
-                        value: viewModel.showCaptionStrip
-                    )
+            // Caption strip — slides in below the waveform row when recording is active.
+            // Shows partial transcript when available; falls back to "Listening…" placeholder.
+            if viewModel.isRecording {
+                Group {
+                    if viewModel.showCaptionStrip {
+                        Text(viewModel.partialTranscript)
+                            .font(HalideTokens.fontCaption)
+                            .foregroundColor(
+                                viewModel.captionHighlighted
+                                    ? HalideTokens.textPrimary
+                                    : HalideTokens.textSecondary
+                            )
+                            .animation(
+                                reduceMotion ? nil : .easeOut(duration: 0.15),
+                                value: viewModel.captionHighlighted
+                            )
+                    } else {
+                        Text("Listening\u{2026}")
+                            .font(HalideTokens.fontCaption)
+                            .foregroundColor(HalideTokens.textTertiary)
+                    }
+                }
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: 200, alignment: .leading)
+                .padding(.horizontal, 10)
+                .frame(height: 18)
+                .opacity(viewModel.isRecording ? 1 : 0)
+                .animation(
+                    reduceMotion ? nil : .easeIn(duration: 0.15).delay(0.15),
+                    value: viewModel.isRecording
+                )
             }
         }
         .frame(width: size.width, height: size.height)
         .animation(sizeAnimation, value: viewModel.isRecording)
-        .animation(sizeAnimation, value: viewModel.showCaptionStrip)
         .background {
             RoundedRectangle(cornerRadius: viewModel.isRecording ? HalideTokens.radiusXL : HalideTokens.radiusLarge)
                 .fill(.ultraThinMaterial)
