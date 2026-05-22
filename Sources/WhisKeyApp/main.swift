@@ -65,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hasPulsedRed: Bool = false
 
     private var modelObservationTask: Task<Void, Never>?
+    private var hudObservationTask: Task<Void, Never>?
 
     // MARK: - Network Activity Monitor (S3-T3)
 
@@ -548,6 +549,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
         let hud = FloatingHUDWindowController(pipeline: pipeline)
         hudController = hud
+        hud.setVisible(settingsManager.hudEnabled)
         voiceCommandHUD = VoiceCommandHUDController()
         pipelineState.subscribe(toAudioLevel: pipeline.audioLevelPublisher)
 
@@ -658,6 +660,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         startModelObservation()
+        startHUDObservation()
+    }
+
+    private func startHUDObservation() {
+        hudObservationTask?.cancel()
+        hudObservationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var lastValue = self.settingsManager.hudEnabled
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { break }
+                let current = self.settingsManager.hudEnabled
+                guard current != lastValue else { continue }
+                lastValue = current
+                self.hudController?.setVisible(current)
+            }
+        }
     }
 
     /// Watch `settingsManager.activeModelID` and reload WhisperBridge whenever it changes.

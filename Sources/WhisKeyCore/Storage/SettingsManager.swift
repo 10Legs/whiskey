@@ -182,6 +182,12 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.handsFreeEnabled, value: newValue) }
     }
 
+    /// When `false`, the floating waveform HUD is hidden. Defaults to `true`.
+    public var hudEnabled: Bool {
+        get { get(.hudEnabled, default: true) }
+        set { set(.hudEnabled, value: newValue) }
+    }
+
     /// Double-tap disambiguation window in milliseconds. Default: 300. Valid range: 200-500. (S3-T4)
     public var disambiguationWindowMs: Double {
         get {

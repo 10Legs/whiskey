@@ -23,4 +23,5 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     case handsFreeEnabled
     /// Double-tap disambiguation window milliseconds. Default: 300. Range: 200-500. (S3-T4)
     case disambiguationWindowMs
+    case hudEnabled
 }
