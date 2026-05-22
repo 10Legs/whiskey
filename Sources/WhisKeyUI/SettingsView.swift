@@ -101,6 +101,20 @@ private struct GeneralTab: View {
                     Text("Displays a live waveform in the corner of your screen while recording.")
                         .font(.caption)
                         .foregroundColor(HalideTokens.textSecondary)
+
+                    if settings.hudEnabled {
+                        Picker("After transcription completes", selection: $settings.previewLingerMode) {
+                            Text("Fade immediately").tag(PreviewLingerMode.immediate)
+                            Text("Keep until injected").tag(PreviewLingerMode.untilInjected)
+                            Text("Keep for 2 seconds").tag(PreviewLingerMode.linger(seconds: 2))
+                            Text("Keep for 5 seconds").tag(PreviewLingerMode.linger(seconds: 5))
+                        }
+                        .pickerStyle(.menu)
+                        .tint(HalideTokens.accentAmber)
+                        Text("How long to show the caption after your text is injected.")
+                            .font(.caption)
+                            .foregroundColor(HalideTokens.textSecondary)
+                    }
                 }
 
                 HalideSection(title: "Output mode") {
