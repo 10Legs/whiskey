@@ -24,4 +24,7 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     /// Double-tap disambiguation window milliseconds. Default: 300. Range: 200-500. (S3-T4)
     case disambiguationWindowMs
     case hudEnabled
+    /// Controls how long the live-preview caption strip lingers after injection.
+    /// P1: key declared here; accessor added in P2.
+    case previewLingerMode
 }
