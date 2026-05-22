@@ -583,6 +583,7 @@ public actor TranscriptionPipeline {
             flog.log(.error, "Whisper error: \(error.localizedDescription)")
             logger.error("Transcription error: \(error.localizedDescription)")
             await MainActor.run { onError?(PipelineError.transcriptionError(error)) }
+            onPreviewClear?()
             return nil
         }
     }
