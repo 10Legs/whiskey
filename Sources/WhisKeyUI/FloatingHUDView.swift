@@ -219,8 +219,8 @@ public struct WaveformHUDView: View {
                     }
                 }
                 .lineLimit(1)
-                .frame(width: 200, alignment: .leading)
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: 18)
                 .opacity(viewModel.isRecording ? 1 : 0)
                 .animation(
