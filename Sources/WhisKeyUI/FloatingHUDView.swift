@@ -95,7 +95,6 @@ public final class FloatingHUDViewModel: ObservableObject {
             // Keep visible until next recording; `clearPreview()` called by
             // `notifyRecordingStarted()` will cancel the linger task and reset state.
             captionHighlighted = false
-            break
         }
     }
 

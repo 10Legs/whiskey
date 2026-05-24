@@ -1,8 +1,8 @@
 import AVFoundation
 import Combine
 import Foundation
-import Speech
 import os.log
+import Speech
 
 /// Streams partial transcription results using on-device SFSpeechRecognizer.
 ///
