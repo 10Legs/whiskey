@@ -74,11 +74,21 @@ jobs:
         # git clean from concurrent SwiftLint/Code Quality jobs. On the first
         # run the directory won't exist and the build is cold; subsequent runs
         # are incremental (~30s instead of 14+ min).
+        #
+        # After cache restore, touch all vendor C/C++ sources to match build.db
+        # mtime. git clean resets source timestamps to "now" which makes SPM
+        # think vendor files are dirty and recompiles all 185 of them (~10 min).
+        # Aligning timestamps tells SPM the vendor files haven't changed.
         run: |
           CACHE_DIR="${HOME}/.whiskey-spm-cache"
           if [ -d "$CACHE_DIR" ]; then
             echo "Restoring local SPM cache from $CACHE_DIR"
             rsync -a "$CACHE_DIR/" .build/
+            BUILD_DB=".build/arm64-apple-macosx/debug/build.db"
+            if [ -f "$BUILD_DB" ]; then
+              echo "Aligning vendor source timestamps to build.db to prevent full recompile"
+              find Vendor/ -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.m" | xargs touch -r "$BUILD_DB"
+            fi
           else
             echo "No local SPM cache — cold build"
           fi
@@ -87,24 +97,27 @@ jobs:
         run: /opt/homebrew/bin/brew install sqlcipher 2>&1 || /opt/homebrew/bin/brew upgrade sqlcipher 2>&1 || true
 
       - name: Build (debug + tests)
-        # Use all logical CPUs to minimize build time. The runner's job token
-        # window is 10 min; we need the build + tests to complete before renewal.
+        # Reserve 2 cores for the runner's .NET renewal timer. Using all cores
+        # starves the timer thread, causing token renewal to fire after the
+        # 10-min window expires — the server then rejects CompleteJob with 404.
         run: |
           NCPU=$(sysctl -n hw.logicalcpu)
+          BUILD_JOBS=$(( NCPU > 2 ? NCPU - 2 : 1 ))
           while true; do echo "[heartbeat] $(date -u +%H:%M:%SZ)"; sleep 30; done &
           HPID=$!
-          swift build -c debug --build-tests --jobs "$NCPU" 2>&1
+          swift build -c debug --build-tests --jobs "$BUILD_JOBS" 2>&1
           STATUS=$?
           kill $HPID 2>/dev/null || true
           exit $STATUS
 
       - name: Save local SPM cache
-        # Save even on failure so partial builds warm the cache for the next run.
+        # --update skips files where the destination is already up-to-date,
+        # avoiding re-copying 700MB+ of timestamp-only changes after each build.
         if: success() || failure()
         run: |
           CACHE_DIR="${HOME}/.whiskey-spm-cache"
           echo "Saving SPM cache to $CACHE_DIR"
-          rsync -a .build/ "$CACHE_DIR/"
+          rsync -a --update .build/ "$CACHE_DIR/"
 
       - name: Save vendor cache
         # Persist any newly-fetched submodule source trees back to disk so the

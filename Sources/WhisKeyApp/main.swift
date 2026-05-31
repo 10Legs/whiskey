@@ -94,6 +94,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentTintColor: NSColor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let alreadyRunning = NSRunningApplication.runningApplications(
+            withBundleIdentifier: Bundle.main.bundleIdentifier ?? ""
+        )
+        if alreadyRunning.count > 1 {
+            alreadyRunning.first(where: { $0 != NSRunningApplication.current })?
+                .activate(options: .activateIgnoringOtherApps)
+            NSApp.terminate(nil)
+            return
+        }
+
         NSApp.setActivationPolicy(.accessory) // hide from Dock
 
         // Start network monitoring immediately. EgressAuditor is wired after monitor starts.
@@ -118,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         networkMonitor.stopMonitoring()
+        try? AppDatabase.shared.pool.close()
         egressObservationTask?.cancel()
     }
 

@@ -91,6 +91,7 @@ public final class AppDatabase: Sendable {
 
         // Open the pool with SQLCipher passphrase. The key is passed as raw bytes.
         var config = Configuration()
+        config.busyMode = .timeout(5)   // retry up to 5s instead of failing immediately on lock
         config.prepareDatabase { db in
             // Pass key bytes directly. usePassphrase(_:Data) sets PRAGMA key = "x'<hex>'".
             // Enabled by SQLITE_HAS_CODEC compile flag on the GRDBEncrypted target.
