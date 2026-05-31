@@ -353,8 +353,8 @@ public final class AudioCaptureService: @unchecked Sendable {
         if frameCount > 0 {
             let sumOfSquares = samples.reduce(0.0) { $0 + $1 * $1 }
             let rms = sqrtf(sumOfSquares / Float(frameCount))
-            // Normalize: typical speech RMS sits around 0.01–0.3; scale by 3 and clamp.
-            let normalized = min(rms * 3.0, 1.0)
+            // Normalize: typical speech RMS sits around 0.01–0.3; scale by 8 and clamp.
+            let normalized = min(rms * 8.0, 1.0)
             audioLevelPublisher.send(normalized)
         }
     }

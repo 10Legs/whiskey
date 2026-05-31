@@ -45,11 +45,11 @@ enum WaveformDrawing {
         var upperPoints: [CGPoint] = []
         let breathAmp: CGFloat = renderCtx.reduceMotion
             ? 1.0
-            : max(1.0, CGFloat(pow(Double(max(renderCtx.level, 0.01)), 0.5)) * maxAmplitude)
+            : max(1.0, CGFloat(pow(Double(max(renderCtx.level, 0.01)), 1.0)) * maxAmplitude)
         for idx in 0..<count {
             let xPos = CGFloat(idx) * stepX
             let amp = CGFloat(samples[idx]) * maxAmplitude
-            let effective = max(amp, breathAmp * CGFloat(sin(renderCtx.phase * 1.2 + Double(idx) * 0.15) * 0.08 + 0.08))
+            let effective = max(amp, breathAmp * CGFloat(sin(renderCtx.phase * 1.2 + Double(idx) * 0.15) * 0.08 + 0.15))
             upperPoints.append(CGPoint(x: xPos, y: midY - effective))
         }
 
@@ -113,8 +113,8 @@ enum WaveformDrawing {
             let sampleIdx = Int(Double(idx) / Double(barCount) * Double(samples.count))
             let rawAmp = CGFloat(samples[min(sampleIdx, samples.count - 1)])
             // Phase shimmer at low amplitude
-            let shimmer = CGFloat(sin(phase * 3.0 + Double(idx) * 0.2) * 0.05)
-            let amp = max(rawAmp + shimmer, 0.04) * maxAmplitude
+            let shimmer = CGFloat(sin(phase * 3.0 + Double(idx) * 0.2) * 0.12)
+            let amp = max(rawAmp + shimmer, 0.08) * maxAmplitude
             // Outer bars fade out
             let edge = min(idx, barCount - 1 - idx)
             let edgeFade: CGFloat = edge < 4 ? CGFloat(edge) / 4.0 : 1.0
@@ -150,7 +150,7 @@ enum WaveformDrawing {
                     let xPos = startX + CGFloat(idx) * (barWidth + gap)
                     let sampleIdx = Int(Double(idx) / Double(barCount) * Double(samples.count))
                     let rawAmp = CGFloat(samples[min(sampleIdx, samples.count - 1)])
-                    let amp = max(rawAmp, 0.06) * maxAmplitude
+                    let amp = max(rawAmp, 0.10) * maxAmplitude
                     let barRect = CGRect(
                         x: xPos,
                         y: innerSize.height / 2 - amp,
@@ -181,7 +181,7 @@ enum WaveformDrawing {
         renderCtx: WaveformRenderContext
     ) {
         // Breathing: ~8-second cycle, 2 pt peak-to-trough, disabled when reduceMotion.
-        let breathingAmplitude: CGFloat = renderCtx.reduceMotion ? 0 : 2.0 * sin(renderCtx.phase * 0.8)
+        let breathingAmplitude: CGFloat = renderCtx.reduceMotion ? 0 : 3.5 * sin(renderCtx.phase * 0.8)
         let steps = Int(size.width)
         var path = Path()
 
