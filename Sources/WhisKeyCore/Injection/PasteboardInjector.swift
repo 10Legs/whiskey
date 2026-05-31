@@ -11,6 +11,11 @@ final class PasteboardInjector: @unchecked Sendable {
     func inject(_ text: String) -> Bool {
         guard AXIsProcessTrusted() else { return false }
 
+        // Capture the intended target before touching the pasteboard.
+        // Focus can shift during Whisper processing, so we verify frontmost
+        // app has not changed before firing Cmd+V (W-BUG-03).
+        let expectedBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+
         let pb = NSPasteboard.general
         let priorString = pb.string(forType: .string)
 
@@ -18,6 +23,19 @@ final class PasteboardInjector: @unchecked Sendable {
         pb.setString(text, forType: .string)
         // Signal clipboard managers (Raycast, Paste, CopyClip, etc.) to skip persisting this transient write
         pb.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
+
+        // Guard: abort if focus has moved to a different app since dictation began.
+        let currentBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        if currentBundleID != expectedBundleID {
+            let from = expectedBundleID ?? "<nil>"
+            let to = currentBundleID ?? "<nil>"
+            logger.warning("PasteboardInjector: frontmost app changed from \(from) to \(to) — aborting Cmd+V")
+            pb.clearContents()
+            if let prior = priorString {
+                pb.setString(prior, forType: .string)
+            }
+            return false
+        }
 
         simulateCmdV()
 

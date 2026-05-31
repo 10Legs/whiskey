@@ -213,12 +213,19 @@ public actor TranscriptionPipeline {
 
     // MARK: - Callbacks (lock-backed for nonisolated access)
 
-    /// Lock protecting both callback closures so they can be read/written
+    /// Value type holding all callback closures protected by `_callbackLock`.
+    /// Using a struct avoids the SwiftLint `large_tuple` violation (3+ members).
+    private struct CallbackState {
+        var onReady: (@Sendable (TranscriptionResult) -> Void)?
+        var onError: (@Sendable (Error) -> Void)?
+        var onHistoryEntry: (@Sendable (HistoryEntry) -> Void)?
+    }
+
+    /// Lock protecting all callback closures so they can be read/written
     /// from any concurrency domain without `nonisolated(unsafe)`.
-    private let _callbackLock = OSAllocatedUnfairLock<
-        (onReady: (@Sendable (TranscriptionResult) -> Void)?,
-         onError: (@Sendable (Error) -> Void)?)
-    >(initialState: (onReady: nil, onError: nil))
+    private let _callbackLock = OSAllocatedUnfairLock<CallbackState>(
+        initialState: CallbackState()
+    )
 
     /// Called on the main thread when a transcription result is ready.
     /// Backed by a lock so it can be assigned from any context without data races.
@@ -232,6 +239,15 @@ public actor TranscriptionPipeline {
     public nonisolated var onError: (@Sendable (Error) -> Void)? {
         get { _callbackLock.withLock { $0.onError } }
         set { _callbackLock.withLock { $0.onError = newValue } }
+    }
+
+    /// Called on the main thread after a `HistoryEntry` has been persisted.
+    /// Wire this to `HistoryViewModel.appendEntry(_:)` so the history list
+    /// updates in-process without requiring a full store reload.
+    /// Backed by the same lock as `onTranscriptionReady`.
+    public nonisolated var onHistoryEntryReady: (@Sendable (HistoryEntry) -> Void)? {
+        get { _callbackLock.withLock { $0.onHistoryEntry } }
+        set { _callbackLock.withLock { $0.onHistoryEntry = newValue } }
     }
 
     // MARK: - Init
@@ -407,6 +423,16 @@ public actor TranscriptionPipeline {
 
         isRecording = false
 
+        // W-BUG-02: Snapshot the focused AX element as the very first operation -- on the same
+        // run-loop tick as hotkey release -- before any await can yield and allow focus to shift.
+        let capturedAXElement: AXUIElement? = await MainActor.run {
+            guard AXIsProcessTrusted() else { return nil }
+            let sysWide = AXUIElementCreateSystemWide()
+            var ref: CFTypeRef?
+            AXUIElementCopyAttributeValue(sysWide, kAXFocusedUIElementAttribute as CFString, &ref)
+            return ref.map { $0 as! AXUIElement }  // swiftlint:disable:this force_cast
+        }
+
         // Stop streaming SR before Whisper batch processing begins.
         let srService = speechRecognition
         await MainActor.run { srService.stop() }
@@ -437,15 +463,6 @@ public actor TranscriptionPipeline {
         // Feature 1.2: energy-based silence trim (pre-Whisper).
         let trimEnabled = await MainActor.run { settings.silenceTrimEnabled }
         guard let pcmSamples = applySilenceTrim(rawSamples, enabled: trimEnabled) else { return nil }
-
-        // Snapshot the focused AX element NOW -- before transcription latency causes focus to change.
-        let capturedAXElement: AXUIElement? = await MainActor.run {
-            guard AXIsProcessTrusted() else { return nil }
-            let sysWide = AXUIElementCreateSystemWide()
-            var ref: CFTypeRef?
-            AXUIElementCopyAttributeValue(sysWide, kAXFocusedUIElementAttribute as CFString, &ref)
-            return ref.map { $0 as! AXUIElement }  // swiftlint:disable:this force_cast
-        }
 
         guard let result = await runTranscription(pcmSamples: pcmSamples, langHint: effectiveLangHint) else {
             return nil
@@ -658,16 +675,28 @@ public actor TranscriptionPipeline {
         bundleID: String
     ) async {
         let entry = HistoryEntry.from(result: result, cleanedText: textToInject, appBundleID: bundleID)
+        var persistSucceeded = false
         do {
             try await historyStore.insert(entry)
+            persistSucceeded = true
         } catch {
-            logger.error("Failed to persist history entry: \(error.localizedDescription)")
+            logger.error(
+                "Pipeline: failed to persist history entry (id: \(entry.id), app: \(bundleID)): \(error)"
+            )
             FileLogger.shared.log(
                 .error,
-                "Pipeline: failed to persist history entry: \(error.localizedDescription)"
+                "Pipeline: failed to persist history entry (id: \(entry.id), app: \(bundleID)): \(error)"
             )
         }
-        await MainActor.run { onTranscriptionReady?(result) }
+        await MainActor.run {
+            // Always notify the transcription callback regardless of persist outcome.
+            onTranscriptionReady?(result)
+            // Only push to the history list when the entry was actually stored so
+            // the in-memory list stays consistent with the persistent store.
+            if persistSucceeded {
+                onHistoryEntryReady?(entry)
+            }
+        }
     }
 
     // MARK: - Voice Command Execution (S4-T6)

@@ -76,16 +76,21 @@ public struct MenuBarView: View {
     @Binding private var hasPulsedRed: Bool
     private let onOpenSettings: () -> Void
     private let onClear: () -> Void
+    /// Pipeline reference retained so `onHistoryEntryReady` can be registered
+    /// after `historyViewModel` is live (inside `.task`).
+    private let pipeline: TranscriptionPipeline
 
     public init(
         historyStore: HistoryStore,
         modelManager: ModelManager,
+        pipeline: TranscriptionPipeline,
         pipelineState: PipelineStateModel,
         networkMonitor: NetworkActivityMonitor? = nil,
         hasPulsedRed: Binding<Bool> = .constant(false),
         onOpenSettings: @escaping () -> Void,
         onClear: @escaping () -> Void = {}
     ) {
+        self.pipeline = pipeline
         self.pipelineState = pipelineState
         self.networkMonitor = networkMonitor
         self._hasPulsedRed = hasPulsedRed
@@ -153,6 +158,15 @@ public struct MenuBarView: View {
         .frame(width: 320, height: 480)
         .task { await viewModel.loadHistory() }
         .task { await historyViewModel.loadHistory() }
+        .task {
+            // W-BUG-01: Register the pipeline callback that pushes new entries into
+            // the in-memory list as they are persisted, so the history list updates
+            // immediately without requiring a popover close/reopen cycle.
+            // historyViewModel is guaranteed live at this point (StateObject initialised).
+            pipeline.onHistoryEntryReady = { [historyViewModel] entry in
+                historyViewModel.appendEntry(entry)
+            }
+        }
     }
 
     // MARK: - Header
