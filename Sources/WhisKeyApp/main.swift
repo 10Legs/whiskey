@@ -362,6 +362,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let view = MenuBarView(
             historyStore: pipeline.historyStore,
             modelManager: modelManager,
+            pipeline: pipeline,
             pipelineState: pipelineState,
             onOpenSettings: { [weak self] in
                 self?.popover?.performClose(nil)
