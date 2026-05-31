@@ -22,8 +22,6 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>WhisKey records your voice to transcribe speech locally on your device. No audio leaves your Mac.</string>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>WhisKey uses on-device speech recognition to show a live preview of your words while you record. No audio leaves your Mac.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>WhisKey uses Apple Events to detect the frontmost application context.</string>
     <key>NSAccessibilityUsageDescription</key>
