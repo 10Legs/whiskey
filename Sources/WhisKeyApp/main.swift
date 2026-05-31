@@ -656,6 +656,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task.detached(priority: .background) { [weak self] in
             guard let self else { return }
+            let enabled = await MainActor.run { self.settingsManager.llmEnabled }
+            guard enabled else { return }
             await self.pipeline.warmUpLLM()
             logger.info("LLM warmup complete.")
         }

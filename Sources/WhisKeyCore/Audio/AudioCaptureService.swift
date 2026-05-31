@@ -138,10 +138,19 @@ public final class AudioCaptureService: @unchecked Sendable {
         pcmBuffer = []
         os_unfair_lock_unlock(&bufferLock)
 
+        // Pass nil so AVAudioEngine installs the tap in the node's own native
+        // format. Passing a non-nil format that nominally matches the node's
+        // output format still raises 'com.apple.coreaudio.avfaudio /
+        // Failed to create tap due to format mismatch' on macOS 14+ when the
+        // engine has been stopped and restarted — the internal hardware
+        // negotiation can shift the format between outputFormat(forBus:) and
+        // installTap. Passing nil is the documented way to opt out of format
+        // conversion at the tap layer; the converter we already built handles
+        // the resample to 16 kHz regardless of the native format delivered.
         inputNode.installTap(
             onBus: 0,
             bufferSize: Self.tapBufferSize,
-            format: inputFormat
+            format: nil
         ) { [weak self] inBuffer, _ in
             // Emit pre-resample buffer for SFSpeechRecognizer (native device format required).
             self?.audioBufferPublisher.send(inBuffer)
@@ -259,10 +268,11 @@ public final class AudioCaptureService: @unchecked Sendable {
         }
         converter = conv
 
+        // Same nil-format rationale as startCapture() — see comment there.
         inputNode.installTap(
             onBus: 0,
             bufferSize: Self.tapBufferSize,
-            format: inputFormat
+            format: nil
         ) { [weak self] inBuffer, _ in
             // Emit pre-resample buffer for SFSpeechRecognizer (native device format required).
             self?.audioBufferPublisher.send(inBuffer)
