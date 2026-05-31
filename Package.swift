@@ -9,6 +9,8 @@ let package = Package(
     products: [
         .executable(name: "WhisKey", targets: ["WhisKeyApp"]),
         .library(name: "WhisKeyCore", targets: ["WhisKeyCore"]),
+        .library(name: "CWhisper", targets: ["CWhisper"]),
+        .library(name: "CLlama",   targets: ["CLlama"]),
     ],
     dependencies: [
         // GRDB.swift remote dependency removed in Sprint 1.1.
