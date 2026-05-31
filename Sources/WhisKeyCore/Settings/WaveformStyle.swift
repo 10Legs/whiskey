@@ -1,9 +1,9 @@
 import Foundation
 
 public enum WaveformStyle: String, Codable, CaseIterable {
-    case pulseRibbon   = "pulseRibbon"
-    case rodArray      = "rodArray"
-    case liquidMercury = "liquidMercury"
+    case pulseRibbon
+    case rodArray
+    case liquidMercury
 
     public var displayName: String {
         switch self {
