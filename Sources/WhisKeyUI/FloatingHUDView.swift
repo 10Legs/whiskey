@@ -16,6 +16,8 @@ public final class FloatingHUDViewModel: ObservableObject {
     @Published public var showCaptionStrip: Bool = false
     /// Briefly true after preview clear for non-immediate modes — drives flash animation.
     @Published public var captionHighlighted: Bool = false
+    /// Rolling 48-sample buffer of audio levels, used by waveform renderers.
+    @Published public var sampleBuffer: [Float] = Array(repeating: 0, count: 48)
 
     private var levelCancellable: AnyCancellable?
     private var partialCancellable: AnyCancellable?
@@ -30,6 +32,10 @@ public final class FloatingHUDViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] level in
                 self?.audioLevel = level
+                self?.sampleBuffer.append(level)
+                if (self?.sampleBuffer.count ?? 0) > 48 {
+                    self?.sampleBuffer.removeFirst()
+                }
             }
     }
 
@@ -117,31 +123,33 @@ private struct WaveformRenderContext {
     let level: Float
     let isRecording: Bool
     let reduceMotion: Bool
+    let sampleBuffer: [Float]
+    let waveformStyle: WaveformStyle
 }
 
 // MARK: - HUD View
 
 /// Floating waveform HUD with two visual states:
 /// - Idle (80×14): flat line / breathing oscillation in cool slate
-/// - Recording (200×56): animated dual-sine oscilloscope with amber recording dot
+/// - Recording (200×56): animated waveform (style selectable by user) with amber recording dot
 ///
-/// Hosted inside FloatingHUDWindow. `PulsingModifier` has been removed —
-/// the waveform itself signals recording state.
+/// Hosted inside FloatingHUDWindow.
 public struct WaveformHUDView: View {
 
     @ObservedObject var viewModel: FloatingHUDViewModel
+    private let settingsManager: SettingsManager
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Halide sizing
     private let idleSize = CGSize(width: 80, height: 14)
-    // recordingSize height is always 80 pt while recording (caption area is always present —
-    // either partial transcript or "Listening…" placeholder).
+    // recordingSize height is always 80 pt while recording (caption area is always present).
     private var recordingSize: CGSize {
         CGSize(width: 200, height: 80)
     }
 
-    public init(viewModel: FloatingHUDViewModel) {
+    public init(viewModel: FloatingHUDViewModel, settingsManager: SettingsManager) {
         self.viewModel = viewModel
+        self.settingsManager = settingsManager
     }
 
     public var body: some View {
@@ -165,13 +173,17 @@ public struct WaveformHUDView: View {
                 let isRecording = viewModel.isRecording
                 let level = viewModel.audioLevel
                 let noMotion = reduceMotion
+                let buffer = viewModel.sampleBuffer
+                let style = settingsManager.waveformStyle
                 TimelineView(.animation) { timeline in
                     Canvas { ctx, canvasSize in
                         let renderCtx = WaveformRenderContext(
                             phase: timeline.date.timeIntervalSinceReferenceDate,
                             level: level,
                             isRecording: isRecording,
-                            reduceMotion: noMotion
+                            reduceMotion: noMotion,
+                            sampleBuffer: buffer,
+                            waveformStyle: style
                         )
                         drawWaveform(ctx: ctx, size: canvasSize, renderCtx: renderCtx)
                     }
@@ -182,7 +194,7 @@ public struct WaveformHUDView: View {
 
             // Caption strip — slides in below the waveform row when recording is active.
             // Shows sliding window of last 7 words from partial transcript with a left-fade
-            // mask to indicate earlier words have scrolled off. Falls back to "Listening…".
+            // mask to indicate earlier words have scrolled off.
             if viewModel.isRecording {
                 Group {
                     if viewModel.showCaptionStrip {
@@ -211,10 +223,6 @@ public struct WaveformHUDView: View {
                                     endPoint: .trailing
                                 )
                             }
-                    } else {
-                        Text("Listening\u{2026}")
-                            .font(HalideTokens.fontCaption)
-                            .foregroundColor(HalideTokens.textTertiary)
                     }
                 }
                 .lineLimit(1)
@@ -264,51 +272,163 @@ public struct WaveformHUDView: View {
     private func drawWaveform(ctx: GraphicsContext, size: CGSize, renderCtx: WaveformRenderContext) {
         let midY = size.height / 2
         let maxAmplitude = size.height / 2 - 4
-
         if renderCtx.isRecording {
-            drawRecordingWaveform(ctx: ctx, size: size, midY: midY, maxAmplitude: maxAmplitude, renderCtx: renderCtx)
+            switch renderCtx.waveformStyle {
+            case .pulseRibbon:
+                drawPulseRibbon(ctx: ctx, size: size, midY: midY, maxAmplitude: maxAmplitude, renderCtx: renderCtx)
+            case .rodArray:
+                drawRodArray(ctx: ctx, size: size, midY: midY, maxAmplitude: maxAmplitude, renderCtx: renderCtx)
+            case .liquidMercury:
+                drawLiquidMercury(ctx: ctx, size: size, midY: midY, maxAmplitude: maxAmplitude, renderCtx: renderCtx)
+            }
         } else {
             drawIdleLine(ctx: ctx, size: size, midY: midY, renderCtx: renderCtx)
         }
     }
 
-    private func drawRecordingWaveform(
+    // MARK: - Pulse Ribbon
+
+    private func drawPulseRibbon(
         ctx: GraphicsContext,
         size: CGSize,
         midY: CGFloat,
         maxAmplitude: CGFloat,
         renderCtx: WaveformRenderContext
     ) {
-        let curved = CGFloat(pow(Double(max(renderCtx.level, 0)), 0.50))
-        let amplitude = curved * maxAmplitude
-        let phase = renderCtx.phase
-        var path = Path()
-        let steps = Int(size.width)
+        let samples = renderCtx.sampleBuffer
+        guard samples.count >= 2 else { return }
+        let count = samples.count
+        let stepX = size.width / CGFloat(count - 1)
 
-        for step in 0...steps {
-            let fraction = Double(step) / Double(steps)
-            let noise = sin(fraction * 47.3 + phase * 3.7) * 0.15
-            let yPos = midY - amplitude * CGFloat(
-                sin(fraction * .pi * 5 + phase * 4.8) * 0.55 +
-                sin(fraction * .pi * 9 + phase * 2.9) * 0.28 +
-                sin(fraction * .pi * 13 + phase * 7.1) * 0.12 +
-                noise
-            )
-            if step == 0 {
-                path.move(to: CGPoint(x: CGFloat(step), y: yPos))
-            } else {
-                path.addLine(to: CGPoint(x: CGFloat(step), y: yPos))
-            }
+        // Build upper curve points
+        var upperPoints: [CGPoint] = []
+        let breathAmp: CGFloat = renderCtx.reduceMotion
+            ? 1.0
+            : max(1.0, CGFloat(pow(Double(max(renderCtx.level, 0.01)), 0.5)) * maxAmplitude)
+        for i in 0..<count {
+            let x = CGFloat(i) * stepX
+            let amp = CGFloat(samples[i]) * maxAmplitude
+            let effective = max(amp, breathAmp * CGFloat(sin(renderCtx.phase * 1.2 + Double(i) * 0.15) * 0.08 + 0.08))
+            upperPoints.append(CGPoint(x: x, y: midY - effective))
         }
 
-        // Brightness: 75% → 100% as level rises from 0 → 1
-        let opacity = 0.75 + Double(renderCtx.level) * 0.25
-        ctx.stroke(
+        // Smooth with quadratic bezier through midpoints
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: midY))
+        path.addLine(to: upperPoints[0])
+        for i in 0..<(upperPoints.count - 1) {
+            let mid = CGPoint(
+                x: (upperPoints[i].x + upperPoints[i + 1].x) / 2,
+                y: (upperPoints[i].y + upperPoints[i + 1].y) / 2
+            )
+            path.addQuadCurve(to: mid, control: upperPoints[i])
+        }
+        path.addLine(to: upperPoints[upperPoints.count - 1])
+        path.addLine(to: CGPoint(x: size.width, y: midY))
+
+        // Mirror lower half
+        for i in stride(from: upperPoints.count - 1, through: 0, by: -1) {
+            let p = upperPoints[i]
+            path.addLine(to: CGPoint(x: p.x, y: midY + (midY - p.y)))
+        }
+        path.closeSubpath()
+
+        // Vertical gradient fill
+        let grad = Gradient(stops: [
+            .init(color: Color.accentColor.opacity(0.9), location: 0.0),
+            .init(color: Color.accentColor.opacity(0.35), location: 1.0)
+        ])
+        ctx.fill(
             path,
-            with: .color(HalideTokens.textPrimary.opacity(opacity)),
-            style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
+            with: .linearGradient(
+                grad,
+                startPoint: CGPoint(x: size.width / 2, y: midY - maxAmplitude),
+                endPoint: CGPoint(x: size.width / 2, y: midY + maxAmplitude)
+            )
         )
     }
+
+    // MARK: - Rod Array
+
+    private func drawRodArray(
+        ctx: GraphicsContext,
+        size: CGSize,
+        midY: CGFloat,
+        maxAmplitude: CGFloat,
+        renderCtx: WaveformRenderContext
+    ) {
+        let barCount = 32
+        let barWidth: CGFloat = 2.5
+        let gap: CGFloat = 3.0
+        let totalW = CGFloat(barCount) * (barWidth + gap) - gap
+        let startX = (size.width - totalW) / 2
+        let phase = renderCtx.phase
+        let samples = renderCtx.sampleBuffer
+
+        for i in 0..<barCount {
+            let x = startX + CGFloat(i) * (barWidth + gap)
+            // Map bar index to sample buffer
+            let sampleIdx = Int(Double(i) / Double(barCount) * Double(samples.count))
+            let rawAmp = CGFloat(samples[min(sampleIdx, samples.count - 1)])
+            // Phase shimmer at low amplitude
+            let shimmer = CGFloat(sin(phase * 3.0 + Double(i) * 0.2) * 0.05)
+            let amp = max(rawAmp + shimmer, 0.04) * maxAmplitude
+            // Outer bars fade out
+            let edge = min(i, barCount - 1 - i)
+            let edgeFade: CGFloat = edge < 4 ? CGFloat(edge) / 4.0 : 1.0
+
+            let barRect = CGRect(x: x, y: midY - amp, width: barWidth, height: amp * 2)
+            let capsule = Path(roundedRect: barRect, cornerRadius: barWidth / 2)
+            ctx.fill(capsule, with: .color(Color.primary.opacity(0.85 * edgeFade)))
+        }
+    }
+
+    // MARK: - Liquid Mercury
+
+    private func drawLiquidMercury(
+        ctx: GraphicsContext,
+        size: CGSize,
+        midY: CGFloat,
+        maxAmplitude: CGFloat,
+        renderCtx: WaveformRenderContext
+    ) {
+        let barCount = 28
+        let barWidth: CGFloat = 5.0
+        let gap: CGFloat = 3.0
+        let totalW = CGFloat(barCount) * (barWidth + gap) - gap
+        let startX = (size.width - totalW) / 2
+        let samples = renderCtx.sampleBuffer
+        let hueShift = Angle(degrees: sin(renderCtx.phase * 0.8) * 5.0)
+
+        // Build the bar image using ImageRenderer (requires macOS 13+; project targets macOS 14).
+        let renderer = ImageRenderer(content:
+            Canvas { innerCtx, innerSize in
+                for i in 0..<barCount {
+                    let x = startX + CGFloat(i) * (barWidth + gap)
+                    let sampleIdx = Int(Double(i) / Double(barCount) * Double(samples.count))
+                    let rawAmp = CGFloat(samples[min(sampleIdx, samples.count - 1)])
+                    let amp = max(rawAmp, 0.06) * maxAmplitude
+                    let barRect = CGRect(
+                        x: x,
+                        y: innerSize.height / 2 - amp,
+                        width: barWidth,
+                        height: amp * 2
+                    )
+                    innerCtx.fill(Path(roundedRect: barRect, cornerRadius: 3), with: .color(Color.accentColor))
+                }
+            }
+            .frame(width: size.width, height: size.height)
+            .blur(radius: 8)
+            .contrast(15)
+            .hueRotation(hueShift)
+        )
+        renderer.scale = 2.0
+        if let nsImage = renderer.nsImage {
+            ctx.draw(Image(nsImage: nsImage), in: CGRect(origin: .zero, size: size))
+        }
+    }
+
+    // MARK: - Idle Line
 
     private func drawIdleLine(ctx: GraphicsContext, size: CGSize, midY: CGFloat, renderCtx: WaveformRenderContext) {
         // Breathing: ~8-second cycle, 2 pt peak-to-trough, disabled when reduceMotion.

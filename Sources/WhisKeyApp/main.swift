@@ -559,7 +559,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
-        let hud = FloatingHUDWindowController(pipeline: pipeline)
+        let hud = FloatingHUDWindowController(pipeline: pipeline, settingsManager: settingsManager)
         hudController = hud
         hud.setVisible(settingsManager.hudEnabled)
         voiceCommandHUD = VoiceCommandHUDController()
