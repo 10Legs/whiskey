@@ -114,6 +114,23 @@ private struct GeneralTab: View {
                         Text("How long to show the caption after your text is injected.")
                             .font(.caption)
                             .foregroundColor(HalideTokens.textSecondary)
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Waveform style")
+                                .font(.caption)
+                                .foregroundColor(HalideTokens.textSecondary)
+                            Picker("Waveform Style", selection: Binding(
+                                get: { settings.waveformStyle },
+                                set: { settings.waveformStyle = $0 }
+                            )) {
+                                ForEach(WaveformStyle.allCases, id: \.self) { style in
+                                    Text(style.displayName).tag(style)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
                     }
                 }
 

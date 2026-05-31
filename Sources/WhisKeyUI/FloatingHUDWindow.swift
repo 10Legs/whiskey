@@ -175,6 +175,7 @@ public final class FloatingHUDWindow: NSPanel {
     // MARK: - Properties
 
     private let hudViewModel: FloatingHUDViewModel
+    private let settingsManager: SettingsManager
     private var hostingView: NSHostingView<WaveformHUDView>?
     private var moveObserver: NSObjectProtocol?
 
@@ -194,8 +195,9 @@ public final class FloatingHUDWindow: NSPanel {
 
     // MARK: - Init
 
-    public init(viewModel: FloatingHUDViewModel) {
+    public init(viewModel: FloatingHUDViewModel, settingsManager: SettingsManager) {
         self.hudViewModel = viewModel
+        self.settingsManager = settingsManager
 
         super.init(
             contentRect: .zero,
@@ -226,7 +228,7 @@ public final class FloatingHUDWindow: NSPanel {
     }
 
     private func installContentView() {
-        let view = WaveformHUDView(viewModel: hudViewModel)
+        let view = WaveformHUDView(viewModel: hudViewModel, settingsManager: settingsManager)
         let hosting = NSHostingView(rootView: view)
         hosting.translatesAutoresizingMaskIntoConstraints = false
         contentView = hosting
@@ -326,7 +328,7 @@ public final class FloatingHUDWindow: NSPanel {
 ///     //    private var hudController: FloatingHUDWindowController?
 ///
 ///     // 2. After `pipeline.onError` and `pipeline.onTranscriptionReady` are wired:
-///     let hud = FloatingHUDWindowController(pipeline: pipeline)
+///     let hud = FloatingHUDWindowController(pipeline: pipeline, settingsManager: settingsManager)
 ///     hudController = hud
 ///
 ///     // 3. Wrap the existing hotkey closures:
@@ -352,10 +354,11 @@ public final class FloatingHUDWindowController {
     private let viewModel = FloatingHUDViewModel()
     private let window: FloatingHUDWindow
 
-    /// Pass the TranscriptionPipeline. The controller subscribes to its
-    /// audioLevelPublisher (which delegates to AudioCaptureService internally).
-    public init(pipeline: TranscriptionPipeline) {
-        window = FloatingHUDWindow(viewModel: viewModel)
+    /// Pass the TranscriptionPipeline and SettingsManager. The controller subscribes to the
+    /// pipeline's audioLevelPublisher. SettingsManager is forwarded to WaveformHUDView for
+    /// live waveform-style reads.
+    public init(pipeline: TranscriptionPipeline, settingsManager: SettingsManager) {
+        window = FloatingHUDWindow(viewModel: viewModel, settingsManager: settingsManager)
         viewModel.subscribe(toPublisher: pipeline.audioLevelPublisher)
     }
 
