@@ -31,8 +31,9 @@ public final class FloatingHUDViewModel: ObservableObject {
         levelCancellable = publisher
             .receive(on: RunLoop.main)
             .sink { [weak self] level in
-                self?.audioLevel = level
-                self?.sampleBuffer.append(level)
+                let boosted = Float(pow(Double(level), 0.4))  // expand low values
+                self?.audioLevel = boosted
+                self?.sampleBuffer.append(boosted)
                 if (self?.sampleBuffer.count ?? 0) > 48 {
                     self?.sampleBuffer.removeFirst()
                 }
