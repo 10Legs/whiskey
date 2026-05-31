@@ -747,7 +747,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         switch pipelineError {
-        case .alreadyRecording, .notRecording, .previewUnavailable:
+        case .alreadyRecording, .notRecording:
             break
         case .captureError(let underlying):
             AppNotifications.post(.captureUnavailable(underlying.localizedDescription))
