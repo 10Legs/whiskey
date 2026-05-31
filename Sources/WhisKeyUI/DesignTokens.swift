@@ -74,6 +74,11 @@ enum HalideTokens {
     /// Destructive action color — always system red.
     static let accentDestructive = Color(nsColor: .systemRed)
 
+    // MARK: - Typography
+
+    /// Caption text — 11pt rounded regular. Used for HUD caption strip and status labels.
+    static let fontCaption = Font.system(size: 11, weight: .regular, design: .rounded)
+
     // MARK: - Corner radius scale
 
     static let radiusSmall: CGFloat = 6

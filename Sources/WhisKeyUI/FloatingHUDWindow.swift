@@ -185,10 +185,9 @@ public final class FloatingHUDWindow: NSPanel {
     // Idle panel footprint used for default positioning.
     private static let idlePanelWidth: CGFloat  = 80
     private static let idlePanelHeight: CGFloat  = 14
-    // Recording size — SwiftUI expands in-place; the panel frame uses the larger value
-    // only for content sizing. The origin stays fixed.
+    // Recording size — SwiftUI expands in-place; 80 pt height accommodates caption strip.
     private static let recordingPanelWidth: CGFloat  = 200
-    private static let recordingPanelHeight: CGFloat = 56
+    private static let recordingPanelHeight: CGFloat = 80
 
     // Bottom-right margin from screen edge, in points.
     private static let screenMargin: CGFloat = 20
@@ -370,27 +369,20 @@ public final class FloatingHUDWindowController {
         }
     }
 
-    public func recordingDidStart() {
-        viewModel.notifyRecordingStarted()
+    public func recordingDidStart() { viewModel.notifyRecordingStarted() }
+    public func recordingDidStop() { viewModel.notifyRecordingStopped() }
+
+    /// Forward partial transcripts to the caption strip.
+    public func subscribeToPartials(_ publisher: AnyPublisher<String, Never>) {
+        viewModel.subscribeToPartials(publisher)
     }
 
-    public func recordingDidStop() {
-        viewModel.notifyRecordingStopped()
-    }
-}
+    /// Immediately clear the caption strip, cancelling any active linger timer.
+    /// Called directly to reset state (e.g. before a new recording starts).
+    public func clearPreview() { viewModel.clearPreview() }
 
-// MARK: - VoiceCommand displayLabel
-
-extension VoiceCommand {
-    var displayLabel: String {
-        switch self {
-        case .insertNewParagraph:  return "New Paragraph"
-        case .insertNewLine:       return "New Line"
-        case .deleteLastUtterance: return "Scratch That"
-        case .uppercaseLastWord:   return "All Caps"
-        case .insertPeriod:        return "Period"
-        case .insertComma:         return "Comma"
-        case .insertQuestionMark:  return "Question Mark"
-        }
+    /// Apply user-configured linger behaviour after the final transcript is injected.
+    public func handlePreviewClear(mode: PreviewLingerMode) {
+        viewModel.handlePreviewClear(mode: mode)
     }
 }

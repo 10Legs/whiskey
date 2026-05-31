@@ -4,6 +4,7 @@ import AppKit
 import Combine
 import Foundation
 import os.log
+import Speech
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "TranscriptionPipeline")
 
@@ -43,6 +44,11 @@ public enum PipelineError: Error, LocalizedError {
     /// LLM cleanup failed but raw transcript was injected. Informational only.
     case llmCleanupFailed(Error)
 
+    /// On-device speech preview was unavailable for this session (permission not
+    /// granted, recognizer unavailable, or on-device SR unsupported). Recording and
+    /// Whisper injection are unaffected. Severity: `.info` — never surface to user.
+    case previewUnavailable(String)
+
     public var errorDescription: String? {
         switch self {
         case .alreadyRecording:
@@ -61,6 +67,8 @@ public enum PipelineError: Error, LocalizedError {
             return "Hotkey unavailable: \(reason)"
         case .llmCleanupFailed(let err):
             return "LLM cleanup failed: \(err.localizedDescription) \u{2014} raw transcript was used."
+        case .previewUnavailable(let reason):
+            return "Live preview unavailable: \(reason)"
         }
     }
 
@@ -76,7 +84,7 @@ public enum PipelineError: Error, LocalizedError {
 
     public var severity: Severity {
         switch self {
-        case .alreadyRecording, .notRecording:
+        case .alreadyRecording, .notRecording, .previewUnavailable:
             return .info
         case .injectionSkipped, .llmCleanupFailed:
             return .warning
@@ -93,7 +101,7 @@ public enum PipelineError: Error, LocalizedError {
         case .microphonePermissionDenied, .hotkeyUnavailable, .injectionSkipped:
             return true
         case .captureError, .transcriptionError, .llmCleanupFailed,
-             .alreadyRecording, .notRecording:
+             .alreadyRecording, .notRecording, .previewUnavailable:
             return false
         }
     }
@@ -182,6 +190,22 @@ public actor TranscriptionPipeline {
     public nonisolated var audioLevelPublisher: AnyPublisher<Float, Never> {
         audioCapture.audioLevelPublisher.eraseToAnyPublisher()
     }
+
+    // MARK: - Streaming Partial Transcripts
+
+    /// Emits partial transcription strings from SFSpeechRecognizer while the user speaks.
+    /// Stops emitting when hotkey is released and Whisper batch processing begins.
+    public nonisolated let partialTranscriptPublisher = PassthroughSubject<String, Never>()
+
+    /// Called after the final transcript has been injected (or dispatched) so the UI
+    /// can clear the live-preview caption strip. Hardcoded to `.untilInjected` for P1.
+    public nonisolated(unsafe) var onPreviewClear: (@Sendable () -> Void)?
+
+    // MARK: - Speech Recognition (Streaming Partials)
+
+    private let speechRecognition = SpeechRecognitionService()
+    /// Cancellable that forwards SpeechRecognitionService partials → partialTranscriptPublisher.
+    private var srCancellable: AnyCancellable?
 
     // MARK: - State
 
@@ -327,6 +351,18 @@ public actor TranscriptionPipeline {
             try audioCapture.startCapture()
             isRecording = true
             logger.info("Recording started.")
+
+            // Start streaming SR and forward partials to the pipeline's publisher.
+            let bufPub = audioCapture.audioBufferPublisher.eraseToAnyPublisher()
+            let srService = speechRecognition
+            let partialPub = partialTranscriptPublisher
+            await MainActor.run {
+                srService.start(audioBufferPublisher: bufPub)
+            }
+            srCancellable = await MainActor.run {
+                srService.partialTranscriptPublisher
+                    .sink { partial in partialPub.send(partial) }
+            }
         } catch {
             logger.error("Audio capture failed to start: \(error.localizedDescription)")
             flog.log(.error, "Pipeline: capture failed to start: \(error.localizedDescription)")
@@ -370,6 +406,13 @@ public actor TranscriptionPipeline {
         }
 
         isRecording = false
+
+        // Stop streaming SR before Whisper batch processing begins.
+        let srService = speechRecognition
+        await MainActor.run { srService.stop() }
+        srCancellable?.cancel()
+        srCancellable = nil
+
         let rawSamples = audioCapture.stopCapture()
         let flog = FileLogger.shared
         flog.log(.info, "Recording stopped. Captured \(rawSamples.count) samples.")
@@ -445,6 +488,9 @@ public actor TranscriptionPipeline {
         }
 
         await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
+
+        // P1: Clear the live-preview caption strip after the final transcript is dispatched.
+        onPreviewClear?()
 
         // Increment use-count after confirmed dispatch. Fire-and-forget; non-critical.
         if let snippet = expandedSnippet {
@@ -544,6 +590,7 @@ public actor TranscriptionPipeline {
             flog.log(.error, "Whisper error: \(error.localizedDescription)")
             logger.error("Transcription error: \(error.localizedDescription)")
             await MainActor.run { onError?(PipelineError.transcriptionError(error)) }
+            onPreviewClear?()
             return nil
         }
     }

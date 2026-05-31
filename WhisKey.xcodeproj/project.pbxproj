@@ -794,10 +794,12 @@
 /* Begin XCSwiftPackageProductDependency section */
 		463A8D7E0E5FD4D491BE0544 /* CWhisper */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 120603D423D8CBEB51FA3878;
 			productName = CWhisper;
 		};
 		49EC41A9569F4E512159D347 /* CLlama */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 120603D423D8CBEB51FA3878;
 			productName = CLlama;
 		};
 /* End XCSwiftPackageProductDependency section */

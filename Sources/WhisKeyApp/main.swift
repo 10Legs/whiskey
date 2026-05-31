@@ -553,6 +553,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         voiceCommandHUD = VoiceCommandHUDController()
         pipelineState.subscribe(toAudioLevel: pipeline.audioLevelPublisher)
 
+        // P1: Subscribe HUD caption strip to streaming partial transcripts.
+        hud.subscribeToPartials(pipeline.partialTranscriptPublisher.eraseToAnyPublisher())
+
+        // P2: Clear the caption strip after injection, honouring the user's linger setting.
+        // The closure reads settingsManager.previewLingerMode live at call time, so
+        // no observation task is needed — changes take effect on the next transcription.
+        pipeline.onPreviewClear = { [weak hud, weak settingsManager] in
+            Task { @MainActor in
+                let mode = settingsManager?.previewLingerMode ?? .linger(seconds: 2)
+                hud?.handlePreviewClear(mode: mode)
+            }
+        }
+
         // Wire hotkey to pipeline + state model.
         hotkey.onStartRecording = { [weak self, weak hud] in
             flog.log(.info, "Hotkey down — recording started.")
@@ -720,7 +733,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         switch pipelineError {
-        case .alreadyRecording, .notRecording:
+        case .alreadyRecording, .notRecording, .previewUnavailable:
             break
         case .captureError(let underlying):
             AppNotifications.post(.captureUnavailable(underlying.localizedDescription))
