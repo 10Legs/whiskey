@@ -213,13 +213,19 @@ public actor TranscriptionPipeline {
 
     // MARK: - Callbacks (lock-backed for nonisolated access)
 
+    /// Value type holding all callback closures protected by `_callbackLock`.
+    /// Using a struct avoids the SwiftLint `large_tuple` violation (3+ members).
+    private struct CallbackState {
+        var onReady: (@Sendable (TranscriptionResult) -> Void)?
+        var onError: (@Sendable (Error) -> Void)?
+        var onHistoryEntry: (@Sendable (HistoryEntry) -> Void)?
+    }
+
     /// Lock protecting all callback closures so they can be read/written
     /// from any concurrency domain without `nonisolated(unsafe)`.
-    private let _callbackLock = OSAllocatedUnfairLock<
-        (onReady: (@Sendable (TranscriptionResult) -> Void)?,
-         onError: (@Sendable (Error) -> Void)?,
-         onHistoryEntry: (@Sendable (HistoryEntry) -> Void)?)
-    >(initialState: (onReady: nil, onError: nil, onHistoryEntry: nil))
+    private let _callbackLock = OSAllocatedUnfairLock<CallbackState>(
+        initialState: CallbackState()
+    )
 
     /// Called on the main thread when a transcription result is ready.
     /// Backed by a lock so it can be assigned from any context without data races.

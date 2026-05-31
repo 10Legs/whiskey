@@ -27,7 +27,9 @@ final class PasteboardInjector: @unchecked Sendable {
         // Guard: abort if focus has moved to a different app since dictation began.
         let currentBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         if currentBundleID != expectedBundleID {
-            logger.warning("PasteboardInjector: frontmost app changed from \(expectedBundleID ?? "<nil>") to \(currentBundleID ?? "<nil>") — aborting Cmd+V to prevent misfire")
+            let from = expectedBundleID ?? "<nil>"
+            let to = currentBundleID ?? "<nil>"
+            logger.warning("PasteboardInjector: frontmost app changed from \(from) to \(to) — aborting Cmd+V")
             pb.clearContents()
             if let prior = priorString {
                 pb.setString(prior, forType: .string)
