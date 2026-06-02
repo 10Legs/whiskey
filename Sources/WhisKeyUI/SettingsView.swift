@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import ServiceManagement
 import SwiftUI
 import WhisKeyCore
 
@@ -132,6 +133,28 @@ private struct GeneralTab: View {
                             .pickerStyle(.segmented)
                         }
                     }
+
+                    Divider()
+
+                    Toggle("Launch at Login", isOn: Binding(
+                        get: { settings.launchAtLogin },
+                        set: {
+                            settings.launchAtLogin = $0
+                            // Sync with SMAppService immediately
+                            do {
+                                if $0 { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+                            } catch {
+                                // Log silently — non-fatal
+                            }
+                        }
+                    ))
+                    .tint(HalideTokens.accentAmber)
+                    .foregroundColor(HalideTokens.textPrimary)
+                    .accessibilityLabel("Launch at Login")
+                    .accessibilityHint("When on, WhisKey starts automatically when you log in.")
+                    Text("Start WhisKey automatically when you log in.")
+                        .font(.caption)
+                        .foregroundColor(HalideTokens.textSecondary)
                 }
 
                 HalideSection(title: "Output mode") {

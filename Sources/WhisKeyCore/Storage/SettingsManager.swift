@@ -1,5 +1,5 @@
 import Foundation
-import GRDBEncrypted
+import GRDB
 import os.log
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "SettingsManager")
@@ -211,6 +211,12 @@ public final class SettingsManager: @unchecked Sendable {
             return max(200.0, min(500.0, raw))
         }
         set { set(.disambiguationWindowMs, value: max(200.0, min(500.0, newValue))) }
+    }
+
+    /// When `true`, the app registers itself as a login item via `SMAppService`. Default: `false`.
+    public var launchAtLogin: Bool {
+        get { get(.launchAtLogin, default: false) }
+        set { set(.launchAtLogin, value: newValue) }
     }
 
     /// Builds a `CleanupProfile` from current settings.

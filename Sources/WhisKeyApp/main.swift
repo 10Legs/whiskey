@@ -4,6 +4,7 @@
 import AppKit
 import Darwin
 import os.log
+import ServiceManagement
 import SwiftUI
 import WhisKeyCore
 import WhisKeyUI
@@ -94,6 +95,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentTintColor: NSColor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Flush log on abnormal exit
+        signal(SIGABRT) { _ in FileLogger.shared.log(.error, "[Crash] SIGABRT received"); exit(1) }
+        signal(SIGSEGV) { _ in FileLogger.shared.log(.error, "[Crash] SIGSEGV received"); exit(1) }
+        signal(SIGILL) { _ in FileLogger.shared.log(.error, "[Crash] SIGILL received"); exit(1) }
+        NSSetUncaughtExceptionHandler { exception in
+            FileLogger.shared.log(
+                .error,
+                "[Crash] Uncaught exception: \(exception.name.rawValue) — \(exception.reason ?? "no reason")"
+            )
+        }
+
         let alreadyRunning = NSRunningApplication.runningApplications(
             withBundleIdentifier: Bundle.main.bundleIdentifier ?? ""
         )
@@ -124,12 +136,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             checkPermissionsAndStart()
             checkModelPresence()
         }
+
+        // Sync SMAppService state with stored preference
+        syncLaunchAtLogin(settingsManager.launchAtLogin)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         networkMonitor.stopMonitoring()
         try? AppDatabase.shared.pool.close()
         egressObservationTask?.cancel()
+    }
+
+    // MARK: - Launch at Login
+
+    func syncLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            FileLogger.shared.log(.warn, "[LaunchAtLogin] SMAppService error: \(error)")
+        }
     }
 
     // MARK: - Onboarding

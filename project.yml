@@ -19,6 +19,7 @@ targets:
       - path: Sources/WhisKeyApp
         excludes:
           - Info.plist
+      - path: Sources/WhisKeyApp/PrivacyInfo.xcprivacy
       - path: Sources/WhisKeyCore
     dependencies:
       - package: WhisKeyLocalSPM
@@ -44,7 +45,8 @@ targets:
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         SWIFT_VERSION: "5.0"
         ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: VMYU8579BG
         PRODUCT_NAME: WhisKey
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
@@ -57,9 +59,13 @@ targets:
         Debug:
           SWIFT_OPTIMIZATION_LEVEL: "-Onone"
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG"
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: VMYU8579BG
         Release:
           SWIFT_OPTIMIZATION_LEVEL: "-O"
           SWIFT_COMPILATION_MODE: "wholemodule"
+          CODE_SIGN_IDENTITY: "Apple Development"
+          DEVELOPMENT_TEAM: VMYU8579BG
     preBuildScripts:
       - name: "Compile ggml-metal.metal → default.metallib"
         script: |
