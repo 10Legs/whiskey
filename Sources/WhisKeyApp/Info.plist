@@ -26,5 +26,7 @@
     <string>WhisKey uses Apple Events to detect the frontmost application context.</string>
     <key>NSAccessibilityUsageDescription</key>
     <string>WhisKey uses accessibility features to inject transcribed text into the active text field.</string>
+    <key>NSInputMonitoringUsageDescription</key>
+    <string>WhisKey monitors keyboard input to detect the push-to-talk hotkey.</string>
 </dict>
 </plist>

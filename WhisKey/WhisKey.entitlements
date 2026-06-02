@@ -14,7 +14,7 @@
          kSecAttrAccessGroup value in KeychainKeyStore. -->
     <key>keychain-access-groups</key>
     <array>
-        <string>$(AppIdentifierPrefix)com.whiskey.app</string>
+        <string>$(AppIdentifierPrefix)com.rdemeritt.whiskey</string>
     </array>
 </dict>
 </plist>

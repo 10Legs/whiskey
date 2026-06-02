@@ -25,6 +25,7 @@ Resources/Models/*.mlmodelc/
 
 # App bundle (built artifact — use Scripts/bundle-app.sh)
 WhisKey.app/
+*.app
 
 # macOS
 .Spotlight-V100
