@@ -1,5 +1,5 @@
 import Foundation
-import GRDBEncrypted
+import GRDB
 import os.log
 
 private let logger = Logger(subsystem: "com.whiskey.app", category: "SettingsManager")

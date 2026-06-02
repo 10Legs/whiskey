@@ -13,53 +13,34 @@ let package = Package(
         .library(name: "CLlama",   targets: ["CLlama"]),
     ],
     dependencies: [
-        // GRDB.swift remote dependency removed in Sprint 1.1.
-        // GRDB source is now vendored in Vendor/GRDB/ and built against SQLCipher
-        // via the SQLCipherLib system library target. This gives us full-file
-        // at-rest encryption with a Keychain-derived 32-byte key.
-        //
-        // Developer prerequisite: brew install sqlcipher
+        // GRDB.swift source is vendored in Vendor/GRDB/ and built against the
+        // system SQLite bundled with macOS. No external dependencies required.
     ],
     targets: [
 
-        // MARK: - SQLCipher system library (Homebrew)
-        // Module name `SQLCipher` matches the import in GRDB's Export.swift
-        // when compiled with `-D GRDBCIPHER`.
-        // Requires: brew install sqlcipher  (installs to /opt/homebrew/opt/sqlcipher)
-        //
-        // pkgConfig is set to "sqlcipher" so SPM auto-discovers the lib path
-        // from /opt/homebrew/opt/sqlcipher/lib/pkgconfig/sqlcipher.pc.
+        // MARK: - CSQLite — system SQLite bundled with macOS
+        // Wraps /usr/lib/libsqlite3.dylib as the `CSQLite` module that
+        // GRDB's Export.swift imports under the SWIFT_PACKAGE branch.
         .systemLibrary(
-            name: "SQLCipher",
-            path: "SQLCipherLib",
-            pkgConfig: "sqlcipher",
-            providers: [
-                .brew(["sqlcipher"])
-            ]
+            name: "CSQLite",
+            path: "CSQLiteLib"
         ),
 
-        // MARK: - GRDBEncrypted — GRDB 6.29.3 vendored + compiled against SQLCipher
+        // MARK: - GRDB — GRDB 6.29.3 vendored, plain SQLite (system)
         // Source extracted from https://github.com/groue/GRDB.swift tag v6.29.3.
-        // GRDBCIPHER  → Export.swift imports SQLCipher instead of CSQLite
-        // SQLITE_HAS_CODEC → enables Database.usePassphrase(_:) API
-        // SWIFT_PACKAGE → satisfies GRDB's own package-build guard
+        // SWIFT_PACKAGE → satisfies GRDB's own package-build guard.
+        // SQLITE_ENABLE_FTS5 → enable full-text search.
         .target(
-            name: "GRDBEncrypted",
-            dependencies: ["SQLCipher"],
+            name: "GRDB",
+            dependencies: ["CSQLite"],
             path: "Vendor/GRDB",
             exclude: [
                 "Documentation.docc",
                 "PrivacyInfo.xcprivacy",
             ],
             swiftSettings: [
-                .define("GRDBCIPHER"),
-                .define("SQLITE_HAS_CODEC"),
                 .define("SWIFT_PACKAGE"),
                 .define("SQLITE_ENABLE_FTS5"),
-            ],
-            linkerSettings: [
-                .linkedLibrary("sqlcipher"),
-                .unsafeFlags(["-L/opt/homebrew/opt/sqlcipher/lib"]),
             ]
         ),
 
@@ -175,12 +156,10 @@ let package = Package(
             dependencies: [
                 "CWhisper",
                 "CLlama",
-                "GRDBEncrypted",
+                "GRDB",
             ],
             path: "Sources/WhisKeyCore",
             swiftSettings: [
-                .define("GRDBCIPHER"),
-                .define("SQLITE_HAS_CODEC"),
                 .unsafeFlags(["-strict-concurrency=complete"]),
             ]
         ),
@@ -218,8 +197,6 @@ let package = Package(
             // Testing.framework lives under the Developer frameworks directory.
             // Xcode runners expose it automatically; CLT requires an explicit search path.
             swiftSettings: [
-                .define("GRDBCIPHER"),
-                .define("SQLITE_HAS_CODEC"),
                 .unsafeFlags([
                     "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
                 ], .when(platforms: [.macOS])),

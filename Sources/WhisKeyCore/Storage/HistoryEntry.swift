@@ -1,5 +1,5 @@
 import Foundation
-import GRDBEncrypted
+import GRDB
 
 /// A persisted transcription record.
 public struct HistoryEntry: Codable, Sendable, Identifiable {
