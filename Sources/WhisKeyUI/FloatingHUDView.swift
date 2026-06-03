@@ -154,13 +154,7 @@ public struct WaveformHUDView: View {
     }
 
     public var body: some View {
-        // Outer ZStack is always recordingSize (200×80 pt) and fully transparent.
-        // It acts as a fixed layout anchor so the SwiftUI spring expansion is
-        // symmetric about the window center — no NSWindow repositioning needed.
-        ZStack {
-            innerBody
-        }
-        .frame(width: recordingSize.width, height: recordingSize.height)
+        innerBody
     }
 
     @ViewBuilder

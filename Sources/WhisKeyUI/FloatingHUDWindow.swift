@@ -18,17 +18,19 @@ public final class FloatingHUDWindow: NSPanel {
     private let settingsManager: SettingsManager
     private var hostingView: NSHostingView<WaveformHUDView>?
     private var moveObserver: NSObjectProtocol?
+    private var idlePillCenter: CGPoint?
+    private var recordingCancellable: AnyCancellable?
 
     // UserDefaults keys for persisting HUD origin.
     private static let originXKey = "com.whiskey.hudOrigin.x"
     private static let originYKey = "com.whiskey.hudOrigin.y"
 
     // Idle panel footprint — matches WaveformHUDView.idleSize (48×8 pt true pill).
-    private static let idlePanelWidth: CGFloat  = 48
-    private static let idlePanelHeight: CGFloat  = 8
+    static let idlePanelWidth: CGFloat  = 48
+    static let idlePanelHeight: CGFloat  = 8
     // Recording size — SwiftUI expands in-place; 80 pt height accommodates caption strip.
-    private static let recordingPanelWidth: CGFloat  = 200
-    private static let recordingPanelHeight: CGFloat = 80
+    static let recordingPanelWidth: CGFloat  = 200
+    static let recordingPanelHeight: CGFloat = 80
 
     // Bottom-right margin from screen edge, in points.
     private static let screenMargin: CGFloat = 20
@@ -50,6 +52,7 @@ public final class FloatingHUDWindow: NSPanel {
         installContentView()
         restoreOrPositionBottomRight()
         installMoveObserver()
+        subscribeToRecordingState()
     }
 
     // MARK: - Configuration
@@ -75,6 +78,67 @@ public final class FloatingHUDWindow: NSPanel {
         self.hostingView = hosting
     }
 
+    // MARK: - Recording State Subscription
+
+    private func subscribeToRecordingState() {
+        recordingCancellable = hudViewModel.$isRecording
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isRecording in
+                guard let self else { return }
+                if isRecording {
+                    self.expandFromCenter()
+                } else {
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        try? await Task.sleep(for: .milliseconds(420))
+                        self.collapseToCenter()
+                    }
+                }
+            }
+    }
+
+    // MARK: - Expand / Collapse
+
+    private func expandFromCenter() {
+        let center = CGPoint(
+            x: frame.origin.x + Self.idlePanelWidth / 2,
+            y: frame.origin.y + Self.idlePanelHeight / 2
+        )
+        idlePillCenter = center
+        let expandedRect = centeredRecordingRect(around: center)
+        setFrame(expandedRect, display: true, animate: false)
+    }
+
+    private func collapseToCenter() {
+        guard let center = idlePillCenter else { return }
+        let idleRect = NSRect(
+            x: center.x - Self.idlePanelWidth / 2,
+            y: center.y - Self.idlePanelHeight / 2,
+            width: Self.idlePanelWidth,
+            height: Self.idlePanelHeight
+        )
+        setFrame(idleRect, display: true, animate: false)
+        idlePillCenter = nil
+    }
+
+    // MARK: - Geometry Helpers
+
+    private func centeredRecordingRect(around center: CGPoint) -> NSRect {
+        let expandedX = center.x - Self.recordingPanelWidth / 2
+        let expandedY = center.y - Self.recordingPanelHeight / 2
+        let screen = NSScreen.screens.first { $0.frame.contains(center) } ?? NSScreen.main
+        let usable = screen?.visibleFrame ?? NSRect(
+            x: expandedX, y: expandedY,
+            width: Self.recordingPanelWidth, height: Self.recordingPanelHeight
+        )
+        let clampedX = max(usable.minX, min(expandedX, usable.maxX - Self.recordingPanelWidth))
+        let clampedY = max(usable.minY, min(expandedY, usable.maxY - Self.recordingPanelHeight))
+        return NSRect(
+            x: clampedX, y: clampedY,
+            width: Self.recordingPanelWidth, height: Self.recordingPanelHeight
+        )
+    }
+
     // MARK: - Position Persistence
 
     /// Restore the saved HUD origin from UserDefaults, or fall back to the
@@ -87,55 +151,44 @@ public final class FloatingHUDWindow: NSPanel {
 
         if let originX = savedX, let originY = savedY {
             let origin = CGPoint(x: originX, y: originY)
-            // Use the recording size as the bounding box for the on-screen check.
             let panelRect = CGRect(
                 origin: origin,
-                size: CGSize(width: Self.recordingPanelWidth, height: Self.recordingPanelHeight)
+                size: CGSize(width: Self.idlePanelWidth, height: Self.idlePanelHeight)
             )
             let isOnScreen = NSScreen.screens.contains { screen in
                 screen.frame.intersects(panelRect)
             }
             if isOnScreen {
                 setFrameOrigin(origin)
-                setContentSize(CGSize(width: Self.recordingPanelWidth, height: Self.recordingPanelHeight))
+                setContentSize(CGSize(width: Self.idlePanelWidth, height: Self.idlePanelHeight))
                 return
             }
         }
         positionBottomRight()
     }
 
-    /// Place the panel in the bottom-right corner. The window is always
-    /// recordingPanelWidth × recordingPanelHeight (200×80 pt) — SwiftUI handles
-    /// the idle ↔ recording size transition via spring animation inside the fixed
-    /// window bounds. No NSWindow repositioning ever occurs during recording.
-    ///
-    /// The pill visual center (window center) lands at bottom-right with margin.
+    /// Place the panel in the bottom-right corner at idle size (48×8 pt).
+    /// The window is idle-sized at rest; expandFromCenter() grows it when recording begins.
     private func positionBottomRight() {
         guard let screen = NSScreen.main else { return }
         let visibleFrame = screen.visibleFrame
         let margin = Self.screenMargin
-        // Target: pill center sits margin pt from the bottom-right screen edge.
-        let pillCenterX = visibleFrame.maxX - Self.idlePanelWidth / 2 - margin
-        let pillCenterY = visibleFrame.minY + Self.idlePanelHeight / 2 + margin
-        // Window origin: place the recording-size window centered on pill center.
-        let origin = CGPoint(
-            x: pillCenterX - Self.recordingPanelWidth / 2,
-            y: pillCenterY - Self.recordingPanelHeight / 2
-        )
-        setFrameOrigin(origin)
-        setContentSize(CGSize(width: Self.recordingPanelWidth, height: Self.recordingPanelHeight))
+        let originX = visibleFrame.maxX - Self.idlePanelWidth - margin
+        let originY = visibleFrame.minY + margin
+        setFrameOrigin(CGPoint(x: originX, y: originY))
+        setContentSize(CGSize(width: Self.idlePanelWidth, height: Self.idlePanelHeight))
     }
 
     /// Observe `NSWindow.didMoveNotification` and persist the panel origin.
-    /// The window never moves during recording (SwiftUI spring handles in-place
-    /// expansion), so every move notification reflects a genuine user drag.
+    /// Only persist while idle — during recording the window is expanded and
+    /// the persisted origin should remain the idle pill position.
     private func installMoveObserver() {
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification,
             object: self,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
+            guard let self, !self.hudViewModel.isRecording else { return }
             let origin = self.frame.origin
             let defaults = UserDefaults.standard
             defaults.set(origin.x, forKey: Self.originXKey)
