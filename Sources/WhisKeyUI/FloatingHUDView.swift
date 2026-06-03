@@ -141,7 +141,7 @@ public struct WaveformHUDView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Halide sizing
-    private let idleSize = CGSize(width: 80, height: 14)
+    private let idleSize = CGSize(width: 48, height: 8)
     // recordingSize height is always 80 pt while recording (caption area is always present).
     private var recordingSize: CGSize {
         CGSize(width: 200, height: 80)
@@ -247,7 +247,8 @@ public struct WaveformHUDView: View {
                     .fill(.ultraThinMaterial)
             } else {
                 // Idle: fully opaque material — pulse is carried by border + shadow, not opacity.
-                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
+                // Corner radius = height/2 = 4 pt for a true pill shape.
+                RoundedRectangle(cornerRadius: 4)
                     .fill(.ultraThinMaterial)
             }
         }
@@ -256,12 +257,12 @@ public struct WaveformHUDView: View {
                 RoundedRectangle(cornerRadius: HalideTokens.radiusXL)
                     .stroke(HalideTokens.borderSubtle, lineWidth: 1)
             } else if reduceMotion {
-                // Idle + reduce motion: static mid-white border.
-                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
+                // Idle + reduce motion: static mid-white border. Radius = height/2 = 4 pt.
+                RoundedRectangle(cornerRadius: 4)
                     .stroke(Color.white.opacity(0.15), lineWidth: 1)
             } else {
                 // Idle + motion: animated border pulse between dim and bright white.
-                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
+                RoundedRectangle(cornerRadius: 4)
                     .stroke(Color.white.opacity(glowPhase ? 0.28 : 0.08), lineWidth: 1)
             }
         }
@@ -273,9 +274,10 @@ public struct WaveformHUDView: View {
             y: HalideTokens.hudShadowY
         )
         // Idle-only outer glow shadow — breathes with glowPhase.
+        // Radius reduced to 3 for proportional bloom on the smaller 48×8 pt pill.
         .shadow(
             color: Color.white.opacity(viewModel.isRecording || reduceMotion ? 0.0 : (glowPhase ? 0.12 : 0.0)),
-            radius: viewModel.isRecording || reduceMotion ? 1 : (glowPhase ? 5 : 1),
+            radius: viewModel.isRecording || reduceMotion ? 1 : (glowPhase ? 3 : 1),
             x: 0,
             y: 0
         )
