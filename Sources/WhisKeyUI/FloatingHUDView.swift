@@ -245,25 +245,39 @@ public struct WaveformHUDView: View {
             if viewModel.isRecording {
                 RoundedRectangle(cornerRadius: HalideTokens.radiusXL)
                     .fill(.ultraThinMaterial)
-            } else if reduceMotion {
-                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
-                    .fill(.ultraThinMaterial)
-                    .opacity(0.45)
             } else {
+                // Idle: fully opaque material — pulse is carried by border + shadow, not opacity.
                 RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
                     .fill(.ultraThinMaterial)
-                    .opacity(glowPhase ? 0.55 : 0.35)
             }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: viewModel.isRecording ? HalideTokens.radiusXL : HalideTokens.radiusLarge)
-                .stroke(HalideTokens.borderSubtle, lineWidth: 1)
+            if viewModel.isRecording {
+                RoundedRectangle(cornerRadius: HalideTokens.radiusXL)
+                    .stroke(HalideTokens.borderSubtle, lineWidth: 1)
+            } else if reduceMotion {
+                // Idle + reduce motion: static mid-white border.
+                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
+                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+            } else {
+                // Idle + motion: animated border pulse between dim and bright white.
+                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
+                    .stroke(Color.white.opacity(glowPhase ? 0.28 : 0.08), lineWidth: 1)
+            }
         }
+        // Base HUD shadow — always present.
         .shadow(
             color: HalideTokens.hudShadowColor.opacity(HalideTokens.hudShadowOpacity),
             radius: HalideTokens.hudShadowRadius,
             x: 0,
             y: HalideTokens.hudShadowY
+        )
+        // Idle-only outer glow shadow — breathes with glowPhase.
+        .shadow(
+            color: Color.white.opacity(viewModel.isRecording || reduceMotion ? 0.0 : (glowPhase ? 0.12 : 0.0)),
+            radius: viewModel.isRecording || reduceMotion ? 1 : (glowPhase ? 5 : 1),
+            x: 0,
+            y: 0
         )
         .accessibilityLabel(viewModel.isRecording ? "Recording in progress" : "WhisKey idle")
         .accessibilityHidden(false)
