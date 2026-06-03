@@ -92,11 +92,7 @@ public final class FloatingHUDWindow: NSPanel {
                 if isRecording {
                     self.expandFromCenter()
                 } else {
-                    Task { @MainActor [weak self] in
-                        guard let self else { return }
-                        try? await Task.sleep(for: .milliseconds(420))
-                        self.collapseToCenter()
-                    }
+                    self.collapseToCenter()
                 }
             }
     }
@@ -110,7 +106,11 @@ public final class FloatingHUDWindow: NSPanel {
         )
         idlePillCenter = center
         let expandedRect = centeredRecordingRect(around: center)
-        setFrame(expandedRect, display: true, animate: false)
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.35
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.animator().setFrame(expandedRect, display: true)
+        }
     }
 
     private func collapseToCenter() {
@@ -121,8 +121,13 @@ public final class FloatingHUDWindow: NSPanel {
             width: Self.idlePanelWidth,
             height: Self.idlePanelHeight
         )
-        setFrame(idleRect, display: true, animate: false)
-        idlePillCenter = nil
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.35
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.animator().setFrame(idleRect, display: true)
+        }, completionHandler: { [weak self] in
+            self?.idlePillCenter = nil
+        })
     }
 
     // MARK: - Geometry Helpers
