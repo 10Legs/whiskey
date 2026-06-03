@@ -3,166 +3,6 @@ import Combine
 import SwiftUI
 import WhisKeyCore
 
-// MARK: - Voice Command HUD (S5-UX-1)
-
-/// A borderless, non-activating panel that briefly shows the name of the last
-/// voice command executed. Auto-dismisses after 1.5 seconds. Positioned in the
-/// bottom-right corner above the waveform HUD.
-@MainActor
-public final class VoiceCommandHUDController {
-
-    private let panel: NSPanel
-    private var dismissTask: Task<Void, Never>?
-    private var observer: NSObjectProtocol?
-
-    /// Width/height must match the SwiftUI frame declared in VoiceCommandHUDContentView.
-    private static let panelWidth: CGFloat = 200
-    private static let panelHeight: CGFloat = 36
-
-    public init() {
-        panel = NSPanel(
-            contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
-        panel.level = .popUpMenu
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false          // shadow rendered by SwiftUI .shadow() modifier
-        panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.animationBehavior = .none
-
-        let contentView = VoiceCommandHUDContentView(label: "")
-        let hosting = NSHostingView(rootView: contentView)
-        panel.contentView = hosting
-
-        observer = NotificationCenter.default.addObserver(
-            forName: TranscriptionPipeline.voiceCommandDidExecute,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let command = notification.userInfo?[TranscriptionPipeline.voiceCommandKey] as? VoiceCommand else { return }
-            self?.show(label: command.displayLabel)
-        }
-    }
-
-    deinit {
-        if let observer { NotificationCenter.default.removeObserver(observer) }
-    }
-
-    private func show(label: String) {
-        dismissTask?.cancel()
-
-        // Swap rootView to trigger entry animation on a fresh VoiceCommandHUDContentView.
-        let hosting = panel.contentView as? NSHostingView<VoiceCommandHUDContentView>
-        hosting?.rootView = VoiceCommandHUDContentView(label: label)
-
-        position()
-        panel.orderFront(nil)
-        NSAccessibility.post(element: NSApp, notification: .announcementRequested, userInfo: [
-            NSAccessibility.NotificationUserInfoKey.announcement: label,
-            NSAccessibility.NotificationUserInfoKey.priority: NSAccessibilityPriorityLevel.high.rawValue
-        ])
-
-        dismissTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(1500))
-            guard !Task.isCancelled else { return }
-            // Signal the content view to animate out, then order-out after delay.
-            await self?.animateOutAndDismiss()
-        }
-    }
-
-    @MainActor
-    private func animateOutAndDismiss() async {
-        // Swap to a dismissing view so the exit animation plays.
-        (panel.contentView as? NSHostingView<VoiceCommandHUDContentView>)?.rootView =
-            VoiceCommandHUDContentView(label: "", dismissing: true)
-        try? await Task.sleep(for: .milliseconds(150))
-        panel.orderOut(nil)
-    }
-
-    private func position() {
-        guard let screen = NSScreen.main else { return }
-        let visibleFrame = screen.visibleFrame
-        let width = Self.panelWidth
-        let height = Self.panelHeight
-        let margin: CGFloat = 20
-        // Sit directly above the waveform HUD idle footprint (14 pt) + margin.
-        let origin = CGPoint(
-            x: visibleFrame.maxX - width - margin,
-            y: visibleFrame.minY + margin + 14 + 6
-        )
-        panel.setFrameOrigin(origin)
-        panel.setContentSize(CGSize(width: width, height: height))
-    }
-}
-
-// MARK: - Voice Command HUD Content View
-
-private struct VoiceCommandHUDContentView: View {
-    let label: String
-    var dismissing: Bool = false
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var appeared = false
-
-    var body: some View {
-        HStack(spacing: HalideTokens.spacing8) {
-            Circle()
-                .fill(HalideTokens.accentAmber)
-                .frame(width: 6, height: 6)
-
-            Text(label)
-                .font(.callout.weight(.medium))
-                .foregroundColor(HalideTokens.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
-        .padding(.horizontal, HalideTokens.spacing12)
-        .padding(.vertical, HalideTokens.spacing8)
-        .frame(width: 200, height: 36)
-        .background {
-            RoundedRectangle(cornerRadius: HalideTokens.radiusMedium)
-                .fill(.ultraThinMaterial)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: HalideTokens.radiusMedium)
-                .stroke(HalideTokens.borderSubtle, lineWidth: 1)
-        }
-        .shadow(
-            color: HalideTokens.hudShadowColor.opacity(HalideTokens.hudShadowOpacity),
-            radius: HalideTokens.hudShadowRadius,
-            x: 0,
-            y: HalideTokens.hudShadowY
-        )
-        .opacity(entryOpacity)
-        .offset(y: entryOffsetY)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: appeared)
-        .onAppear {
-            if !dismissing {
-                appeared = true
-            }
-        }
-        .onChange(of: dismissing) { _, isDismissing in
-            if isDismissing { appeared = false }
-        }
-    }
-
-    private var entryOpacity: Double {
-        guard !reduceMotion else { return 1 }
-        if dismissing { return appeared ? 0 : 1 }
-        return appeared ? 1 : 0
-    }
-
-    private var entryOffsetY: Double {
-        guard !reduceMotion else { return 0 }
-        if dismissing { return appeared ? 8 : 0 }
-        return appeared ? 0 : 8
-    }
-}
-
 // MARK: - NSPanel Subclass
 
 /// Borderless, non-activating panel that floats above all windows including
@@ -178,14 +18,18 @@ public final class FloatingHUDWindow: NSPanel {
     private let settingsManager: SettingsManager
     private var hostingView: NSHostingView<WaveformHUDView>?
     private var moveObserver: NSObjectProtocol?
+    /// Captures the geometric center of the idle pill before expanding to recording size.
+    private var idlePillCenter: CGPoint?
+    /// Holds the Combine subscription that drives center-out expansion/collapse.
+    private var recordingCancellable: AnyCancellable?
 
     // UserDefaults keys for persisting HUD origin.
     private static let originXKey = "com.whiskey.hudOrigin.x"
     private static let originYKey = "com.whiskey.hudOrigin.y"
 
-    // Idle panel footprint used for default positioning.
-    private static let idlePanelWidth: CGFloat  = 80
-    private static let idlePanelHeight: CGFloat  = 14
+    // Idle panel footprint — matches WaveformHUDView.idleSize (48×8 pt true pill).
+    private static let idlePanelWidth: CGFloat  = 48
+    private static let idlePanelHeight: CGFloat  = 8
     // Recording size — SwiftUI expands in-place; 80 pt height accommodates caption strip.
     private static let recordingPanelWidth: CGFloat  = 200
     private static let recordingPanelHeight: CGFloat = 80
@@ -210,6 +54,7 @@ public final class FloatingHUDWindow: NSPanel {
         installContentView()
         restoreOrPositionBottomRight()
         installMoveObserver()
+        subscribeToRecordingState()
     }
 
     // MARK: - Configuration
@@ -280,18 +125,90 @@ public final class FloatingHUDWindow: NSPanel {
     }
 
     /// Observe `NSWindow.didMoveNotification` and persist the panel origin.
+    /// Only saves during idle — recording shifts the window to keep the pill
+    /// center fixed, and those positions must not overwrite the resting position.
     private func installMoveObserver() {
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification,
             object: self,
             queue: .main
         ) { [weak self] _ in
-            guard let self else { return }
+            guard let self, !self.hudViewModel.isRecording else { return }
             let origin = self.frame.origin
             let defaults = UserDefaults.standard
             defaults.set(origin.x, forKey: Self.originXKey)
             defaults.set(origin.y, forKey: Self.originYKey)
         }
+    }
+
+    // MARK: - Center-Out Expansion
+
+    /// Subscribe to `isRecording` changes and reposition the NSWindow so that
+    /// the visible pill center remains fixed as the window grows/shrinks.
+    private func subscribeToRecordingState() {
+        recordingCancellable = hudViewModel.$isRecording
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isRecording in
+                guard let self else { return }
+                if isRecording {
+                    self.expandFromCenter()
+                } else {
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        try? await Task.sleep(for: .milliseconds(420))
+                        self.collapseToCenter()
+                    }
+                }
+            }
+    }
+
+    /// Grow the NSWindow from idle-pill size to recording-panel size,
+    /// keeping the pill center visually fixed on screen.
+    private func expandFromCenter() {
+        let pillWidth = Self.idlePanelWidth
+        let pillHeight = Self.idlePanelHeight
+        let center = CGPoint(
+            x: frame.origin.x + pillWidth / 2,
+            y: frame.origin.y + pillHeight / 2
+        )
+        idlePillCenter = center
+        let expandedRect = centeredRecordingRect(around: center)
+        setFrame(expandedRect, display: true, animate: false)
+    }
+
+    /// Shrink the NSWindow back to recording-panel size anchored at the idle
+    /// pill center that was snapshotted in `expandFromCenter()`.
+    private func collapseToCenter() {
+        guard let center = idlePillCenter else { return }
+        let idleX = center.x - Self.idlePanelWidth / 2
+        let idleY = center.y - Self.idlePanelHeight / 2
+        let collapsedRect = NSRect(
+            x: idleX,
+            y: idleY,
+            width: Self.recordingPanelWidth,
+            height: Self.recordingPanelHeight
+        )
+        setFrame(collapsedRect, display: true, animate: false)
+        idlePillCenter = nil
+    }
+
+    /// Build a screen-clamped NSRect for the recording panel centered on `center`.
+    private func centeredRecordingRect(around center: CGPoint) -> NSRect {
+        let panelWidth = Self.recordingPanelWidth
+        let panelHeight = Self.recordingPanelHeight
+        let expandedX = center.x - panelWidth / 2
+        let expandedY = center.y - panelHeight / 2
+
+        let screen = NSScreen.screens.first { $0.frame.contains(center) } ?? NSScreen.main
+        let usable = screen?.visibleFrame ?? NSRect(
+            x: expandedX, y: expandedY,
+            width: panelWidth, height: panelHeight
+        )
+
+        let clampedX = max(usable.minX, min(expandedX, usable.maxX - panelWidth))
+        let clampedY = max(usable.minY, min(expandedY, usable.maxY - panelHeight))
+
+        return NSRect(x: clampedX, y: clampedY, width: panelWidth, height: panelHeight)
     }
 
     deinit {
