@@ -125,20 +125,18 @@ struct WaveformRenderContext {
     let isRecording: Bool
     let reduceMotion: Bool
     let sampleBuffer: [Float]
-    let waveformStyle: WaveformStyle
 }
 
 // MARK: - HUD View
 
 /// Floating waveform HUD with two visual states:
-/// - Idle (80×14): flat line / breathing oscillation in cool slate
-/// - Recording (200×56): animated waveform (style selectable by user) with amber recording dot
+/// - Idle (80×14): Aurora Mirror breathing oscillation
+/// - Recording (200×56): Aurora Mirror live waveform with amber recording dot
 ///
 /// Hosted inside FloatingHUDWindow.
 public struct WaveformHUDView: View {
 
     @ObservedObject var viewModel: FloatingHUDViewModel
-    private let settingsManager: SettingsManager
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Halide sizing
@@ -148,9 +146,8 @@ public struct WaveformHUDView: View {
         CGSize(width: 200, height: 80)
     }
 
-    public init(viewModel: FloatingHUDViewModel, settingsManager: SettingsManager) {
+    public init(viewModel: FloatingHUDViewModel) {
         self.viewModel = viewModel
-        self.settingsManager = settingsManager
     }
 
     public var body: some View {
@@ -170,23 +167,19 @@ public struct WaveformHUDView: View {
                         .frame(maxHeight: .infinity, alignment: .center)
                 }
 
-                // Waveform / idle line — always present, centered.
-                let isRecording = viewModel.isRecording
+                // Aurora Mirror waveform — always present, centered.
                 let level = viewModel.audioLevel
-                let noMotion = reduceMotion
                 let buffer = viewModel.sampleBuffer
-                let style = settingsManager.waveformStyle
                 TimelineView(.animation) { timeline in
                     Canvas { ctx, canvasSize in
-                        let renderCtx = WaveformRenderContext(
-                            phase: timeline.date.timeIntervalSinceReferenceDate,
-                            level: level,
-                            isRecording: isRecording,
-                            reduceMotion: noMotion,
-                            sampleBuffer: buffer,
-                            waveformStyle: style
+                        let time = timeline.date.timeIntervalSinceReferenceDate
+                        WaveformDrawing.draw(
+                            context: ctx,
+                            size: canvasSize,
+                            samples: buffer,
+                            audioLevel: level,
+                            time: time
                         )
-                        WaveformDrawing.drawWaveform(ctx: ctx, size: canvasSize, renderCtx: renderCtx)
                     }
                 }
                 .padding(.horizontal, viewModel.isRecording ? 24 : 10)

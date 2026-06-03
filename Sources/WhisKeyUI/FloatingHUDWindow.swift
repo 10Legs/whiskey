@@ -228,7 +228,7 @@ public final class FloatingHUDWindow: NSPanel {
     }
 
     private func installContentView() {
-        let view = WaveformHUDView(viewModel: hudViewModel, settingsManager: settingsManager)
+        let view = WaveformHUDView(viewModel: hudViewModel)
         let hosting = NSHostingView(rootView: view)
         hosting.translatesAutoresizingMaskIntoConstraints = false
         contentView = hosting

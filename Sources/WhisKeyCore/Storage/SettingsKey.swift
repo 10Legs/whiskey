@@ -27,8 +27,6 @@ public enum SettingsKey: String, Sendable, CaseIterable {
     /// Controls how long the live-preview caption strip lingers after injection.
     /// P1: key declared here; accessor added in P2.
     case previewLingerMode
-    /// Selects the waveform visualizer style shown in the floating HUD.
-    case waveformStyle
     /// Whether the app registers itself as a login item via SMAppService. Default: false.
     case launchAtLogin
 }
