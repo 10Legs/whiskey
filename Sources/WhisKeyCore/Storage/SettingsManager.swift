@@ -188,15 +188,6 @@ public final class SettingsManager: @unchecked Sendable {
         set { set(.hudEnabled, value: newValue) }
     }
 
-    /// The waveform visualizer style shown in the floating HUD. Defaults to `.pulseRibbon`.
-    public var waveformStyle: WaveformStyle {
-        get {
-            let raw: String = get(.waveformStyle, default: WaveformStyle.pulseRibbon.rawValue)
-            return WaveformStyle(rawValue: raw) ?? .pulseRibbon
-        }
-        set { set(.waveformStyle, value: newValue.rawValue) }
-    }
-
     /// How long the live-preview caption strip lingers after the final transcript
     /// is injected. Defaults to `.linger(seconds: 2)` (UX-approved P2 default).
     public var previewLingerMode: PreviewLingerMode {
