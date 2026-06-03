@@ -38,15 +38,8 @@ enum WaveformDrawing {
 
         // Resolve active amplitude: idle breathing when silent, live samples when recording.
         let isIdle = audioLevel < 0.05
-        let upperPoints = buildUpperPoints(
-            samples: samples,
-            size: size,
-            midY: midY,
-            maxAmplitude: maxAmplitude,
-            audioLevel: audioLevel,
-            time: time,
-            isIdle: isIdle
-        )
+        let frame = FrameParams(midY: midY, maxAmplitude: maxAmplitude, time: time, isIdle: isIdle)
+        let upperPoints = buildUpperPoints(samples: samples, size: size, frame: frame)
 
         let mirrorPath = buildMirrorPath(upperPoints: upperPoints, midY: midY, size: size)
 
@@ -72,16 +65,23 @@ enum WaveformDrawing {
 
     // MARK: - Point Construction
 
+    private struct FrameParams {
+        let midY: CGFloat
+        let maxAmplitude: CGFloat
+        let time: TimeInterval
+        let isIdle: Bool
+    }
+
     @MainActor
     private static func buildUpperPoints(
         samples: [Float],
         size: CGSize,
-        midY: CGFloat,
-        maxAmplitude: CGFloat,
-        audioLevel: Float,
-        time: TimeInterval,
-        isIdle: Bool
+        frame: FrameParams
     ) -> [CGPoint] {
+        let midY = frame.midY
+        let maxAmplitude = frame.maxAmplitude
+        let time = frame.time
+        let isIdle = frame.isIdle
         let count = samples.count
         let stepX = size.width / CGFloat(count - 1)
         var points: [CGPoint] = []
@@ -190,9 +190,9 @@ enum WaveformDrawing {
         // Both colors are in sRGB so component lerp is safe.
         let fA = 1.0 - factor
         return Color(
-            red:   0.47 * fA + 0.75 * factor,
+            red: 0.47 * fA + 0.75 * factor,
             green: 0.73 * fA + 0.90 * factor,
-            blue:  0.95 * fA + 1.00 * factor
+            blue: 0.95 * fA + 1.00 * factor
         )
     }
 }
