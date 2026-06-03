@@ -42,6 +42,7 @@ public final class FloatingHUDViewModel: ObservableObject {
 
     public func notifyRecordingStarted() {
         isRecording = true
+        sampleBuffer = Array(repeating: 0, count: 48)
         // Reset any lingering caption state from the previous recording.
         clearPreview()
     }
@@ -146,6 +147,8 @@ public struct WaveformHUDView: View {
         CGSize(width: 200, height: 80)
     }
 
+    @State private var glowPhase: Bool = false
+
     public init(viewModel: FloatingHUDViewModel) {
         self.viewModel = viewModel
     }
@@ -167,22 +170,28 @@ public struct WaveformHUDView: View {
                         .frame(maxHeight: .infinity, alignment: .center)
                 }
 
-                // Aurora Mirror waveform — always present, centered.
-                let level = viewModel.audioLevel
-                let buffer = viewModel.sampleBuffer
-                TimelineView(.animation) { timeline in
-                    Canvas { ctx, canvasSize in
-                        let time = timeline.date.timeIntervalSinceReferenceDate
-                        WaveformDrawing.draw(
-                            context: ctx,
-                            size: canvasSize,
-                            samples: buffer,
-                            audioLevel: level,
-                            time: time
-                        )
+                // Aurora Mirror waveform — only rendered while recording.
+                // Idle state uses Color.clear to preserve layout geometry.
+                if viewModel.isRecording {
+                    let level = viewModel.audioLevel
+                    let buffer = viewModel.sampleBuffer
+                    TimelineView(.animation) { timeline in
+                        Canvas { ctx, canvasSize in
+                            let time = timeline.date.timeIntervalSinceReferenceDate
+                            WaveformDrawing.draw(
+                                context: ctx,
+                                size: canvasSize,
+                                samples: buffer,
+                                audioLevel: level,
+                                time: time
+                            )
+                        }
                     }
+                    .padding(.horizontal, 24)
+                } else {
+                    Color.clear
+                        .padding(.horizontal, 10)
                 }
-                .padding(.horizontal, viewModel.isRecording ? 24 : 10)
             }
             .frame(width: size.width, height: viewModel.isRecording ? 56 : size.height)
 
@@ -233,8 +242,18 @@ public struct WaveformHUDView: View {
         .frame(width: size.width, height: size.height)
         .animation(sizeAnimation, value: viewModel.isRecording)
         .background {
-            RoundedRectangle(cornerRadius: viewModel.isRecording ? HalideTokens.radiusXL : HalideTokens.radiusLarge)
-                .fill(.ultraThinMaterial)
+            if viewModel.isRecording {
+                RoundedRectangle(cornerRadius: HalideTokens.radiusXL)
+                    .fill(.ultraThinMaterial)
+            } else if reduceMotion {
+                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.45)
+            } else {
+                RoundedRectangle(cornerRadius: HalideTokens.radiusLarge)
+                    .fill(.ultraThinMaterial)
+                    .opacity(glowPhase ? 0.55 : 0.35)
+            }
         }
         .overlay {
             RoundedRectangle(cornerRadius: viewModel.isRecording ? HalideTokens.radiusXL : HalideTokens.radiusLarge)
@@ -248,6 +267,22 @@ public struct WaveformHUDView: View {
         )
         .accessibilityLabel(viewModel.isRecording ? "Recording in progress" : "WhisKey idle")
         .accessibilityHidden(false)
+        .onAppear {
+            if !viewModel.isRecording, !reduceMotion {
+                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
+                    glowPhase = true
+                }
+            }
+        }
+        .onChange(of: viewModel.isRecording) { isRecording in
+            if isRecording {
+                glowPhase = false
+            } else if !reduceMotion {
+                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
+                    glowPhase = true
+                }
+            }
+        }
     }
 
     // MARK: - Caption Helpers
