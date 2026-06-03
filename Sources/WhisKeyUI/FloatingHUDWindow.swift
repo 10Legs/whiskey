@@ -74,6 +74,10 @@ public final class FloatingHUDWindow: NSPanel {
         let view = WaveformHUDView(viewModel: hudViewModel)
         let hosting = NSHostingView(rootView: view)
         hosting.translatesAutoresizingMaskIntoConstraints = false
+        // Prevent NSHostingView from auto-resizing the window when SwiftUI content
+        // changes size — we manage the window frame explicitly in expandFromCenter /
+        // collapseToCenter so the pill center stays visually fixed during animation.
+        hosting.sizingOptions = []
         contentView = hosting
         self.hostingView = hosting
     }
