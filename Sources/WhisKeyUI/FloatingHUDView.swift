@@ -31,12 +31,11 @@ public final class FloatingHUDViewModel: ObservableObject {
         levelCancellable = publisher
             .receive(on: RunLoop.main)
             .sink { [weak self] level in
+                guard let self, self.isRecording else { return }
                 let boosted = Float(pow(Double(level), 0.4))  // expand low values
-                self?.audioLevel = boosted
-                self?.sampleBuffer.append(boosted)
-                if (self?.sampleBuffer.count ?? 0) > 48 {
-                    self?.sampleBuffer.removeFirst()
-                }
+                self.audioLevel = boosted
+                self.sampleBuffer.append(boosted)
+                if self.sampleBuffer.count > 48 { self.sampleBuffer.removeFirst() }
             }
     }
 
@@ -282,7 +281,7 @@ public struct WaveformHUDView: View {
         // Radius reduced to 3 for proportional bloom on the smaller 48×8 pt pill.
         .shadow(
             color: Color.white.opacity(viewModel.isRecording || reduceMotion ? 0.0 : (glowPhase ? 0.12 : 0.0)),
-            radius: viewModel.isRecording || reduceMotion ? 1 : (glowPhase ? 3 : 1),
+            radius: 2,
             x: 0,
             y: 0
         )
@@ -297,7 +296,7 @@ public struct WaveformHUDView: View {
         }
         .onChange(of: viewModel.isRecording) { isRecording in
             if isRecording {
-                glowPhase = false
+                withAnimation(.linear(duration: 0)) { glowPhase = false }
             } else if !reduceMotion {
                 withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
                     glowPhase = true
