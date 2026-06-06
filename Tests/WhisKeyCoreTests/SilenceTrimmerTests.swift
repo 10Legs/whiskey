@@ -199,8 +199,8 @@ class SilenceTrimmerTests: XCTestCase {
         // This test documents the BEFORE state — with hangover=3, 4 frames IS enough.
         // After the production fix (hangover=5), this path is unreachable in the live trimmer,
         // but the helper still accepts the parameter so we can verify the contrast.
-        let bounds4_legacy = SilenceTrimmer.findSpeechBounds(frameRMS: rms4, threshold: 0.01, hangover: 3)
-        XCTAssertNotNil(bounds4_legacy,
+        let bounds4Legacy = SilenceTrimmer.findSpeechBounds(frameRMS: rms4, threshold: 0.01, hangover: 3)
+        XCTAssertNotNil(bounds4Legacy,
                         "hangover=3 (old default): a 4-frame burst SHOULD satisfy the 3-frame requirement.")
     }
 
