@@ -611,15 +611,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // S1-T3: Drive HUD animation and state transition from onMicOpen —
+        // this fires inside startRecording() AFTER AVAudioEngine.start() returns,
+        // guaranteeing the mic is open before any visual recording feedback appears.
+        pipeline.onMicOpen = { [weak self, weak hud] in
+            flog.log(.info, "[TIMING] Mic ready — HUD animating")
+            Task { @MainActor [weak self, weak hud] in
+                self?.transitionToRecording()
+                hud?.recordingDidStart()
+            }
+        }
+
         // Wire hotkey to pipeline + state model.
+        // S1-T3: HUD animation is sequenced AFTER mic is confirmed open.
+        // onMicOpen fires from inside startRecording() once AVAudioEngine.start() returns.
+        // This eliminates the ~100-150 ms leading-word dropout caused by the old pattern
+        // of calling hud.recordingDidStart() synchronously before the async Task ran.
         hotkey.onStartRecording = { [weak self, weak hud] in
-            flog.log(.info, "Hotkey down — recording started.")
-            Task { await self?.pipeline.startRecording() }
-            self?.transitionToRecording()
-            hud?.recordingDidStart()
+            flog.log(.info, "[TIMING] Hotkey down")
+            Task {
+                await self?.pipeline.startRecording()
+                // onMicOpen fires from inside startRecording() — HUD wires to it below.
+                // transitionToRecording and recordingDidStart are driven via onMicOpen.
+            }
         }
         hotkey.onStopRecording = { [weak self, weak hud] in
             guard let self else { return }
+            flog.log(.info, "[TIMING] Hotkey up")
             flog.log(.info, "Hotkey up — running transcription.")
             self.transitionToProcessing()
             hud?.recordingDidStop()
@@ -641,11 +659,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         dispatcher.onDefaultTranscription = nil // PTT driven by hotkey.onStartRecording above.
 
+        // S1-T4: Hands-free path uses mic-first ordering via a dedicated Task.
+        // onMicOpen (wired above) fires transitionToRecording; for the hands-free path
+        // we need transitionToHandsFree instead. We sequence this by awaiting
+        // startRecording() and reading the result synchronously on MainActor,
+        // then transitioning on MainActor inside the same Task — mic is already open.
         dispatcher.onHandsFreeTranscription = { [weak self, weak hud] in
+            flog.log(.info, "[TIMING] Hotkey down")
             flog.log(.info, "Hands-free hotkey — hands-free recording started.")
-            Task { await self?.pipeline.startRecording() }
-            self?.transitionToHandsFree()
-            hud?.recordingDidStart()
+            Task { [weak self, weak hud] in
+                await self?.pipeline.startRecording()
+                // At this point mic is open (startRecording has returned).
+                // onMicOpen fires inside startRecording and calls transitionToRecording;
+                // override with hands-free state on MainActor immediately after.
+                await MainActor.run { [weak self, weak hud] in
+                    flog.log(.info, "[TIMING] Mic ready — HUD animating")
+                    self?.transitionToHandsFree()
+                    hud?.recordingDidStart()
+                }
+            }
         }
 
         dispatcher.onOpenPopover = { [weak self] in

@@ -205,6 +205,10 @@ public actor TranscriptionPipeline {
         var onReady: (@Sendable (TranscriptionResult) -> Void)?
         var onError: (@Sendable (Error) -> Void)?
         var onHistoryEntry: (@Sendable (HistoryEntry) -> Void)?
+        /// Fired immediately after `AVAudioEngine.start()` returns successfully,
+        /// confirming the microphone is open and capturing. Used by the UI layer
+        /// to sequence HUD animation AFTER mic is ready (S1-T3).
+        var onMicOpen: (@Sendable () -> Void)?
     }
 
     /// Lock protecting all callback closures so they can be read/written
@@ -234,6 +238,15 @@ public actor TranscriptionPipeline {
     public nonisolated var onHistoryEntryReady: (@Sendable (HistoryEntry) -> Void)? {
         get { _callbackLock.withLock { $0.onHistoryEntry } }
         set { _callbackLock.withLock { $0.onHistoryEntry = newValue } }
+    }
+
+    /// Called immediately after `AVAudioEngine.start()` returns, confirming the
+    /// microphone is open. The UI layer wires this to drive HUD animation so that
+    /// visual recording feedback is never shown before audio capture has begun.
+    /// Backed by the same lock as `onTranscriptionReady`.
+    public nonisolated var onMicOpen: (@Sendable () -> Void)? {
+        get { _callbackLock.withLock { $0.onMicOpen } }
+        set { _callbackLock.withLock { $0.onMicOpen = newValue } }
     }
 
     // MARK: - Init
@@ -353,6 +366,10 @@ public actor TranscriptionPipeline {
             try audioCapture.startCapture()
             isRecording = true
             logger.info("Recording started.")
+            flog.log(.info, "[TIMING] Mic ready — HUD animating")
+            // Fire onMicOpen so the UI can sequence HUD animation AFTER mic is confirmed open.
+            let micOpenCallback = onMicOpen
+            await MainActor.run { micOpenCallback?() }
         } catch {
             logger.error("Audio capture failed to start: \(error.localizedDescription)")
             flog.log(.error, "Pipeline: capture failed to start: \(error.localizedDescription)")
@@ -554,6 +571,7 @@ public actor TranscriptionPipeline {
 
     private func runTranscription(pcmSamples: [Float], langHint: String?) async -> TranscriptionResult? {
         let flog = FileLogger.shared
+        flog.log(.info, "[TIMING] Whisper start")
         flog.log(.info, "Starting Whisper transcription (\(pcmSamples.count) samples)...")
         // Capture the vocabulary store reference (pipeline-actor-isolated), then hop
         // to @MainActor to read the @MainActor-isolated `promptString` property.
@@ -568,6 +586,7 @@ public actor TranscriptionPipeline {
                 languageHint: langHint,
                 initialPrompt: vocabPrompt
             )
+            flog.log(.info, "[TIMING] Whisper done")
             flog.log(.info, "Whisper returned \(result.text.count) chars [\(result.language)]")
             logger.info("Transcription complete: \(result.text.count) chars [\(result.language), \(result.durationMs)ms]")
             return result
