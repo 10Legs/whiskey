@@ -585,6 +585,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await pipeline.setCleanupProfile(cleanupProfile)
             await pipeline.setAppContextService(svc)
             await pipeline.setToneProfileStore(toneStore)
+            // S1-T1: Wire the snippet store so trigger expansion is applied on every
+            // transcription.  Without this call, snippetStore remains nil and
+            // applySnippetExpansion returns the original text on every invocation.
+            await pipeline.setSnippetStore(SnippetStore.shared)
         }
 
         // Wire floating HUD (legacy waveform overlay — kept for recording visual feedback).
