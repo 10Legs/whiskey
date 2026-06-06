@@ -10,7 +10,7 @@ import Foundation
 /// 2. Compute RMS per frame.
 /// 3. Derive an adaptive noise floor: 20th-percentile frame RMS, clamped to [0.001, 0.05].
 /// 4. Speech threshold = max(noiseFloor × 3.0, 0.01).
-/// 5. Locate first and last frames where RMS > threshold (60 ms hangover — 3 consecutive
+/// 5. Locate first and last frames where RMS > threshold (100 ms hangover — 5 consecutive
 ///    frames must exceed the threshold before the region is considered speech).
 /// 6. Pad the speech region by 100 ms (5 frames) on each side to preserve plosives/fricatives.
 /// 7. If trimmed length < 200 ms, return an empty array (pipeline short-circuits on empty input).
@@ -21,7 +21,7 @@ public struct SilenceTrimmer: Sendable {
 
     public static let defaultSampleRate: Double = 16_000
     private static let frameDurationSeconds: Double = 0.020      // 20 ms
-    private static let hangoverFrames: Int = 3                   // 60 ms
+    private static let hangoverFrames: Int = 5                   // 100 ms — raised from 3 to prevent plosive clipping
     private static let paddingFrames: Int = 5                    // 100 ms
     private static let minDurationSeconds: Double = 0.200        // 200 ms
     private static let noiseFloorMin: Float = 0.001

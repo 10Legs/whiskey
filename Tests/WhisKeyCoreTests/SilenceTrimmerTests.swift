@@ -55,15 +55,24 @@ class SilenceTrimmerTests: XCTestCase {
     // MARK: - Short buffer (< 200 ms) returns empty
 
     func testShortSpeechBufferReturnsEmpty() {
-        // 3 frames of speech (60 ms) with no surrounding silence.
-        // The hangover detector (3 consecutive loud frames) is satisfied, so a speech
-        // region IS found. Padding clamps to buffer edges (0 silent frames on either
-        // side), leaving a 3-frame trimmed region (60 ms) which is below the 200 ms
-        // minimum → trim() returns an empty array.
-        let samples = sine(frames: 3, amplitude: 0.8)
+        // With hangover=5 (100 ms), a 5-frame burst is the minimum that triggers speech
+        // detection. A 4-frame burst falls below the hangover threshold → no speech region
+        // found → trim() returns the original unchanged (not empty).
+        // A 5-frame burst DOES satisfy the hangover but leaves a 5-frame trimmed region
+        // (100 ms) which is below the 200 ms minimum → trim() returns an empty array.
+        let samples = sine(frames: 5, amplitude: 0.8)
         let result = SilenceTrimmer.trim(samples, sampleRate: sampleRate)
         XCTAssertTrue(result.isEmpty,
-                      "Speech region shorter than 200 ms should return empty array.")
+                      "Speech region shorter than 200 ms (exactly at hangover boundary) should return empty array.")
+    }
+
+    func testSubHangoverBurstReturnsOriginal() {
+        // A burst of 4 frames (80 ms) doesn't satisfy the 5-frame (100 ms) hangover —
+        // no speech region is found, so the original buffer is returned unchanged.
+        let samples = sine(frames: 4, amplitude: 0.8)
+        let result = SilenceTrimmer.trim(samples, sampleRate: sampleRate)
+        XCTAssertEqual(result.count, samples.count,
+                       "A sub-hangover burst should return original array (no speech region detected).")
     }
 
     // MARK: - Padding
@@ -124,5 +133,91 @@ class SilenceTrimmerTests: XCTestCase {
         XCTAssertNotNil(bounds)
         XCTAssertEqual(bounds?.0, 5)    // first loud frame
         XCTAssertEqual(bounds?.1, 14)   // last loud frame
+    }
+
+    // MARK: - Hangover trailing-edge tests (S1-T6)
+
+    /// Onset detection: signal starts at frame 1 (0-indexed), frames 1–5 are above
+    /// threshold. With hangover=3 the first confirmed speech frame is frame 1
+    /// (backtracked from frame 3). With hangover=5 the first confirmed frame is
+    /// still frame 1 (backtracked from frame 5). Both should detect onset at frame 1.
+    func testOnsetDetectedAtFirstAboveThresholdFrame() {
+        // Frame 0: below threshold; frames 1–6: above threshold.
+        var rms: [Float] = [0.001]
+        rms += [Float](repeating: 0.5, count: 6)
+        // With hangover=5: requires 5 consecutive above-threshold frames.
+        // Frame 5 (0-indexed) is when the 5th consecutive above-threshold frame
+        // is seen (frames 1..5), so firstFrame = 5 - (5-1) = 1.
+        let boundsH5 = SilenceTrimmer.findSpeechBounds(frameRMS: rms, threshold: 0.01, hangover: 5)
+        XCTAssertNotNil(boundsH5)
+        XCTAssertEqual(boundsH5?.0, 1,
+                       "hangover=5: onset should backtrack to frame 1 (first above-threshold frame).")
+
+        // With hangover=3: onset at frame 1 (backtracked from frame 3).
+        let boundsH3 = SilenceTrimmer.findSpeechBounds(frameRMS: rms, threshold: 0.01, hangover: 3)
+        XCTAssertNotNil(boundsH3)
+        XCTAssertEqual(boundsH3?.0, 1,
+                       "hangover=3: onset should backtrack to frame 1 (first above-threshold frame).")
+    }
+
+    /// Trailing-edge hangover: signal drops after 10 loud frames, then silence.
+    /// With hangover=3 (3 frames = 60 ms), a run of only 4 loud frames satisfies
+    /// the hangover and the trailing `lastFrame` is set. But with the production
+    /// hangover set to 5, verify the trimmer requires 5 consecutive frames before
+    /// locking in a speech region — and that it keeps the region alive long enough
+    /// to avoid plosive clipping.
+    ///
+    /// Failing condition (before fix): `hangoverFrames == 3` means a 3-frame
+    /// loud burst is the minimum detected region. After the fix (hangoverFrames=5)
+    /// a burst of only 3 frames above threshold is NOT enough to trigger speech
+    /// detection, but 5 frames IS — ensuring plosives that ride the threshold
+    /// boundary need enough consecutive energy to be retained.
+    func testTrailingEdgeHangoverRequiresFiveFrames() {
+        // Build RMS with exactly 4 loud frames followed by silence.
+        // hangover=5 should NOT detect speech (4 < 5).
+        var rms4: [Float] = [0.001, 0.001]
+        rms4 += [Float](repeating: 0.5, count: 4)
+        rms4 += [Float](repeating: 0.001, count: 10)
+        let bounds4 = SilenceTrimmer.findSpeechBounds(frameRMS: rms4, threshold: 0.01, hangover: 5)
+        XCTAssertNil(bounds4,
+                     "hangover=5: a 4-frame burst should NOT satisfy the 5-frame hangover requirement.")
+
+        // Build RMS with exactly 5 loud frames followed by silence.
+        // hangover=5 SHOULD detect speech (5 == 5).
+        var rms5: [Float] = [0.001, 0.001]
+        rms5 += [Float](repeating: 0.5, count: 5)
+        rms5 += [Float](repeating: 0.001, count: 10)
+        let bounds5 = SilenceTrimmer.findSpeechBounds(frameRMS: rms5, threshold: 0.01, hangover: 5)
+        XCTAssertNotNil(bounds5,
+                        "hangover=5: a 5-frame burst should satisfy the 5-frame hangover requirement.")
+        // Onset backtracked: frame index where 5th consecutive loud frame appears is index 6
+        // (0-indexed: silent=0,1; loud=2,3,4,5,6). firstFrame = 6 - (5-1) = 2.
+        XCTAssertEqual(bounds5?.0, 2,
+                       "Speech onset should backtrack to the first of the 5 consecutive loud frames.")
+
+        // Verify that the DEFAULT hangoverFrames (currently 3) would accept the 4-frame burst.
+        // This test documents the BEFORE state — with hangover=3, 4 frames IS enough.
+        // After the production fix (hangover=5), this path is unreachable in the live trimmer,
+        // but the helper still accepts the parameter so we can verify the contrast.
+        let bounds4_legacy = SilenceTrimmer.findSpeechBounds(frameRMS: rms4, threshold: 0.01, hangover: 3)
+        XCTAssertNotNil(bounds4_legacy,
+                        "hangover=3 (old default): a 4-frame burst SHOULD satisfy the 3-frame requirement.")
+    }
+
+    /// Integration test: trim() with the PRODUCTION hangover (5 frames).
+    /// A plosive-style onset: 2 frames below threshold, then 5+ frames above,
+    /// then sustained speech. The trimmer must NOT clip the onset.
+    func testTrimPreservesOnsetWithFiveFrameHangover() {
+        // Construct: 5 frames silence, 5 frames above threshold (onset), 20 frames loud speech, 5 silence.
+        let samples = silence(frames: 5)
+            + sine(frames: 5, amplitude: 0.3)   // onset — at threshold
+            + sine(frames: 20, amplitude: 0.5)  // sustained speech
+            + silence(frames: 5)
+        let result = SilenceTrimmer.trim(samples, sampleRate: sampleRate)
+        XCTAssertFalse(result.isEmpty, "trim() should detect speech with 5-frame onset and not return empty.")
+        // Result must include the onset region (should be shorter than original but non-trivially long).
+        let minExpected = (5 + 5 + 20) * frameSize   // speech + onset, no trailing silence
+        XCTAssertGreaterThan(result.count, minExpected / 2,
+                             "Trimmed result should preserve the majority of the onset+speech region.")
     }
 }

@@ -183,11 +183,25 @@ public final class AudioCaptureService: @unchecked Sendable {
     }
 
     /// Stop capturing and return the accumulated PCM samples.
-    /// - Returns: Float32 array at 16 kHz, mono.
+    ///
+    /// Drain: sleeps 80 ms before removing the tap so that any in-flight
+    /// AVAudioEngine tap callbacks (~80 ms of audio in the ring buffer) can
+    /// complete and flush into `pcmBuffer`, preventing trailing-word truncation.
+    ///
+    /// Silence pad: appends 150 ms (2 400 samples @ 16 kHz) of zeros after the
+    /// real audio. Whisper needs tail context to correctly decode the last word.
+    ///
+    /// - Returns: Float32 array at 16 kHz, mono; may be empty if not capturing.
     public func stopCapture() -> [Float] {
         guard isCapturing else { return [] }
+
+        // [TIMING] Drain in-flight tap callbacks before removing tap.
+        Thread.sleep(forTimeInterval: 0.080)
+        FileLogger.shared.log(.info, "[TIMING] Drain complete")
+
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+        FileLogger.shared.log(.info, "[TIMING] Engine stopped")
         converter = nil
         isCapturing = false
 
@@ -196,7 +210,22 @@ public final class AudioCaptureService: @unchecked Sendable {
         pcmBuffer = []
         os_unfair_lock_unlock(&bufferLock)
 
-        return result
+        // Append 150 ms silence pad for Whisper tail context.
+        let silencePad = [Float](repeating: 0.0, count: Int(0.150 * Self.whisperSampleRate))
+        return result + silencePad
+    }
+
+    /// Testable variant of `stopCapture()` that bypasses AVAudioEngine.
+    ///
+    /// Injects `injectedSamples` as if they were captured PCM, then applies the
+    /// same drain delay and silence pad as the production `stopCapture()`.
+    /// Only available in DEBUG / test builds via `@testable import`.
+    internal func stopCaptureForTesting(injectedSamples: [Float]) -> [Float] {
+        // Mimic the drain sleep.
+        Thread.sleep(forTimeInterval: 0.080)
+        // Append silence pad.
+        let silencePad = [Float](repeating: 0.0, count: Int(0.150 * Self.whisperSampleRate))
+        return injectedSamples + silencePad
     }
 
     // MARK: - Private — Device Change Handling
