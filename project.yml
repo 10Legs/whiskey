@@ -20,8 +20,13 @@ targets:
         excludes:
           - Info.plist
       - path: Sources/WhisKeyApp/PrivacyInfo.xcprivacy
-      - path: Sources/WhisKeyCore
     dependencies:
+      - package: WhisKeyLocalSPM
+        product: WhisKeyCore
+      - package: WhisKeyLocalSPM
+        product: WhisKeyUI
+      - package: WhisKeyLocalSPM
+        product: GRDB
       - package: WhisKeyLocalSPM
         product: CWhisper
       - package: WhisKeyLocalSPM
@@ -59,8 +64,16 @@ targets:
         Debug:
           SWIFT_OPTIMIZATION_LEVEL: "-Onone"
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG"
-          CODE_SIGN_IDENTITY: "Apple Development"
-          DEVELOPMENT_TEAM: VMYU8579BG
+          # Ad-hoc signing for local debug builds — no provisioning profile needed.
+          # Hardened runtime disabled for Debug; re-enabled via base for Release.
+          # Switch back to "Apple Development" + DEVELOPMENT_TEAM for TestFlight/release.
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: ""
+          ENABLE_HARDENED_RUNTIME: NO
+          # Debug entitlements omit keychain-access-groups; $(AppIdentifierPrefix)
+          # only resolves from a provisioning profile, which ad-hoc signing lacks.
+          CODE_SIGN_ENTITLEMENTS: WhisKey/WhisKey.Debug.entitlements
         Release:
           SWIFT_OPTIMIZATION_LEVEL: "-O"
           SWIFT_COMPILATION_MODE: "wholemodule"
@@ -75,13 +88,13 @@ targets:
           DEST_DIR="${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
           DEST_LIB="${DEST_DIR}/default.metallib"
           mkdir -p "$DEST_DIR"
-          xcrun metal -sdk macosx \
+          xcrun -sdk macosx metal \
             -I "${SRCROOT}/CGGML" \
             -I "${SRCROOT}/CGGML/include" \
             -I "${SRCROOT}/CGGML/ggml-metal" \
             -DGGML_USE_METAL \
             -c "$METAL_SRC" -o "$AIR"
-          xcrun metallib "$AIR" -o "$DEST_LIB"
+          xcrun -sdk macosx metallib "$AIR" -o "$DEST_LIB"
         basedOnDependencyAnalysis: false
 
     postBuildScripts:

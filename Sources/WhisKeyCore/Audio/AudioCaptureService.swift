@@ -217,7 +217,7 @@ public final class AudioCaptureService: @unchecked Sendable {
             do {
                 try self.restartCapture()
             } catch {
-                print("[AudioCaptureService] restartCapture() failed: \(error.localizedDescription)")
+                FileLogger.shared.log(.error, "AudioCaptureService: restartCapture() failed: \(error.localizedDescription)")
             }
         }
         restartWorkItem = item
@@ -308,7 +308,7 @@ public final class AudioCaptureService: @unchecked Sendable {
         )
 
         if status != noErr {
-            print("[AudioCaptureService] Failed to install CoreAudio default-device listener: \(status)")
+            FileLogger.shared.log(.error, "AudioCaptureService: failed to install CoreAudio default-device listener: \(status)")
         }
     }
 
