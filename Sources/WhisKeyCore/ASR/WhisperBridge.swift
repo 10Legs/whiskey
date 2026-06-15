@@ -180,7 +180,13 @@ public actor WhisperBridge {
     /// warmup. Failures are logged but never thrown — warmup is best-effort.
     public func warmUpWhisper() {
         do {
-            _ = try loadContextIfNeeded()
+            let ctx = try loadContextIfNeeded()
+            // Run a dummy inference so Metal compute pipelines are compiled now,
+            // at startup, rather than on the first real dictation.
+            let warmPCM = [Float](repeating: 0.0, count: 8_000) // 0.5s @16kHz
+            _ = warmPCM.withUnsafeBufferPointer {
+                whisper_bridge_transcribe(ctx, $0.baseAddress, Int32($0.count), "en", Int32(nThreads), nil)
+            }
         } catch {
             FileLogger.shared.log(.warn, "WhisperBridge: warmUpWhisper failed: \(error.localizedDescription)")
         }

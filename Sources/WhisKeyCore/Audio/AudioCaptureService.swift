@@ -37,7 +37,7 @@ public final class AudioCaptureService: @unchecked Sendable {
     /// the final step before inference by `TranscriptionPipeline` (see
     /// `appendTrailingSilencePad`), NOT inside `stopCapture()`, because the
     /// SilenceTrimmer would otherwise discard it. Exposed for that consumer.
-    public static let trailingSilencePadSeconds: Double = 0.5
+    public static let trailingSilencePadSeconds: Double = 0.7
 
     // MARK: - State
 
@@ -222,13 +222,19 @@ public final class AudioCaptureService: @unchecked Sendable {
         return result
     }
 
-    /// Append `trailingSilencePadSeconds` of zero-valued samples (16 kHz mono)
+    /// Append `trailingSilencePadSeconds` of low-amplitude dither (16 kHz mono)
     /// to the end of `samples`, giving Whisper enough tail context to finalize
     /// the last token. Must be the final transformation before inference.
+    ///
+    /// Dither (not pure zeros): pure-zero silence trips Whisper's entropy /
+    /// no-speech gate, which can cause the final segment to be dropped. A tiny
+    /// amount of noise (±1e-4) keeps the gate from firing while remaining
+    /// inaudible / sub-speech.
     public static func appendTrailingSilencePad(to samples: [Float]) -> [Float] {
         let padCount = Int(trailingSilencePadSeconds * whisperSampleRate)
-        let silencePad = [Float](repeating: 0.0, count: padCount)
-        return samples + silencePad
+        var pad = [Float](repeating: 0.0, count: padCount)
+        for i in pad.indices { pad[i] = Float.random(in: -1e-4...1e-4) }
+        return samples + pad
     }
 
     /// Testable variant of `stopCapture()` that bypasses AVAudioEngine.
