@@ -83,20 +83,18 @@ class AudioCaptureServiceTests: XCTestCase {
                                     "stopCaptureForTesting must drain for at least 70 ms (sleep(0.080)).")
     }
 
-    func test_appendTrailingSilencePad_appends500ms() {
+    func test_appendTrailingSilencePad_appends700ms() {
         let injected: [Float] = Array(repeating: 0.1, count: 1600)  // 100 ms of fake audio
-        // The pad is now appended downstream (post-trim) via this static helper,
-        // NOT inside stopCapture/stopCaptureForTesting.
         let result = AudioCaptureService.appendTrailingSilencePad(to: injected)
 
-        // 500 ms @ 16 kHz = 8000 samples of silence pad appended after audio.
-        let silencePadSamples = 8000
-        XCTAssertEqual(result.count, injected.count + silencePadSamples,
-                       "appendTrailingSilencePad must append exactly 8000 trailing zero samples (500 ms).")
+        // 700 ms @ 16 kHz = 11200 samples appended after audio.
+        let padSamples = Int(AudioCaptureService.trailingSilencePadSeconds * AudioCaptureService.whisperSampleRate)
+        XCTAssertEqual(result.count, injected.count + padSamples,
+                       "appendTrailingSilencePad must append exactly \(padSamples) samples (700 ms).")
 
-        // Verify trailing samples are actually zero (silence pad).
-        let tail = Array(result.suffix(silencePadSamples))
-        let allZero = tail.allSatisfy { $0 == 0.0 }
-        XCTAssertTrue(allZero, "The trailing 8000 samples must be silence (0.0).")
+        // Pad uses low-amplitude dither (not pure zeros) to avoid Whisper's entropy gate.
+        let tail = Array(result.suffix(padSamples))
+        let allInRange = tail.allSatisfy { $0 >= -1e-4 && $0 <= 1e-4 }
+        XCTAssertTrue(allInRange, "Trailing pad samples must be dithered noise in [-1e-4, 1e-4].")
     }
 }

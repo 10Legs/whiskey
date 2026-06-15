@@ -32,11 +32,6 @@ public final class AudioCaptureService: @unchecked Sendable {
     private static let whisperSampleRate: Double = 16_000
     private static let tapBufferSize: AVAudioFrameCount = 4096
 
-    /// Trailing silence pad (seconds) appended after the real audio so Whisper
-    /// has enough tail context to finalize the last token. The pad is applied as
-    /// the final step before inference by `TranscriptionPipeline` (see
-    /// `appendTrailingSilencePad`), NOT inside `stopCapture()`, because the
-    /// SilenceTrimmer would otherwise discard it. Exposed for that consumer.
     public static let trailingSilencePadSeconds: Double = 0.7
 
     // MARK: - State
@@ -189,18 +184,7 @@ public final class AudioCaptureService: @unchecked Sendable {
         os_unfair_lock_unlock(&bufferLock)
     }
 
-    /// Stop capturing and return the accumulated PCM samples.
-    ///
-    /// Drain: sleeps 80 ms before removing the tap so that any in-flight
-    /// AVAudioEngine tap callbacks (~80 ms of audio in the ring buffer) can
-    /// complete and flush into `pcmBuffer`, preventing trailing-word truncation.
-    ///
-    /// Silence pad: NOT applied here. The trailing silence pad is appended by
-    /// `TranscriptionPipeline` as the final step before Whisper (after silence
-    /// trimming) so the trimmer cannot discard it — see
-    /// `AudioCaptureService.appendTrailingSilencePad(to:)`.
-    ///
-    /// - Returns: Float32 array at 16 kHz, mono; may be empty if not capturing.
+    /// Stop capturing and return accumulated PCM samples (Float32, 16 kHz, mono).
     public func stopCapture() -> [Float] {
         guard isCapturing else { return [] }
 
@@ -225,15 +209,11 @@ public final class AudioCaptureService: @unchecked Sendable {
     /// Append `trailingSilencePadSeconds` of low-amplitude dither (16 kHz mono)
     /// to the end of `samples`, giving Whisper enough tail context to finalize
     /// the last token. Must be the final transformation before inference.
-    ///
-    /// Dither (not pure zeros): pure-zero silence trips Whisper's entropy /
-    /// no-speech gate, which can cause the final segment to be dropped. A tiny
-    /// amount of noise (±1e-4) keeps the gate from firing while remaining
-    /// inaudible / sub-speech.
+    /// Dither (not pure zeros) — pure-zero silence trips Whisper's entropy gate.
     public static func appendTrailingSilencePad(to samples: [Float]) -> [Float] {
         let padCount = Int(trailingSilencePadSeconds * whisperSampleRate)
         var pad = [Float](repeating: 0.0, count: padCount)
-        for i in pad.indices { pad[i] = Float.random(in: -1e-4...1e-4) }
+        for idx in pad.indices { pad[idx] = Float.random(in: -1e-4...1e-4) }
         return samples + pad
     }
 

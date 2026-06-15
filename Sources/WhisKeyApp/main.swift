@@ -228,32 +228,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // PTT: pulsing red mic.fill per S3-C2 spec table 4.1.
             currentIconSymbolName = "mic.fill"
             currentTintColor = .systemRed
-            // Prefer custom template PNG from Bundle.module (SPM asset catalog);
-            // fall back to SF Symbol if asset is not bundled.
             let customRecording = Bundle.module.image(forResource: "MenuBarRecording")
             customRecording?.isTemplate = true
             currentBaseImage = customRecording
             let recordingImage = customRecording
                 ?? NSImage(systemSymbolName: currentIconSymbolName,
                            accessibilityDescription: "Recording")
-            // Template image tints correctly via contentTintColor; SF Symbol fallback
-            // does not need isTemplate so leave it false only on that path.
             recordingImage?.isTemplate = (customRecording != nil)
             button.image = recordingImage
             button.contentTintColor = .systemRed
             button.setAccessibilityLabel("WhisKey \u{2013} Push-to-Talk Recording")
             button.wantsLayer = true
-            // Respect reduce-motion preference.
-            if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-                let pulse = CABasicAnimation(keyPath: "opacity")
-                pulse.fromValue = 1.0
-                pulse.toValue = 0.35
-                pulse.duration = 0.75
-                pulse.autoreverses = true
-                pulse.repeatCount = .infinity
-                pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                button.layer?.add(pulse, forKey: "whiskey.pulse")
-            }
+            addPulseAnimation(to: button)
 
         case .handsFree:
             // Hands-free: steady orange mic.badge.xmark. No pulse (stable indefinite state).
@@ -291,6 +277,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Re-apply the egress dot over the freshly set icon so the badge is never lost
         // when a state transition happens while egress monitoring is active.
         applyEgressDot(networkMonitor.egressState)
+    }
+
+    private func addPulseAnimation(to button: NSButton) {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue = 1.0
+        pulse.toValue = 0.35
+        pulse.duration = 0.75
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        button.layer?.add(pulse, forKey: "whiskey.pulse")
     }
 
     // MARK: - Egress Dot Badge (S3-T3)
