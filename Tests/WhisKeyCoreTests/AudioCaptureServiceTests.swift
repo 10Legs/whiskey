@@ -88,7 +88,7 @@ class AudioCaptureServiceTests: XCTestCase {
         let result = AudioCaptureService.appendTrailingSilencePad(to: injected)
 
         // 700 ms @ 16 kHz = 11200 samples appended after audio.
-        let padSamples = Int(AudioCaptureService.trailingSilencePadSeconds * AudioCaptureService.whisperSampleRate)
+        let padSamples = Int(AudioCaptureService.trailingSilencePadSeconds * 16_000)
         XCTAssertEqual(result.count, injected.count + padSamples,
                        "appendTrailingSilencePad must append exactly \(padSamples) samples (700 ms).")
 
