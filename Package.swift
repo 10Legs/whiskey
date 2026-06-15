@@ -186,6 +186,9 @@ let package = Package(
                 // where ggml_metal_library_init looks when GGML_METAL_PATH_RESOURCES
                 // is set to that path by llama_bridge.cpp's set_metal_path_from_bundle().
                 .copy("default.metallib"),
+                // Asset catalog containing menu bar icon variants (MenuBarIdle, MenuBarRecording).
+                // .process() triggers actool so SPM emits a .car into Bundle.module.
+                .process("Assets.xcassets"),
             ]
         ),
 

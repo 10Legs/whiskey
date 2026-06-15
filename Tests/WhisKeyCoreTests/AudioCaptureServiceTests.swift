@@ -83,18 +83,20 @@ class AudioCaptureServiceTests: XCTestCase {
                                     "stopCaptureForTesting must drain for at least 70 ms (sleep(0.080)).")
     }
 
-    func test_stopCaptureForTesting_appendsSilencePad() {
+    func test_appendTrailingSilencePad_appends500ms() {
         let injected: [Float] = Array(repeating: 0.1, count: 1600)  // 100 ms of fake audio
-        let result = service.stopCaptureForTesting(injectedSamples: injected)
+        // The pad is now appended downstream (post-trim) via this static helper,
+        // NOT inside stopCapture/stopCaptureForTesting.
+        let result = AudioCaptureService.appendTrailingSilencePad(to: injected)
 
-        // 150 ms @ 16 kHz = 2400 samples of silence pad appended after injected audio.
-        let silencePadSamples = 2400
-        XCTAssertGreaterThanOrEqual(result.count, injected.count + silencePadSamples,
-                                    "stopCaptureForTesting must append >= 2400 trailing zero samples (150 ms silence pad).")
+        // 500 ms @ 16 kHz = 8000 samples of silence pad appended after audio.
+        let silencePadSamples = 8000
+        XCTAssertEqual(result.count, injected.count + silencePadSamples,
+                       "appendTrailingSilencePad must append exactly 8000 trailing zero samples (500 ms).")
 
         // Verify trailing samples are actually zero (silence pad).
         let tail = Array(result.suffix(silencePadSamples))
         let allZero = tail.allSatisfy { $0 == 0.0 }
-        XCTAssertTrue(allZero, "The trailing 2400 samples must be silence (0.0).")
+        XCTAssertTrue(allZero, "The trailing 8000 samples must be silence (0.0).")
     }
 }

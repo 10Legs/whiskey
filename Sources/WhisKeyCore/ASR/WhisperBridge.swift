@@ -175,6 +175,17 @@ public actor WhisperBridge {
         return whisper_bridge_is_multilingual(ctx)
     }
 
+    /// Eagerly load (mmap + context alloc) the Whisper model so the first
+    /// dictation does not block on lazy initialization. Mirrors the LLM eager
+    /// warmup. Failures are logged but never thrown — warmup is best-effort.
+    public func warmUpWhisper() {
+        do {
+            _ = try loadContextIfNeeded()
+        } catch {
+            FileLogger.shared.log(.warn, "WhisperBridge: warmUpWhisper failed: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Private
 
     private func loadContextIfNeeded() throws -> OpaquePointer {

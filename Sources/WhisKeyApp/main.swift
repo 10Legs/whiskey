@@ -87,12 +87,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The SF Symbol name currently displayed in the status button.
     /// Updated by applyStatusIcon(_:) so applyEgressDot(_:) always composites
-    /// over the correct base symbol.
+    /// over the correct base symbol. Unused when currentBaseImage is non-nil.
     private var currentIconSymbolName: String = "waveform.and.mic"
 
     /// The tint color currently applied to the status button, or nil for template
     /// rendering. Restored by applyEgressDot when the dot is removed.
     private var currentTintColor: NSColor?
+
+    /// Custom PNG-based base image for the current icon state, or nil when the
+    /// state uses an SF Symbol. Set by applyStatusIcon(_:); read by applyEgressDot(_:).
+    private var currentBaseImage: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Flush log on abnormal exit
@@ -207,9 +211,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .idle:
             currentIconSymbolName = "waveform.and.mic"
             currentTintColor = nil
-            button.image = NSImage(systemSymbolName: currentIconSymbolName,
-                                   accessibilityDescription: "WhisKey")
-            button.image?.isTemplate = true
+            // Prefer custom template PNG from Bundle.module (SPM asset catalog);
+            // fall back to SF Symbol if asset is not bundled.
+            let customIdle = Bundle.module.image(forResource: "MenuBarIdle")
+            customIdle?.isTemplate = true
+            currentBaseImage = customIdle
+            let idleImage = customIdle
+                ?? NSImage(systemSymbolName: currentIconSymbolName,
+                           accessibilityDescription: "WhisKey")
+            idleImage?.isTemplate = true
+            button.image = idleImage
             button.contentTintColor = nil
             button.setAccessibilityLabel("WhisKey")
 
@@ -217,9 +228,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // PTT: pulsing red mic.fill per S3-C2 spec table 4.1.
             currentIconSymbolName = "mic.fill"
             currentTintColor = .systemRed
-            button.image = NSImage(systemSymbolName: currentIconSymbolName,
-                                   accessibilityDescription: "Recording")
-            button.image?.isTemplate = false
+            // Prefer custom template PNG from Bundle.module (SPM asset catalog);
+            // fall back to SF Symbol if asset is not bundled.
+            let customRecording = Bundle.module.image(forResource: "MenuBarRecording")
+            customRecording?.isTemplate = true
+            currentBaseImage = customRecording
+            let recordingImage = customRecording
+                ?? NSImage(systemSymbolName: currentIconSymbolName,
+                           accessibilityDescription: "Recording")
+            // Template image tints correctly via contentTintColor; SF Symbol fallback
+            // does not need isTemplate so leave it false only on that path.
+            recordingImage?.isTemplate = (customRecording != nil)
+            button.image = recordingImage
             button.contentTintColor = .systemRed
             button.setAccessibilityLabel("WhisKey \u{2013} Push-to-Talk Recording")
             button.wantsLayer = true
@@ -240,6 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // mic.badge.xmark available macOS 14+. systemOrange is a semantic color.
             currentIconSymbolName = "mic.badge.xmark"
             currentTintColor = .systemOrange
+            currentBaseImage = nil
             button.image = NSImage(systemSymbolName: currentIconSymbolName,
                                    accessibilityDescription: "Hands-Free Recording")
             button.image?.isTemplate = false
@@ -249,6 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .processing:
             currentIconSymbolName = "waveform"
             currentTintColor = nil
+            currentBaseImage = nil
             button.image = NSImage(systemSymbolName: currentIconSymbolName,
                                    accessibilityDescription: "Transcribing")
             button.image?.isTemplate = true
@@ -258,6 +280,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .error:
             currentIconSymbolName = "exclamationmark.triangle"
             currentTintColor = .systemOrange
+            currentBaseImage = nil
             button.image = NSImage(systemSymbolName: currentIconSymbolName,
                                    accessibilityDescription: "WhisKey Error")
             button.image?.isTemplate = true
@@ -287,15 +310,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .unavailable: nil
         }
 
+        // Resolve the base image: prefer custom PNG asset, fall back to SF Symbol.
+        let resolvedBase: NSImage? = currentBaseImage
+            ?? NSImage(systemSymbolName: currentIconSymbolName, accessibilityDescription: nil)
+
         if let dotColor {
-            // Composite: SF Symbol + dot in bottom-right quadrant.
+            // Composite: base image + dot in bottom-right quadrant.
             // isTemplate = false so AppKit does not re-tint the composite; the dot
             // must render in its semantic color, not the system accent.
             let size = NSSize(width: 18, height: 18)
             let composite = NSImage(size: size, flipped: false) { bounds in
-                NSImage(systemSymbolName: self.currentIconSymbolName,
-                        accessibilityDescription: nil)?
-                    .draw(in: bounds)
+                resolvedBase?.draw(in: bounds)
                 let dotRect = NSRect(x: bounds.maxX - 6, y: 0, width: 6, height: 6)
                 dotColor.setFill()
                 NSBezierPath(ovalIn: dotRect).fill()
@@ -306,9 +331,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Clear tint so the composited dot colour is not overridden by AppKit tinting.
             button.contentTintColor = nil
         } else {
-            // No dot — restore the plain template image with its current tint.
-            button.image = NSImage(systemSymbolName: currentIconSymbolName,
-                                   accessibilityDescription: "WhisKey")
+            // No dot — restore the plain base image with its current tint.
+            button.image = resolvedBase
             button.image?.isTemplate = (currentTintColor == nil)
             button.contentTintColor = currentTintColor
         }
@@ -737,6 +761,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard enabled else { return }
             await self.pipeline.warmUpLLM()
             logger.info("LLM warmup complete.")
+        }
+
+        // Eagerly warm the Whisper model so the first dictation does not block on
+        // lazy context init. Unconditional (unlike LLM warmup) — Whisper is the
+        // core ASR path and always needed.
+        Task.detached(priority: .background) { [weak self] in
+            guard let self else { return }
+            await self.pipeline.warmUpWhisper()
+            logger.info("Whisper warmup complete.")
         }
 
         let started = hotkey.start()
