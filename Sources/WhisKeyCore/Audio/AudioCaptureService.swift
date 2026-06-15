@@ -32,6 +32,8 @@ public final class AudioCaptureService: @unchecked Sendable {
     private static let whisperSampleRate: Double = 16_000
     private static let tapBufferSize: AVAudioFrameCount = 4096
 
+    public static let trailingSilencePadSeconds: Double = 0.7
+
     // MARK: - State
 
     private let engine = AVAudioEngine()
@@ -182,16 +184,7 @@ public final class AudioCaptureService: @unchecked Sendable {
         os_unfair_lock_unlock(&bufferLock)
     }
 
-    /// Stop capturing and return the accumulated PCM samples.
-    ///
-    /// Drain: sleeps 80 ms before removing the tap so that any in-flight
-    /// AVAudioEngine tap callbacks (~80 ms of audio in the ring buffer) can
-    /// complete and flush into `pcmBuffer`, preventing trailing-word truncation.
-    ///
-    /// Silence pad: appends 150 ms (2 400 samples @ 16 kHz) of zeros after the
-    /// real audio. Whisper needs tail context to correctly decode the last word.
-    ///
-    /// - Returns: Float32 array at 16 kHz, mono; may be empty if not capturing.
+    /// Stop capturing and return accumulated PCM samples (Float32, 16 kHz, mono).
     public func stopCapture() -> [Float] {
         guard isCapturing else { return [] }
 
@@ -210,22 +203,30 @@ public final class AudioCaptureService: @unchecked Sendable {
         pcmBuffer = []
         os_unfair_lock_unlock(&bufferLock)
 
-        // Append 150 ms silence pad for Whisper tail context.
-        let silencePad = [Float](repeating: 0.0, count: Int(0.150 * Self.whisperSampleRate))
-        return result + silencePad
+        return result
+    }
+
+    /// Append `trailingSilencePadSeconds` of low-amplitude dither (16 kHz mono)
+    /// to the end of `samples`, giving Whisper enough tail context to finalize
+    /// the last token. Must be the final transformation before inference.
+    /// Dither (not pure zeros) — pure-zero silence trips Whisper's entropy gate.
+    public static func appendTrailingSilencePad(to samples: [Float]) -> [Float] {
+        let padCount = Int(trailingSilencePadSeconds * whisperSampleRate)
+        var pad = [Float](repeating: 0.0, count: padCount)
+        for idx in pad.indices { pad[idx] = Float.random(in: -1e-4...1e-4) }
+        return samples + pad
     }
 
     /// Testable variant of `stopCapture()` that bypasses AVAudioEngine.
     ///
-    /// Injects `injectedSamples` as if they were captured PCM, then applies the
-    /// same drain delay and silence pad as the production `stopCapture()`.
+    /// Injects `injectedSamples` as if they were captured PCM and applies the
+    /// same drain delay as production `stopCapture()`. The trailing silence pad
+    /// is applied downstream by `TranscriptionPipeline`, mirroring production.
     /// Only available in DEBUG / test builds via `@testable import`.
     internal func stopCaptureForTesting(injectedSamples: [Float]) -> [Float] {
         // Mimic the drain sleep.
         Thread.sleep(forTimeInterval: 0.080)
-        // Append silence pad.
-        let silencePad = [Float](repeating: 0.0, count: Int(0.150 * Self.whisperSampleRate))
-        return injectedSamples + silencePad
+        return injectedSamples
     }
 
     // MARK: - Private — Device Change Handling

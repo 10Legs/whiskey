@@ -56,6 +56,18 @@ whisper_bridge_result whisper_bridge_transcribe(
     wparams.translate      = false;
     wparams.n_threads      = (n_threads > 0) ? n_threads : 4;
 
+    // Tail-word retention tuning (Bug 1):
+    //   single_segment    -- forces one segment; prevents whisper from dropping a
+    //                        short final segment (the highest-leverage fix).
+    //   no_context        -- don't carry decoder context across (single shot).
+    //   suppress_blank    -- allow blank tokens so the final token isn't gated out.
+    //   entropy_thold     -- loosened so the trailing dithered-silence pad doesn't
+    //                        trip the entropy/no-speech gate and truncate the tail.
+    wparams.no_context        = true;
+    wparams.single_segment    = true;
+    wparams.suppress_blank    = false;
+    wparams.entropy_thold     = 2.8f;
+
     // Initial prompt: biases the beam search toward specific vocabulary terms.
     // Passed as-is to whisper_full_params.initial_prompt (whisper.cpp stores a
     // char* pointer -- the caller owns the lifetime; safe here because wparams is

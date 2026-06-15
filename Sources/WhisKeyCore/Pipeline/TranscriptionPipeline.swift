@@ -347,6 +347,12 @@ public actor TranscriptionPipeline {
         await llmProvider.warmUp()
     }
 
+    /// Preload the Whisper model in the background so the first dictation does
+    /// not block on lazy context initialization. Mirrors `warmUpLLM()`.
+    public func warmUpWhisper() async {
+        await whisper.warmUpWhisper()
+    }
+
     /// Begin audio capture. Call when the hotkey is pressed.
     ///
     /// On failure, `onError` is invoked on the main thread with a typed
@@ -537,7 +543,11 @@ public actor TranscriptionPipeline {
     /// Returns the trimmed buffer, the original buffer (trim disabled), or `nil`
     /// when the trimmed result is below the minimum speech threshold.
     private func applySilenceTrim(_ rawSamples: [Float], enabled: Bool) -> [Float]? {
-        guard enabled else { return rawSamples }
+        guard enabled else {
+            // No trim: still append the trailing silence pad as the final step
+            // so Whisper has tail context for the last token.
+            return AudioCaptureService.appendTrailingSilencePad(to: rawSamples)
+        }
         let trimmed = SilenceTrimmer.trim(rawSamples)
         if trimmed.isEmpty {
             FileLogger.shared.log(.warn, "SilenceTrimmer: buffer contained < 200 ms of speech -- skipping.")
@@ -545,7 +555,9 @@ public actor TranscriptionPipeline {
             return nil
         }
         FileLogger.shared.log(.info, "SilenceTrimmer: \(rawSamples.count) \u{2192} \(trimmed.count) samples.")
-        return trimmed
+        // Append the trailing silence pad AFTER trimming so the trimmer cannot
+        // discard it — this guarantees Whisper always sees the tail context.
+        return AudioCaptureService.appendTrailingSilencePad(to: trimmed)
     }
 
     /// Runs `SnippetExpander` against `text` if a store is wired in.
