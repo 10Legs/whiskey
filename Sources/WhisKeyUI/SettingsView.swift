@@ -59,19 +59,23 @@ public struct SettingsView: View {
                 .tabItem { Label("Customization", systemImage: "slider.horizontal.3") }
                 .tag(4)
 
+            AppProfilesSettingsView(settings: settings)
+                .tabItem { Label("Profiles", systemImage: "person.crop.rectangle.stack") }
+                .tag(5)
+
             if let monitor = networkMonitor {
                 PrivacySettingsView(monitor: monitor, hasPulsedRed: $hasPulsedRed)
                     .tabItem { Label("Privacy", systemImage: "lock.shield") }
-                    .tag(5)
+                    .tag(6)
             } else {
                 PrivacyTab()
                     .tabItem { Label("Privacy", systemImage: "lock.shield") }
-                    .tag(5)
+                    .tag(6)
             }
 
             AboutTab()
                 .tabItem { Label("About", systemImage: "info.circle") }
-                .tag(6)
+                .tag(7)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selectedTab)
         .frame(width: 540, height: 560)

@@ -450,6 +450,8 @@ public actor TranscriptionPipeline {
         let profile = await MainActor.run { capturedContextService?.activeProfile }
         let effectiveLangHint = profile?.languageHint ?? languageHint
         let effectiveCleanup = profile?.cleanupProfile ?? cleanupProfile
+        // ADR-009: per-app injection method; defaults to .auto (unchanged waterfall).
+        let effectiveMethod: InjectionMethod = profile?.injectionMethod ?? .auto
 
         // Feature 1.2: energy-based silence trim (pre-Whisper).
         let trimEnabled = await MainActor.run { settings.silenceTrimEnabled }
@@ -495,7 +497,7 @@ public actor TranscriptionPipeline {
             return result
         }
 
-        await dispatchOutput(text: textToInject, capturedElement: capturedAXElement)
+        await dispatchOutput(text: textToInject, capturedElement: capturedAXElement, method: effectiveMethod)
 
         // P1: Clear the live-preview caption strip after the final transcript is dispatched.
         onPreviewClear?()
@@ -646,15 +648,23 @@ public actor TranscriptionPipeline {
         }
     }
 
-    private func dispatchOutput(text: String, capturedElement: AXUIElement?) async {
+    /// Dispatch `text` to the active output mode.
+    ///
+    /// - Parameters:
+    ///   - method: Injection strategy resolved from the active `AppProfile`.
+    ///     Defaults to `.auto` (unchanged legacy waterfall) so secondary call sites
+    ///     (`reinjectText`, voice-command newlines) need not be updated (ADR-009 §3).
+    private func dispatchOutput(text: String,
+                                capturedElement: AXUIElement?,
+                                method: InjectionMethod = .auto) async {
         let mode = await MainActor.run { settings.outputMode }
         switch mode {
         case .activeWindow:
-            await injector.inject(text, capturedElement: capturedElement)
+            await injector.inject(text, capturedElement: capturedElement, method: method)
         case .clipboard:
             await clipboardOnly(text)
         case .both:
-            await injector.inject(text, capturedElement: capturedElement)
+            await injector.inject(text, capturedElement: capturedElement, method: method)
             await clipboardOnly(text)
         }
     }
