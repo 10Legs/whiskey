@@ -23,6 +23,35 @@ public final class SettingsManager: @unchecked Sendable {
     public init(db: AppDatabase = .shared) {
         self.db = db
         loadCache()
+        seedDefaultInjectionProfiles()
+    }
+
+    // MARK: - ADR-009 migration: seed default injection-method profiles
+
+    /// Seeds per-app profiles for known "lying AX" apps on first launch.
+    ///
+    /// Idempotent: skips any bundle ID that already has an existing profile so
+    /// user customisations are never overwritten. Called once per process from
+    /// `init` after the settings cache is loaded. See ADR-009 §4.
+    private func seedDefaultInjectionProfiles() {
+        let seeds: [AppProfile] = [
+            .seededMessages(),
+            .seededTelegramDesktop(),
+            .seededTelegramAlt()
+        ]
+        var current = appProfiles
+        var changed = false
+        for seed in seeds {
+            guard !current.contains(where: { $0.bundleIdentifier == seed.bundleIdentifier }) else {
+                continue
+            }
+            current.append(seed)
+            changed = true
+        }
+        if changed {
+            appProfiles = current
+            logger.info("SettingsManager: seeded \(seeds.count) default injection-method profile(s) (ADR-009).")
+        }
     }
 
     private func loadCache() {

@@ -32,6 +32,10 @@ public struct AppProfile: Codable, Identifiable, Sendable {
     /// When `false` the profile is stored but not applied. Allows toggling without deletion.
     public var enabled: Bool
 
+    /// Per-app text-injection strategy. `.auto` runs the full waterfall (default).
+    /// See ADR-009: Per-App Injection-Method Override.
+    public var injectionMethod: InjectionMethod
+
     // MARK: - Init
 
     public init(
@@ -41,7 +45,8 @@ public struct AppProfile: Codable, Identifiable, Sendable {
         modelID: String? = nil,
         languageHint: String? = nil,
         cleanupProfile: CleanupProfile = CleanupProfile(),
-        enabled: Bool = true
+        enabled: Bool = true,
+        injectionMethod: InjectionMethod = .auto
     ) {
         self.id = id
         self.bundleIdentifier = bundleIdentifier
@@ -50,6 +55,7 @@ public struct AppProfile: Codable, Identifiable, Sendable {
         self.languageHint = languageHint
         self.cleanupProfile = cleanupProfile
         self.enabled = enabled
+        self.injectionMethod = injectionMethod
     }
 
     // MARK: - Factory
@@ -62,6 +68,75 @@ public struct AppProfile: Codable, Identifiable, Sendable {
             cleanupProfile: CleanupProfile(),
             enabled: true
         )
+    }
+
+    // MARK: - Seeded default profiles (ADR-009)
+
+    /// Seeded profile for Messages — AX compose field lies; Paste (Cmd-V) is reliable.
+    public static func seededMessages() -> AppProfile {
+        AppProfile(
+            bundleIdentifier: "com.apple.MobileSMS",
+            displayName: "Messages",
+            injectionMethod: .pasteboard
+        )
+    }
+
+    /// Seeded profile for Telegram Desktop — AX silently drops writes; Paste is reliable.
+    public static func seededTelegramDesktop() -> AppProfile {
+        AppProfile(
+            bundleIdentifier: "com.tdesktop.Telegram",
+            displayName: "Telegram",
+            injectionMethod: .pasteboard
+        )
+    }
+
+    /// Seeded profile for the alternative Telegram bundle (ru.keepcoder.Telegram).
+    public static func seededTelegramAlt() -> AppProfile {
+        AppProfile(
+            bundleIdentifier: "ru.keepcoder.Telegram",
+            displayName: "Telegram",
+            injectionMethod: .pasteboard
+        )
+    }
+}
+
+// MARK: - Codable conformance for AppProfile (custom decoder for backward-compat)
+//
+// Synthesized `Codable` does not apply Swift default-argument values during decoding:
+// a missing key throws `keyNotFound` and would crash every existing persisted profile.
+// Solution: custom init(from:) using decodeIfPresent with fallbacks. Any uncertainty
+// (key absent OR unrecognized raw value) resolves to `.auto`. See ADR-009 §2.
+
+extension AppProfile {
+    enum CodingKeys: String, CodingKey {
+        case id, bundleIdentifier, displayName, modelID,
+             languageHint, cleanupProfile, enabled, injectionMethod
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id               = try c.decode(UUID.self,          forKey: .id)
+        self.bundleIdentifier = try c.decode(String.self,        forKey: .bundleIdentifier)
+        self.displayName      = try c.decode(String.self,        forKey: .displayName)
+        self.modelID          = try c.decodeIfPresent(String.self, forKey: .modelID)
+        self.languageHint     = try c.decodeIfPresent(String.self, forKey: .languageHint)
+        self.cleanupProfile   = try c.decode(CleanupProfile.self, forKey: .cleanupProfile)
+        self.enabled          = try c.decode(Bool.self,          forKey: .enabled)
+        // Use try? so an unrecognized future raw value also resolves to .auto.
+        self.injectionMethod  = (try? c.decodeIfPresent(InjectionMethod.self,
+                                                         forKey: .injectionMethod)) ?? .auto
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id,               forKey: .id)
+        try c.encode(bundleIdentifier, forKey: .bundleIdentifier)
+        try c.encode(displayName,      forKey: .displayName)
+        try c.encodeIfPresent(modelID,       forKey: .modelID)
+        try c.encodeIfPresent(languageHint,  forKey: .languageHint)
+        try c.encode(cleanupProfile,   forKey: .cleanupProfile)
+        try c.encode(enabled,          forKey: .enabled)
+        try c.encode(injectionMethod,  forKey: .injectionMethod)
     }
 }
 

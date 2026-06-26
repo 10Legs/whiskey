@@ -11,8 +11,13 @@ private let candidateRoles: Set<String> = [
     kAXComboBoxRole as String
 ]
 
-/// Apps that report AXTextArea but silently ignore kAXSelectedTextAttribute write.
-/// These fall through to PasteboardInjector (Cmd+V).
+/// Structural class of targets where AX text-write is architecturally unsupported
+/// (terminals, browsers, Electron apps). These fall through to PasteboardInjector.
+///
+/// NOTE: "Lying AX" per-app exceptions (Messages, Telegram) were previously patched
+/// here but are now handled by seeded AppProfile records with injectionMethod .pasteboard.
+/// See ADR-009 §4 and SettingsManager.seedDefaultInjectionProfiles().
+/// Do NOT add per-app workarounds here — use AppProfile instead.
 private let axBlocklist: Set<String> = [
     "com.googlecode.iterm2",
     "com.apple.Terminal",
@@ -22,8 +27,7 @@ private let axBlocklist: Set<String> = [
     "org.mozilla.firefox",
     "com.microsoft.edgemac",
     "com.brave.Browser",
-    "com.todesktop.230313mzl4w4u92", // Cursor
-    "com.apple.MobileSMS"            // Messages — compose field accepts AX role but silently drops writes
+    "com.todesktop.230313mzl4w4u92" // Cursor (Electron)
 ]
 
 /// Injects text via the Accessibility API (AXUIElement).
