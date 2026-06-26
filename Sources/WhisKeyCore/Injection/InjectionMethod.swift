@@ -5,10 +5,10 @@
 ///
 /// See ADR-009: Per-App Injection-Method Override.
 public enum InjectionMethod: String, Codable, CaseIterable, Sendable {
-    case auto       = "auto"
-    case ax         = "ax"
-    case pasteboard = "pasteboard"
-    case cgEvent    = "cgEvent"
+    case auto
+    case ax
+    case pasteboard
+    case cgEvent
 }
 
 // MARK: - Display helpers

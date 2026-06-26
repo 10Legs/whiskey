@@ -233,22 +233,22 @@ final class InjectionMethodTests: XCTestCase {
     // MARK: - Seeded profile factories
 
     func testSeededMessagesProfile() {
-        let p = AppProfile.seededMessages()
-        XCTAssertEqual(p.bundleIdentifier, "com.apple.MobileSMS")
-        XCTAssertEqual(p.injectionMethod, .pasteboard)
-        XCTAssertTrue(p.enabled)
+        let profile = AppProfile.seededMessages()
+        XCTAssertEqual(profile.bundleIdentifier, "com.apple.MobileSMS")
+        XCTAssertEqual(profile.injectionMethod, .pasteboard)
+        XCTAssertTrue(profile.enabled)
     }
 
     func testSeededTelegramDesktopProfile() {
-        let p = AppProfile.seededTelegramDesktop()
-        XCTAssertEqual(p.bundleIdentifier, "com.tdesktop.Telegram")
-        XCTAssertEqual(p.injectionMethod, .pasteboard)
+        let profile = AppProfile.seededTelegramDesktop()
+        XCTAssertEqual(profile.bundleIdentifier, "com.tdesktop.Telegram")
+        XCTAssertEqual(profile.injectionMethod, .pasteboard)
     }
 
     func testSeededTelegramAltProfile() {
-        let p = AppProfile.seededTelegramAlt()
-        XCTAssertEqual(p.bundleIdentifier, "ru.keepcoder.Telegram")
-        XCTAssertEqual(p.injectionMethod, .pasteboard)
+        let profile = AppProfile.seededTelegramAlt()
+        XCTAssertEqual(profile.bundleIdentifier, "ru.keepcoder.Telegram")
+        XCTAssertEqual(profile.injectionMethod, .pasteboard)
     }
 }
 

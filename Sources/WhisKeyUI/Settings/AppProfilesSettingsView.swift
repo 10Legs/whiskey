@@ -114,7 +114,7 @@ public struct AppProfilesSettingsView: View {
                     .padding(.vertical, 4)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(profiles.enumerated()), id: \.element.id) { index, profile in
+                    ForEach(Array(profiles.enumerated()), id: \.element.id) { _, profile in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(profile.displayName)

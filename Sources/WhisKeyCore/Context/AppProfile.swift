@@ -114,29 +114,29 @@ extension AppProfile {
     }
 
     public init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.id               = try c.decode(UUID.self,          forKey: .id)
-        self.bundleIdentifier = try c.decode(String.self,        forKey: .bundleIdentifier)
-        self.displayName      = try c.decode(String.self,        forKey: .displayName)
-        self.modelID          = try c.decodeIfPresent(String.self, forKey: .modelID)
-        self.languageHint     = try c.decodeIfPresent(String.self, forKey: .languageHint)
-        self.cleanupProfile   = try c.decode(CleanupProfile.self, forKey: .cleanupProfile)
-        self.enabled          = try c.decode(Bool.self,          forKey: .enabled)
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id               = try container.decode(UUID.self, forKey: .id)
+        self.bundleIdentifier = try container.decode(String.self, forKey: .bundleIdentifier)
+        self.displayName      = try container.decode(String.self, forKey: .displayName)
+        self.modelID          = try container.decodeIfPresent(String.self, forKey: .modelID)
+        self.languageHint     = try container.decodeIfPresent(String.self, forKey: .languageHint)
+        self.cleanupProfile   = try container.decode(CleanupProfile.self, forKey: .cleanupProfile)
+        self.enabled          = try container.decode(Bool.self, forKey: .enabled)
         // Use try? so an unrecognized future raw value also resolves to .auto.
-        self.injectionMethod  = (try? c.decodeIfPresent(InjectionMethod.self,
-                                                         forKey: .injectionMethod)) ?? .auto
+        self.injectionMethod  = (try? container.decodeIfPresent(InjectionMethod.self,
+                                                                forKey: .injectionMethod)) ?? .auto
     }
 
     public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(id,               forKey: .id)
-        try c.encode(bundleIdentifier, forKey: .bundleIdentifier)
-        try c.encode(displayName,      forKey: .displayName)
-        try c.encodeIfPresent(modelID,       forKey: .modelID)
-        try c.encodeIfPresent(languageHint,  forKey: .languageHint)
-        try c.encode(cleanupProfile,   forKey: .cleanupProfile)
-        try c.encode(enabled,          forKey: .enabled)
-        try c.encode(injectionMethod,  forKey: .injectionMethod)
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(bundleIdentifier, forKey: .bundleIdentifier)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encodeIfPresent(modelID, forKey: .modelID)
+        try container.encodeIfPresent(languageHint, forKey: .languageHint)
+        try container.encode(cleanupProfile, forKey: .cleanupProfile)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(injectionMethod, forKey: .injectionMethod)
     }
 }
 
